@@ -1,0 +1,11 @@
+repos/
+pipeline/leads.jsonl.tmp
+.env
+.env.*
+!.env.example
+.DS_Store
+
+# Lead data holds people's business contact details. This repo is public, so it stays local.
+pipeline/leads.jsonl
+pipeline/leads.csv
+pipeline/inbox/
