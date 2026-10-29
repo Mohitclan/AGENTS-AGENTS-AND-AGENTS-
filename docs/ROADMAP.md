@@ -16,7 +16,7 @@ What's done, what's decided, what's blocked, and how each sprint went. The full 
 ## Log
 
 - **29 Oct 2026.** Discovery done. Decided to start with selling (research → leads → outreach → sales and demos) using Claude Code agents, with a person approving every external action. Built A1: 11 agents, knowledge base, lead pipeline, review rubrics, guard hook and four slash commands. Tested the lead script (rejects bad batches, merges duplicates, catches tampered scores), the knowledge script, the guard hook and the link checker. Wrote the presentation deck, ARCHITECTURE.md and PLAN.md.
-- **29 Oct 2026.** Pushed to GitHub: `Mohitclan/AGENTS-AGENTS-AND-AGENTS-` (public). Lead data files are git-ignored so contact details stay local.
+- **29 Oct 2026.** Pushed to GitHub: `Mohitclan/AGENTS-AGENTS-AND-AGENTS-`, then made the repo private. Lead data (`pipeline/leads.jsonl`, `pipeline/leads.csv`, `pipeline/inbox/`) is committed so the team shares one pipeline. Keep the repo private.
 
 ## Decisions
 
