@@ -1,6 +1,8 @@
 repos/
 pipeline/leads.jsonl.tmp
+pipeline/leads.lock
 .env
 .env.*
 !.env.example
 .DS_Store
+ops/runs/

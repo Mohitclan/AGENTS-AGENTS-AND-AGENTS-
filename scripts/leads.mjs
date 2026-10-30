@@ -6,20 +6,39 @@
 //   node scripts/leads.mjs check                                validate the whole pipeline
 //   node scripts/leads.mjs list [--product p] [--status s] [--tier A]
 //   node scripts/leads.mjs show <id>
-//   node scripts/leads.mjs set-status <id[,id...]> <status> [note]
+//   node scripts/leads.mjs set-status <id[,id...]> <status> [note] [--force]
 //   node scripts/leads.mjs export-csv                           rewrite pipeline/leads.csv
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import {
+  closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync, writeSync,
+} from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
 import { ROOT, fail, printTable, today } from './_shared.mjs';
 
 const PIPELINE = join(ROOT, 'pipeline');
 const DB = join(PIPELINE, 'leads.jsonl');
 const CSV = join(PIPELINE, 'leads.csv');
+const LOCK = join(PIPELINE, 'leads.lock');
 const PRODUCTS = join(ROOT, 'knowledge', 'products');
 
 const STATUSES = ['new', 'qualified', 'disqualified', 'drafted', 'approved', 'contacted', 'replied', 'meeting', 'trial', 'won', 'lost'];
 const NOTE_REQUIRED = new Set(['disqualified', 'approved', 'contacted', 'won', 'lost']);
+// Which statuses may follow each one (pipeline/lead-schema.md). --force skips this to correct a mistake.
+const NEXT = {
+  new: ['qualified', 'disqualified'],
+  qualified: ['drafted', 'disqualified'],
+  disqualified: ['new'],
+  drafted: ['approved', 'qualified', 'disqualified'],
+  approved: ['contacted', 'drafted'],
+  contacted: ['replied', 'lost'],
+  replied: ['meeting', 'trial', 'won', 'lost'],
+  meeting: ['trial', 'won', 'lost'],
+  trial: ['won', 'lost'],
+  won: [],
+  lost: ['qualified'],
+};
+const LOCK_WAIT_MS = 15_000;
+const LOCK_STALE_MS = 120_000;
 const CHANNELS = ['email', 'linkedin', 'form', 'phone', 'other'];
 const SCORE_PARTS = { icp_fit: 40, need_evidence: 30, timing: 20, reachability: 10 };
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -112,6 +131,48 @@ function mergeEvidence(existing, incoming) {
   return merged;
 }
 
+// Agents can run this script in parallel, so every change holds pipeline/leads.lock from load to
+// save; otherwise the last writer wins and the other changes are lost. Released when the process exits.
+function lock() {
+  mkdirSync(PIPELINE, { recursive: true });
+  const start = Date.now();
+  for (;;) {
+    try {
+      const fd = openSync(LOCK, 'wx');
+      writeSync(fd, `${process.pid}\n`);
+      closeSync(fd);
+      process.on('exit', () => {
+        try {
+          unlinkSync(LOCK);
+        } catch {
+          // already gone
+        }
+      });
+      return;
+    } catch (err) {
+      if (err.code !== 'EEXIST') throw err;
+    }
+    let age;
+    try {
+      age = Date.now() - statSync(LOCK).mtimeMs;
+    } catch {
+      continue; // released between our two calls
+    }
+    if (age > LOCK_STALE_MS) {
+      try {
+        unlinkSync(LOCK);
+      } catch {
+        // another run removed it first
+      }
+      continue;
+    }
+    if (Date.now() - start > LOCK_WAIT_MS) {
+      fail('Another run of leads.mjs is changing the pipeline. Try again; if none is running, delete pipeline/leads.lock.');
+    }
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+  }
+}
+
 function load() {
   if (!existsSync(DB)) return [];
   return readFileSync(DB, 'utf8')
@@ -138,7 +199,9 @@ function writeCsv(leads) {
   const cols = ['id', 'product', 'tier', 'score', 'status', 'company', 'website', 'segment', 'industry', 'country', 'size',
     'fit_reason', 'next_action', 'contact_channel', 'contact_value', 'contact_source', 'evidence_urls', 'researched_at', 'updated_at'];
   const cell = (v) => {
-    const s = String(v ?? '');
+    let s = String(v ?? '');
+    // Excel and Sheets run a cell starting with = + - @ as a formula, and these values come from web pages.
+    if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const rows = leads.map((l) => ({
@@ -194,6 +257,7 @@ function importBatch(file) {
     fail(`Nothing imported. Fix these ${problems.length} problem(s) and run the import again:\n- ${problems.join('\n- ')}`);
   }
 
+  lock();
   const leads = load();
   const byId = new Map(leads.map((l) => [l.id, l]));
   const now = today();
@@ -322,21 +386,34 @@ function show(id) {
   console.log(JSON.stringify(lead, null, 2));
 }
 
-function setStatus(idList, status, note) {
-  if (!idList || !status) fail('Usage: node scripts/leads.mjs set-status <id[,id...]> <status> [note]');
+function setStatus(idList, status, note, force) {
+  if (!idList || !status) fail('Usage: node scripts/leads.mjs set-status <id[,id...]> <status> [note] [--force]');
   if (!STATUSES.includes(status)) fail(`status must be one of: ${STATUSES.join(', ')}`);
   if (NOTE_REQUIRED.has(status) && !note?.trim()) fail(`A note is required when setting a lead to "${status}".`);
 
+  lock();
   const leads = load();
   const ids = idList.split(',').map((s) => s.trim()).filter(Boolean);
   const missing = ids.filter((id) => !leads.some((l) => l.id === id));
   if (missing.length) fail(`Nothing changed. Unknown lead id(s): ${missing.join(', ')}`);
 
+  const chosen = leads.filter((l) => ids.includes(l.id));
+  // Setting the same status again only adds a note to the history.
+  const blocked = chosen.filter((l) => !force && l.status !== status && !NEXT[l.status]?.includes(status));
+  if (blocked.length) {
+    fail(
+      `Nothing changed. These lead(s) can't move to "${status}":\n` +
+        blocked.map((l) => `- ${l.id} is "${l.status}"; next can be: ${NEXT[l.status]?.join(', ') || 'nothing'}`).join('\n') +
+        '\nTo correct a mistake, add --force.',
+    );
+  }
+
   const now = today();
-  for (const lead of leads.filter((l) => ids.includes(l.id))) {
-    lead.history.push({ at: now, event: 'status', from: lead.status, status, note: note?.trim() || '' });
+  for (const lead of chosen) {
+    lead.history.push({ at: now, event: 'status', from: lead.status, status, note: note?.trim() || '', ...(force ? { forced: true } : {}) });
     lead.status = status;
     if (status === 'disqualified') lead.disqualify_reason = note.trim();
+    else delete lead.disqualify_reason;
     lead.updated_at = now;
   }
   save(leads);
@@ -359,13 +436,16 @@ switch (command) {
     if (!args[0]) fail('Usage: node scripts/leads.mjs show <id>');
     show(args[0]);
     break;
-  case 'set-status':
-    setStatus(args[0], args[1], args.slice(2).join(' '));
+  case 'set-status': {
+    const rest = args.filter((a) => a !== '--force');
+    setStatus(rest[0], rest[1], rest.slice(2).join(' '), rest.length < args.length);
     break;
+  }
   case 'export-csv':
+    lock();
     writeCsv(load());
     console.log(`Wrote ${toRel(CSV)}`);
     break;
   default:
-    fail('Usage: node scripts/leads.mjs import <file> | check | list [--product p] [--status s] [--tier A] | show <id> | set-status <ids> <status> [note] | export-csv');
+    fail('Usage: node scripts/leads.mjs import <file> | check | list [--product p] [--status s] [--tier A] | show <id> | set-status <ids> <status> [note] [--force] | export-csv');
 }

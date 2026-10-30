@@ -12,11 +12,18 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { ROOT, fail } from './_shared.mjs';
 
-const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const CHROME_PATHS = {
+  darwin: ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'],
+  win32: [process.env.PROGRAMFILES, process.env['PROGRAMFILES(X86)'], process.env.LOCALAPPDATA]
+    .filter(Boolean)
+    .map((dir) => join(dir, 'Google', 'Chrome', 'Application', 'chrome.exe')),
+  linux: ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser'],
+};
+const CHROME = process.env.CHROME || (CHROME_PATHS[process.platform] || []).find((p) => existsSync(p));
 const SOURCES = ['docs/ARCHITECTURE.md', 'docs/PLAN.md'];
 const OUT = join(ROOT, 'docs', 'AI-Sales-Growth-Team.pdf');
 
-if (!existsSync(CHROME)) fail(`Chrome not found at ${CHROME}. Set CHROME to its path.`);
+if (!CHROME || !existsSync(CHROME)) fail(`Chrome not found${CHROME ? ` at ${CHROME}` : ''}. Set CHROME to its path.`);
 
 // Relative links between the docs don't work inside a PDF, so show them as plain text.
 const docs = SOURCES.map((f) => readFileSync(join(ROOT, f), 'utf8'));

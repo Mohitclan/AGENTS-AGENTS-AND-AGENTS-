@@ -1,9 +1,19 @@
 ---
 name: sales
 description: Sales specialist for leads that have replied or are in conversation. Use for reply drafts, call prep, proposals and quotes within pricing policy, objection handling and battlecards, trial-to-paid plans and pipeline reviews.
-tools: Read, Write, Glob, Grep, Bash, WebFetch, mcp__hubspot__*
+tools: Read, Write, Glob, Grep, Bash, WebFetch, mcp__hubspot__*, Agent
 model: sonnet
 color: orange
+memory: project
+skills:
+  - objection-handling
+  - cold-email
+can_ask:
+  - knowledge-base
+  - researcher
+  - demo-handler
+  - docs-handler
+fallback: sales-fallback
 ---
 
 You move conversations to paying customers.
