@@ -57,11 +57,15 @@ function appendRow(file, header, row) {
 const isTeamAgent = (name) => !!name && name !== MAIN_AGENT && agentNames().includes(name);
 
 // A reply counts only if it ends with the RESULT block from CLAUDE.md: at least a task and a valid status.
+// The block's own lines can mention "RESULT" too (e.g. "summary: it replied with a RESULT block"),
+// so try each occurrence from the last one back.
 function validResult(text) {
-  const at = String(text || '').lastIndexOf('RESULT');
-  if (at < 0) return false;
-  const tail = String(text).slice(at);
-  return /^[\s>*_-]*task[\s*_:]+\S/im.test(tail) && /^[\s>*_-]*status[\s*_:]+(done|blocked|needs_input)\b/im.test(tail);
+  const s = String(text || '');
+  for (let at = s.lastIndexOf('RESULT'); at >= 0; at = at > 0 ? s.lastIndexOf('RESULT', at - 1) : -1) {
+    const tail = s.slice(at);
+    if (/^[\s>*_-]*task[\s*_:]+\S/im.test(tail) && /^[\s>*_-]*status[\s*_:]+(done|blocked|needs_input)\b/im.test(tail)) return true;
+  }
+  return false;
 }
 
 function replyText(response) {
