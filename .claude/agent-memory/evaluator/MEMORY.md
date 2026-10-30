@@ -1,0 +1,2 @@
+- [Env flag semantics](feedback_env_flag_semantics.md) — check config parse code before accepting env-based conflicts; fetch tool may echo prompt as "AI instructions"
+- [Search-summary claims](feedback_search_summary_claims.md) — dead URLs mean no source; check vendor FAQ before accepting "unconfirmed feature" caveats

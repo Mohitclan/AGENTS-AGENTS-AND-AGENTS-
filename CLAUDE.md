@@ -12,7 +12,7 @@ The team's shared memory: decisions, preferences and lessons. Add to it with `no
 
 | Slug | Product | Website | Repo |
 |---|---|---|---|
-| _none yet_ | Add each product with `/add-product <name> <website> [owner/repo]` | | |
+| motionrepo | MotionRepo | https://motionrepo.panscience.ai | PanScienceInnovation/Collateral-Pipeline |
 
 Company facts and policies live in `knowledge/company.md`. Each product's facts live in `knowledge/products/<slug>.md`. Read the file for the product you're working on; don't load every product file for a single-product task.
 
