@@ -109,6 +109,24 @@ The instruction-based rules depend on the agents following them, and Claude Code
 | `/forget <main\|agent> <number or words>` | Removes a memory entry |
 | `/give-skill <agent> <skill> [remove]` | Gives an agent a skill it loads on every run, or takes it away |
 | `/new-skill <name> <what it teaches>` | Writes a new skill with you |
+| `/do <any task>` | **Jarvis:** runs the whole chain on autopilot and gives you the finished result and a report |
+
+## Jarvis: hand over a task, get the result
+
+```bash
+node scripts/jarvis.mjs do "Write a one-page MotionRepo battlecard"   # run one task now
+node scripts/jarvis.mjs add "Run the first MotionRepo lead sprint, 15 leads"  # queue tasks...
+node scripts/jarvis.mjs run                                          # ...and work through them in order
+node scripts/jarvis.mjs list                                         # the queue (also ops/queue.md)
+node scripts/jarvis.mjs usage                                        # how full your Max plan windows are
+```
+
+- **One task, one session.** Each task runs as a headless coordinator session (`claude -p`) on your Max plan login: the whole chain, reviews and revisions, with no questions mid-way.
+- **The result** is a report in `outputs/reports/<id>.md`: the result, files, what needs your approval, questions, assumptions made, lessons recorded and suggested next tasks.
+- **Nothing leaves the folder.** Sends, posts and pushes still wait in `ops/approvals.md`.
+- **Lessons:** after each task, review fixes become lessons in the agents' memory, so the team improves with every task.
+- **Usage guard:** no task starts while a plan window is at or over 85% (`JARVIS_STOP_AT`), and a task the limit cuts off goes back in the queue.
+- **In the app**, `/do <task>` does the same in your open session.
 
 You can also just ask the coordinator in plain language, for example "Audit the landing page and onboarding for <product> and list what's costing us sign-ups."
 
@@ -128,6 +146,7 @@ node scripts/skills.mjs list                  # skills and which agents load the
 node scripts/skills.mjs give <agent> <skill>
 node scripts/fallbacks.mjs check              # fallbacks match their agents
 node scripts/test.mjs                         # tests for the hooks and scripts
+node scripts/jarvis.mjs list                  # the Jarvis queue
 ```
 
 `pipeline/leads.csv` is rewritten after every change, so you can open the pipeline in Excel or Google Sheets.
@@ -146,8 +165,8 @@ memory/MAIN.md            main memory, loaded by every agent
 docs/                     architecture, rollout plan, status log, PDF
 knowledge/                company.md, products/, competitors/, proposals/
 pipeline/                 leads.jsonl, leads.csv, inbox/, lead-schema.md
-outputs/                  research, outreach, sales, marketing, demos, docs, dev, reviews
-ops/                      board.md, approvals.md, messages.md, fallbacks.md, runs/ (not committed)
+outputs/                  research, outreach, sales, marketing, demos, docs, dev, reviews, reports (Jarvis)
+ops/                      board.md, approvals.md, messages.md, fallbacks.md, queue.json/queue.md (Jarvis), runs/ (not committed)
 evaluation/rubrics.md     scoring rules per work type
 scripts/                  leads, knowledge, memory, skills, fallbacks, link checks, hooks, tests, docs PDF
 repos/                    product repo clones (not committed)

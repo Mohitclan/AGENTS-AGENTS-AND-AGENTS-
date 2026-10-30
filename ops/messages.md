@@ -15,3 +15,9 @@ Every time one agent started another. Written by `scripts/team-hooks.mjs`.
 | 2026-10-30 12:24 | coordinator | evaluator | T-20261030-02 | Re-review MotionRepo research rev 1 |
 | 2026-10-30 12:28 | coordinator | knowledge-base | T-20261030-01 | Fill ICP and Competitors in fact sheet |
 | 2026-10-30 12:31 | coordinator | evaluator | T-20261030-01 | Final review of MotionRepo fact sheet |
+| 2026-10-30 12:58 | coordinator | sales | T-20261030-03 | Write MotionRepo sales battlecard |
+| 2026-10-30 12:59 | coordinator | evaluator | T-20261030-03 | Review MotionRepo battlecard |
+| 2026-10-30 13:04 | coordinator | sales | T-20261030-03 | Revise battlecard per review r1 |
+| 2026-10-30 13:07 | coordinator | evaluator | T-20261030-03 | Re-review revised battlecard |
+| 2026-10-30 13:12 | coordinator | sales | T-20261030-03 | Apply final battlecard fixes |
+| 2026-10-30 13:13 | coordinator | evaluator | T-20261030-03 | Final battlecard review |

@@ -6,29 +6,66 @@ Dates are proposals. Names in `[brackets]` are for the team to fill in.
 
 ## Phases at a glance
 
-| Phase | Goal | When (proposed) | Done when |
+| Phase | Goal | Status / when | Done when |
 |---|---|---|---|
-| A1 · Built | The team, knowledge base, lead pipeline, checks and guardrails exist | Done, 29 Oct 2026 | Scripts and hook tested; agents load |
-| A2 · Add products | Confirmed fact sheets for our 5–6 products | Week of 2 Nov | Every fact sheet confirmed |
-| A3 · First sprint | 15 leads and outreach for one product; measure results | Weeks of 9 and 16 Nov | Sprint passes review; results recorded |
-| A4 · All products | A weekly selling rhythm across every product | 16 Nov – 11 Dec | Every product sprinted; 4 weekly reviews |
+| A1 · Built | The team, knowledge base, lead pipeline, checks and guardrails exist | ✅ Done, 29 Oct 2026 | Scripts and hook tested; agents load |
+| A1+ · Memory, skills, fallbacks | Main and per-agent memory, skills, direct agent calls, retries and fallback agents | ✅ Done, 30 Oct 2026 | Tests pass; a live run shows the hooks working |
+| J1 · Jarvis core | Hand over any task with `/do` or `jarvis.mjs`; it runs the whole chain and returns a finished result and report; task queue; plan-usage guard; lessons recorded after each task | ✅ Done, 30 Oct 2026 | A real task runs end to end from one command, with a report and recorded lessons |
+| A2 · Add products | Confirmed fact sheets for our 5–6 products | 🟡 1 of 5–6 (MotionRepo, 30 Oct) | Every fact sheet confirmed |
+| A3 · First sprint | 15 leads and outreach for one product, run through Jarvis; measure results | ⏭ Next | Sprint passes review; results recorded |
+| J2 · Learning organisation | Feed company documents into knowledge and memory; turn work scoring 90+ into skills | After A3 | Org documents ingested; first skill mined from real work |
+| J3 · Skill library | About 15 more skills across the agents | After J2 | Every specialist preloads 3+ skills |
+| J4 · Autopilot | Daily queue run and weekly review as desktop scheduled tasks, on the Max plan | After J3 | A week of scheduled runs with reports and no lost tasks |
+| A4 · All products | A weekly selling rhythm across every product | After J4 | Every product sprinted; 4 weekly reviews |
+| J5 · More departments | Support, hiring, ops, built the same way: agent, skills, fallback, rubric | When wanted | First new department passes a live task |
 | B · Product signals | The team can see sign-ups, errors and payments, read-only | Only if A4 shows we need it | One product's funnel answered with real numbers |
-| C · Always-on system | Scheduled work, a database and a dashboard | Only if needed | Go / no-go decision with costs |
+| C · Always-on system | A database and a dashboard; scheduling itself is now J4 | Only if needed | Go / no-go decision with costs |
 
 ```mermaid
 gantt
   title Proposed schedule
   dateFormat YYYY-MM-DD
   axisFormat %d %b
-  section Phase A
+  section Built
   A1 Built                      :done, a1, 2026-10-29, 1d
-  A2 Add products               :a2, 2026-11-02, 5d
-  A3 First sprint and results   :a3, 2026-11-09, 14d
-  A4 All products               :a4, 2026-11-16, 26d
+  A1+ Memory, skills, fallbacks :done, a1p, 2026-10-30, 1d
+  J1 Jarvis core                :done, j1, 2026-10-30, 1d
+  section Next
+  A2 Add products               :active, a2, 2026-10-30, 8d
+  A3 First sprint and results   :a3, 2026-11-02, 14d
+  J2 Learning organisation      :j2, 2026-11-04, 7d
+  J3 Skill library              :j3, after j2, 7d
+  J4 Autopilot                  :j4, after j3, 7d
+  A4 All products               :a4, after j4, 26d
   section Later
-  B Product signals             :b, 2026-12-14, 14d
+  J5 More departments           :j5, after a4, 14d
+  B Product signals             :b, after a4, 14d
   C Always-on decision          :c, after b, 7d
 ```
+
+## Phase J1 · Jarvis core (done, 30 Oct 2026)
+
+| # | What | Where |
+|---|---|---|
+| 1 | `/do <task>`: the coordinator runs the whole chain on autopilot, with no questions mid-way, and ends with a report | `.claude/commands/do.md`, "Autopilot" in `.claude/agents/coordinator.md` |
+| 2 | `node scripts/jarvis.mjs add / do / run / list / cancel / usage`: queue tasks and run them one by one as headless coordinator sessions on the Max plan | `scripts/jarvis.mjs`, `ops/queue.md` |
+| 3 | Usage guard: no task starts while a plan window is at or over 85% (`JARVIS_STOP_AT`); a task the limit cuts off goes back in the queue | `ops/runs/plan-limits.json` |
+| 4 | After-task review: review fixes and fallback switches become lessons in the agent's memory | Autopilot step 5 |
+| 5 | Reports with the result, files, approvals, questions, assumptions, lessons and next tasks | `outputs/reports/<id>.md` |
+| 6 | Tests (fake Claude) and a live run: a battlecard passed at 95/100 after two revisions, and 4 lessons were recorded | `scripts/tests/jarvis.test.mjs`, `outputs/reports/J-20261030-01.md` |
+
+**Still to do by a person:** to let autopilot developer tasks make local commits and run tests, add the local git and test commands to the allow list in `.claude/settings.json` (see ROADMAP blockers).
+
+## Phase J2 · Learning organisation
+
+| # | Task |
+|---|---|
+| 1 | A `knowledge/org/` inbox: drop brand guides, past proposals, sales emails and SOPs; knowledge-base turns them into proposed facts and memory lessons |
+| 2 | `/ingest <folder or URL>` command, and optional GitHub and Notion sources |
+| 3 | Skill mining: work scoring 90+ is turned into a candidate skill for a person to approve |
+| 4 | `/weekly-review` prunes stale memory and reports which lessons stopped repeat mistakes |
+
+**Done when:** at least five organisation documents are ingested and confirmed, and one skill has been mined from real work.
 
 ## Phase A2 · Add the products (week of 2 Nov)
 

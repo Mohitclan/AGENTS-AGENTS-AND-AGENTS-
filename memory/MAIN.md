@@ -11,3 +11,5 @@ Add and remove entries with `/teach` and `/forget`, or with `node scripts/memory
 ## Preferences
 
 ## Lessons
+
+- 2026-10-30 · Joining two confirmed facts can create a new unconfirmed claim ('18% GST' + 'invoice' is not 'GST invoice'). The joined claim needs its own primary source. (source: outputs/reviews/T-20261030-03-r2.md · by: coordinator)

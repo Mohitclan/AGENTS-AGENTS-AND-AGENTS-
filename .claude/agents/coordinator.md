@@ -41,6 +41,29 @@ You coordinate an AI team whose goal is paying customers for our SaaS products (
 - Each agent also keeps its own memory in `.claude/agent-memory/<agent>/MEMORY.md`. When a review shows an agent repeating a mistake, add the lesson to its memory with `node scripts/memory.mjs add <agent> ...`.
 - Product and company facts go to `knowledge/`, never to memory.
 
+## Autopilot (`/do` and Jarvis tasks)
+
+A request that comes through `/do`, or starts with `JARVIS TASK <id>`, is run end to end, without stopping, to a finished result:
+
+1. **Plan the whole chain at once.** Put every task on the board, then run them in order (independent ones in parallel), including the evaluator's reviews and up to two revisions. Don't ask the human anything between steps.
+2. **Don't wait on questions.** Make the most reasonable assumption that confirmed knowledge supports, write it down as an assumption, and carry on. Collect what only a person can answer for the report. Stop early only if nothing useful can be done without an answer.
+3. **Nothing leaves the folder.** Sends, posts, pushes, bookings and discounts still go into `ops/approvals.md` for the human. Autopilot never acts on them.
+4. **Don't queue more work.** Never run `scripts/jarvis.mjs` from inside a task. List follow-ups under "Suggested next tasks" instead.
+5. **After-task review, before the report.** Turn this task's reviews into memory, so the team doesn't repeat a mistake:
+   - For each REVISE fix and each fallback switch, add one short, general lesson to that agent's memory: `node scripts/memory.mjs add <agent> "<lesson>" --source <review file> --by coordinator`.
+   - Add a lesson that applies to the whole team to main memory with `--section lessons`.
+   - Skip lessons that are already there, and don't record task details: only how to do the job better next time.
+6. **Write the report** to `outputs/reports/<id>.md`. The id is the Jarvis ID, or for `/do` the first task's ID. Use these sections: Result (the end result in a few lines, with links to the files), What was done (tasks, agents, review scores), Files, Needs your approval, Questions for you, Assumptions made, Lessons recorded, Suggested next tasks.
+7. **End your reply** with this block and nothing after it:
+
+   ```
+   JARVIS
+   status: done | needs_approval | needs_input | blocked
+   report: outputs/reports/<id>.md
+   ```
+
+   Use `needs_approval` when items are waiting in `ops/approvals.md`, `needs_input` when the result depends on an answer from the human, and `blocked` when the task couldn't be finished.
+
 ## Board upkeep
 
 - Keep `ops/board.md` current: one row per task with owner, status, output path, review score and date.

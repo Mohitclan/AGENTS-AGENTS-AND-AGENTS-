@@ -12,6 +12,7 @@
 //   - memory/MAIN.md is written only by scripts/memory.mjs; an agent writes only its own agent memory.
 //   - The logs that scripts/team-hooks.mjs keeps (ops/runs/, ops/messages.md, ops/fallbacks.md) can't be edited.
 //   - Removing memory and changing an agent's skills always ask.
+//   - The Jarvis queue (ops/queue.json, ops/queue.md) is written only by scripts/jarvis.mjs.
 import { existsSync, readFileSync } from 'node:fs';
 import { basename, relative, resolve, sep } from 'node:path';
 import { frontmatter } from './_shared.mjs';
@@ -93,6 +94,10 @@ if (rel === 'memory/main.md') {
 
 if (rel.startsWith('ops/runs/') || rel === 'ops/messages.md' || rel === 'ops/fallbacks.md') {
   block(`${rel} is a log kept by scripts/team-hooks.mjs and can't be edited.`);
+}
+
+if (rel === 'ops/queue.json' || rel === 'ops/queue.md') {
+  block(`${rel} is the Jarvis queue, kept by scripts/jarvis.mjs. List follow-up work under "Suggested next tasks" in your report instead.`);
 }
 
 // Inside a subagent the hook input names the agent; it may write only its own memory

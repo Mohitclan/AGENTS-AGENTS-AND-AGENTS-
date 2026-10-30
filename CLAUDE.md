@@ -48,6 +48,7 @@ Company facts and policies live in `knowledge/company.md`. Each product's facts 
 | `.claude/agent-memory/<agent>/MEMORY.md` | Each agent's own memory, loaded into every run of that agent |
 | `.claude/skills/<skill>/SKILL.md` | Playbooks; each agent preloads the ones listed under `skills:` in its file |
 | `ops/messages.md`, `ops/fallbacks.md` | Logs of agent-to-agent calls and fallback switches, kept by a hook |
+| `ops/queue.md`, `outputs/reports/` | The Jarvis task queue (written only by `scripts/jarvis.mjs`) and the report each task ends with |
 
 ## Team protocol
 

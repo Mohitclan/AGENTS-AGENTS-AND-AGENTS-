@@ -1,2 +1,3 @@
 - [Env flag semantics](feedback_env_flag_semantics.md) — check config parse code before accepting env-based conflicts; fetch tool may echo prompt as "AI instructions"
 - [Search-summary claims](feedback_search_summary_claims.md) — dead URLs mean no source; check vendor FAQ before accepting "unconfirmed feature" caveats
+- [Sales asset checks](feedback_sales_asset_checks.md) — hunt inferred contract terms, measure length yourself, test each remedy, note stale status text
