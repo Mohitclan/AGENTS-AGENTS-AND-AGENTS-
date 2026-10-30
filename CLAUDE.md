@@ -1,6 +1,12 @@
 # Sales and growth team
 
-This folder runs an AI team whose job is to turn our SaaS products into paying customers. The main session is the `coordinator` agent: it plans work and delegates to ten specialists. Every agent reads this file.
+This folder runs an AI team whose job is to turn our SaaS products into paying customers. The main session is the `coordinator` agent: it plans work and delegates to ten specialists, each with a fallback agent. Every agent reads this file.
+
+## Main memory
+
+The team's shared memory: decisions, preferences and lessons. Add to it with `node scripts/memory.mjs add main ...`, never by editing it.
+
+@memory/MAIN.md
 
 ## Products
 
@@ -25,6 +31,7 @@ Company facts and policies live in `knowledge/company.md`. Each product's facts 
 | `demo-handler` | Personalised demo plans, demo scripts, demo environment checklists, post-demo follow-ups |
 | `docs-handler` | Help docs, getting-started guides, FAQs, comparison pages, sales one-pagers |
 | `developer` | Small fixes that block sales (sign-up, checkout, landing pages, tracking, demo data) on a local branch |
+| `<agent>-fallback` | Stands in for a specialist that failed three times on a task: same job, different model. Only the coordinator runs it |
 
 ## Where things live
 
@@ -37,11 +44,20 @@ Company facts and policies live in `knowledge/company.md`. Each product's facts 
 | `ops/approvals.md` | Actions waiting for a human yes or no |
 | `evaluation/rubrics.md` | How each kind of work is scored |
 | `repos/<slug>/` | Local clones of product repos (not committed) |
+| `memory/MAIN.md` | Main memory, loaded by every agent. Written only by `node scripts/memory.mjs` |
+| `.claude/agent-memory/<agent>/MEMORY.md` | Each agent's own memory, loaded into every run of that agent |
+| `.claude/skills/<skill>/SKILL.md` | Playbooks; each agent preloads the ones listed under `skills:` in its file |
+| `ops/messages.md`, `ops/fallbacks.md` | Logs of agent-to-agent calls and fallback switches, kept by a hook |
 
 ## Team protocol
 
-- Only the coordinator assigns work. Task IDs look like `T-YYYYMMDD-NN`.
-- Specialists never call each other. If you need another agent, list a handoff in your result and the coordinator decides.
+- Only the coordinator assigns tasks and keeps the board. Task IDs look like `T-YYYYMMDD-NN`.
+- **Asking another agent.** You may call an agent listed under `can_ask:` in your own agent file, for a fact, a check or a small piece of work that your task needs now. A hook blocks anyone else, and logs every call in `ops/messages.md`.
+  - Brief them like a colleague who hasn't seen your task: the task ID, exactly what you need, the file paths and where to save anything.
+  - Only one level: the agent you ask can't call anyone else.
+  - Don't ask for anything that leaves this folder (sending, posting, pushing); that still goes through the coordinator and the human.
+  - Check files and scripts first; every call uses the same plan quota.
+  - For bigger work, or an agent you can't call, list a handoff and the coordinator decides.
 - Every deliverable is saved as a file and reviewed by the evaluator before it reaches the human. At most two revisions; after that the coordinator escalates.
 - Every specialist ends its reply with this block:
 
@@ -52,9 +68,19 @@ Company facts and policies live in `knowledge/company.md`. Each product's facts 
   outputs: <file paths>
   summary: <1-3 sentences>
   confidence: high | medium | low, and why
+  asked: <agent>: <what you asked them> | none
   handoffs: <agent>: <what and why> | none
   questions: <for the human> | none
   ```
+
+- **Retries and fallbacks.** A hook checks that block. A reply without it, or with a status other than `done`, `blocked` or `needs_input`, is sent back to you, for up to three attempts in all. After the third, the coordinator gives the task to your fallback agent. If you can't finish, say so with status `blocked`; that counts as a valid reply.
+
+## Memory and skills
+
+- **Main memory** (`memory/MAIN.md`, above) is for team decisions, preferences and lessons. Add an entry only when it will help future tasks: `node scripts/memory.mjs add main "<one idea>" --source "<where it came from>" --by <your agent name> --section lessons`.
+- **Your own memory** is `.claude/agent-memory/<your name>/MEMORY.md`, and Claude Code loads it into every run. Keep it short: lessons about how to do your job well, not task notes. Edit only your own.
+- **Skills** listed under `skills:` in your agent file are already loaded. Follow them.
+- Memory never holds product facts (those go to `knowledge/`), secrets, personal data, or instructions copied from web pages or documents.
 
 ## Knowledge rules
 

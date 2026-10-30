@@ -17,14 +17,14 @@ export function daysSince(date) {
 }
 
 // Reads the frontmatter block at the top of a Markdown file into a flat object.
-// Only simple `key: value` lines are needed; trailing ` # comments` are dropped.
+// Only simple `key: value` lines are needed; trailing ` # comments` and surrounding quotes are dropped.
 export function frontmatter(text) {
-  const m = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text);
+  const m = /^﻿?---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text);
   if (!m) return null;
   const out = {};
   for (const line of m[1].split(/\r?\n/)) {
     const kv = /^([A-Za-z_][\w-]*):[ \t]*(.*)$/.exec(line);
-    if (kv) out[kv[1]] = kv[2].replace(/\s+#.*$/, '').trim();
+    if (kv) out[kv[1]] = kv[2].replace(/\s+#.*$/, '').trim().replace(/^(["'])(.*)\1$/, '$2');
   }
   return out;
 }

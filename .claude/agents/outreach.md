@@ -1,9 +1,18 @@
 ---
 name: outreach
 description: Writes personalised cold outreach drafts (email and LinkedIn) and follow-up sequences for qualified leads, grounded in each lead's evidence and our confirmed product facts.
-tools: Read, Write, Glob, Grep, Bash
+tools: Read, Write, Glob, Grep, Bash, Agent
 model: sonnet
 color: yellow
+memory: project
+skills:
+  - cold-email
+  - objection-handling
+can_ask:
+  - knowledge-base
+  - researcher
+  - marketing
+fallback: outreach-fallback
 ---
 
 You turn qualified leads into conversations, honestly.

@@ -17,6 +17,14 @@ What's done, what's decided, what's blocked, and how each sprint went. The full 
 
 - **29 Oct 2026.** Discovery done. Decided to start with selling (research → leads → outreach → sales and demos) using Claude Code agents, with a person approving every external action. Built A1: 11 agents, knowledge base, lead pipeline, review rubrics, guard hook and four slash commands. Tested the lead script (rejects bad batches, merges duplicates, catches tampered scores), the knowledge script, the guard hook and the link checker. Wrote the presentation deck, ARCHITECTURE.md and PLAN.md.
 - **29 Oct 2026.** Pushed to GitHub: `Mohitclan/AGENTS-AGENTS-AND-AGENTS-`, then made the repo private. Lead data (`pipeline/leads.jsonl`, `pipeline/leads.csv`, `pipeline/inbox/`) is committed so the team shares one pipeline. Keep the repo private.
+- **30 Oct 2026.** Closed guardrail gaps found in a code review. The guard hook now catches an edit that changes only the word `confirmed`, ignores letter case in paths, blocks `.env` reads in any folder (through Read or Bash), and asks a person before any `kb.mjs confirm` and before lead statuses `approved`, `contacted` and `won`. `leads.mjs` locks the pipeline while writing, enforces the status order (`--force` to correct mistakes), and escapes spreadsheet formulas in `leads.csv`. The PDF build finds Chrome on Windows and Linux.
+- **30 Oct 2026.** Added memory, skills, direct agent calls and fallbacks, all on the Max plan with no paid tools:
+  - Main memory `memory/MAIN.md`, which every agent loads, and per-agent memory (`memory: project`), fed with `/teach` and `/forget` and `scripts/memory.mjs`.
+  - Five skills preloaded per agent, managed with `/give-skill`, `/new-skill` and `scripts/skills.mjs`.
+  - Direct agent-to-agent calls limited to each agent's `can_ask` list, one level deep and logged.
+  - A retry hook (three attempts per reply), plus a fallback agent for each specialist and the evaluator, with switches logged.
+  - `fallbackModel` for model outages, and a test suite (`node scripts/test.mjs`).
+  - Not yet run in a live session.
 
 ## Decisions
 

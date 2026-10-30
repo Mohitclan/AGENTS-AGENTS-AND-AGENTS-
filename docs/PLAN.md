@@ -45,7 +45,7 @@ gantt
 
 - [ ] `node scripts/kb.mjs status` shows `knowledge/company.md` and every product file as `confirmed`.
 - [ ] Each fact sheet passed review with a score of 80 or more, and no pricing conflicts are left open.
-- [ ] `/agents` lists all eleven agents, and a new session in the repo starts as the coordinator.
+- [ ] `/agents` lists all 21 agents (coordinator, ten specialists, ten fallbacks), a new session in the repo starts as the coordinator, and `node scripts/test.mjs` passes.
 
 ## Phase A3 · First lead sprint (weeks of 9 and 16 Nov)
 

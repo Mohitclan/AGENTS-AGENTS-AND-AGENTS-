@@ -43,7 +43,25 @@ Tier A is a score of 75 or more, tier B is 50-74 and tier C is below 50.
 
 `new` → `qualified` (passed review) or `disqualified` → `drafted` (outreach written) → `approved` (human approved sending) → `contacted` (human sent) → `replied` → `meeting` → `trial` → `won` or `lost`.
 
-Change a status with `node scripts/leads.mjs set-status <id[,id...]> <status> "<note>"`. A note is required for `disqualified`, `approved`, `contacted`, `won` and `lost`.
+Change a status with `node scripts/leads.mjs set-status <id[,id...]> <status> "<note>"`. A note is required for `disqualified`, `approved`, `contacted`, `won` and `lost`. Setting the status a lead already has only adds the note to its history.
+
+The script allows only these moves:
+
+| From | To |
+|---|---|
+| `new` | `qualified`, `disqualified` |
+| `qualified` | `drafted`, `disqualified` |
+| `disqualified` | `new` |
+| `drafted` | `approved`, `qualified` (redraft), `disqualified` |
+| `approved` | `contacted`, `drafted` |
+| `contacted` | `replied`, `lost` |
+| `replied` | `meeting`, `trial`, `won`, `lost` |
+| `meeting` | `trial`, `won`, `lost` |
+| `trial` | `won`, `lost` |
+| `won` | none |
+| `lost` | `qualified` |
+
+`approved`, `contacted` and `won` record a person's decision, so Claude Code asks a person before an agent sets them. To correct a mistake, add `--force`; that asks too, and the history marks the change as forced.
 
 ## Example batch line
 

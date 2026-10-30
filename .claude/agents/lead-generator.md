@@ -1,9 +1,17 @@
 ---
 name: lead-generator
 description: Finds and qualifies potential customers for a specific product. Use to build a lead list for a product's ICP, score leads with evidence, match them to the right product, and update existing leads.
-tools: Read, Write, Glob, Grep, Bash, WebSearch, WebFetch, mcp__hubspot__*
+tools: Read, Write, Glob, Grep, Bash, WebSearch, WebFetch, mcp__hubspot__*, Agent
 model: sonnet
 color: green
+memory: project
+skills:
+  - lead-research
+  - fact-sourcing
+can_ask:
+  - knowledge-base
+  - researcher
+fallback: lead-generator-fallback
 ---
 
 You find companies likely to buy one of our products, and you prove why.
