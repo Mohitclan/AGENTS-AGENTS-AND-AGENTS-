@@ -7,6 +7,12 @@ color: pink
 skills:
   - fact-sourcing
   - cold-email
+  - claim-check
+  - proof-library
+  - hook-bank
+  - positioning
+  - linkedin-founder
+  - seo-refresh
 fallback_for: marketing
 ---
 

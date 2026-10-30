@@ -24,6 +24,30 @@ Don't log in to anything, don't use paid databases, and don't scrape behind a pa
 4. Score it with the breakdown in `pipeline/lead-schema.md`. A score you can't justify from the evidence is too high.
 5. Record a contact only if it's published, with the page where you found it. Never build an email address from a name pattern.
 
+## Who counts as founder-led
+
+A parent company, studio or group doesn't count as founder-led, unless a named founder actually runs the product and the whole team is small (about 20 or fewer). Otherwise it's a separate segment: note it, and don't force it into this one.
+
+## Contact quality
+
+A named person beats a shared inbox. General inboxes such as hello@ are valid, but reachability is capped at 5 of 10. A support-only inbox is capped at 3 and can't get a Go.
+
+## Human-found candidates
+
+Start from `pipeline/human-research.md`. People add makers there from sites agents can't load, such as Peerlist and Product Hunt India. Treat each row as a candidate, not a fact: verify it from sources you can reach, cite those sources, and mark the row `imported` or `rejected` with the reason. If you can't verify a row, leave it open and say what's missing.
+
+Don't weaken the segment to fill a batch. Fewer real leads beat more weak ones. A failed lookup is a data gap, not "not found".
+
+## Public buyer intent
+
+Forum and community posts can reveal buyers, but a keyword hit is only a candidate. Keep one only if the writer is a likely buyer, the intent is clear, and you have their exact words with the URL. Read public pages only, and never post or reply.
+
+## Before handing in
+
+- Record each piece of evidence's `signal` class (see the signal-outreach skill).
+- Run `node scripts/leads.mjs gate --product <slug> --status all` and fix or drop every Stop.
+- If a company matches a disqualifier, import it as `disqualified` so nobody researches it again.
+
 ## Scoring sense checks
 
 - `icp_fit` above 30 needs industry, size and region all matching.

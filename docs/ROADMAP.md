@@ -12,7 +12,7 @@ What's done, what's decided, what's blocked, and how each sprint went. The full 
 | A2 · Add products | 🟡 In progress. Company policies and MotionRepo confirmed; 4–5 products to go |
 | A3 · First sprint | ⏭ Next: `jarvis.mjs do "Run the first MotionRepo lead sprint, 15 leads"` |
 | J2 · Learning organisation | Not started |
-| J3 · Skill library | Not started |
+| J3 · Skill library and checks | ✅ Done (30 Oct 2026). 18 skills, automatic copy checks, opt-out list and lead gate, from three open-source repos; 170 tests pass; not yet used in a live sprint |
 | J4 · Autopilot | Not started |
 | A4 · All products | Not started |
 | J5 · More departments | When wanted |
@@ -44,6 +44,13 @@ What's done, what's decided, what's blocked, and how each sprint went. The full 
   - First live task, J-20261030-01: a MotionRepo battlecard, PASS 95/100 after two revisions, with 3 lessons for sales and 1 for main memory. Its answers wait for approval as A-20261030-01.
   - The 5-hour window reached 83% during the run.
 
+- **30 Oct 2026.** Studied three open-source marketing repos and built J3, with credits in `docs/CREDITS.md`:
+  - `scripts/lint-copy.mjs`: automatic checks before review, a gate log, and mining of repeat failures.
+  - `leads.mjs`: a global opt-out list (`suppress`), a Go, Conditional or Stop gate (`gate`), and evidence signal classes.
+  - 13 new skills: claim-check, signal-outreach, reply-triage, meeting-prep, stalled-deal, research-rigor, competitive-battlecard, proof-library, hook-bank, positioning, linkedin-founder, seo-refresh, early-stage-guardrails. Five existing skills upgraded.
+  - Agents and rubrics now use the checks. Customer-facing work declares its outcome before drafting.
+  - Took: kai-cmo-harness (MIT parts only) for logic, saas-marketing-agents for methods. awesome-marketing added nothing useful: it's a list of mostly paid tools.
+
 ## Decisions
 
 | ID | Decision | Choice | Status |
@@ -56,6 +63,7 @@ What's done, what's decided, what's blocked, and how each sprint went. The full 
 | D6 | Knowledge trust | `proposed` / `confirmed` / `deprecated`; a hook stops agents editing or confirming facts | Decided |
 | D7 | Phase C runtime, database and dashboard | Research when Phase C starts | Open |
 | D8 | How the team runs unattended | Jarvis: headless `claude -p` coordinator sessions on the Max plan login, one task at a time, stopping at 85% plan usage; no API key or Agent SDK | Decided, 30 Oct 2026 |
+| D10 | Outside playbooks | Rewrite in our own words as short skills, MIT sources only, credited in `docs/CREDITS.md`; no long persona files, because they cost tokens on every run | Decided, 30 Oct 2026 |
 | D9 | Fallbacks | One fallback agent per specialist and the evaluator, on the other model, after 3 failed attempts; then escalate | Decided, 30 Oct 2026 |
 
 ## Blockers

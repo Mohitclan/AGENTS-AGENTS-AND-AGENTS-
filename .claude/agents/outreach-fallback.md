@@ -7,6 +7,9 @@ color: yellow
 skills:
   - cold-email
   - objection-handling
+  - signal-outreach
+  - hook-bank
+  - reply-triage
 fallback_for: outreach
 ---
 

@@ -8,6 +8,8 @@ memory: project
 skills:
   - fact-sourcing
   - lead-research
+  - research-rigor
+  - competitive-battlecard
 can_ask:
   - knowledge-base
 fallback: researcher-fallback

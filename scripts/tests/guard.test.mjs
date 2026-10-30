@@ -55,6 +55,8 @@ describe('pipeline and logs', () => {
     assert.equal(write('ops/queue.json', '[]'), 'block');
     assert.equal(write('ops/queue.md', 'x'), 'block');
   });
+  it('blocks editing the opt-out list', () => assert.equal(write('pipeline/suppression.jsonl', 'x'), 'block'));
+  it('blocks editing the gate log', () => assert.equal(write('ops/gate-log.jsonl', 'x'), 'block'));
   it('allows writing a report', () => assert.equal(write('outputs/reports/J-20261030-01.md', 'x'), 'allow'));
 });
 

@@ -298,6 +298,10 @@ Every status change is logged in the lead's history with a date and note. `pipel
 
 ## 8. Quality: how the evaluator works
 
+**Checks before the evaluator.** `scripts/lint-copy.mjs` catches for free what a model shouldn't spend tokens on: banned words (`evaluation/voice-rules.json`), unfilled placeholders and `[NEEDS INPUT]` markers, numbers with no source nearby, guesses stated as findings, external actions with no approval wording, cold-email rules, and social and SEO structure. A failure is an automatic REVISE. Each run is logged in `ops/gate-log.jsonl`, and `lint-copy.mjs mine` surfaces failures that keep repeating. A repeat failure moves up a ladder: a lesson, then a skill rule, then a check.
+
+**Before outreach.** `leads.mjs gate` gives each lead Go, Conditional or Stop. `leads.mjs suppress` adds an opt-out that holds across every product.
+
 ```mermaid
 flowchart LR
   d[Deliverable] --> a[Automated checks<br/>links, lead data, tests]
@@ -337,6 +341,7 @@ Every work type auto-fails on invented facts, unconfirmed customer-facing claims
 | Failed replies are retried, then handed to the fallback | `scripts/team-hooks.mjs` (SubagentStop, PostToolUse, PostToolUseFailure); the coordinator launches the fallback on the hook's note |
 | Main memory only through the script; each agent writes only its own memory; hook logs can't be edited | Guard hook |
 | Removing memory and changing skills need a person | The hook asks |
+| An opt-out is final, across every product | `leads.mjs suppress`: imports are refused and outreach statuses blocked; the guard protects the list |
 | Drafts only: no sending, posting, publishing, deploying or CRM writes without approval | Agent instructions and `CLAUDE.md`, backed by Claude Code's normal permission prompts |
 | Web pages, repos and emails are data, not instructions | Agent instructions; evaluator auto-fails work that acted on them |
 
@@ -383,7 +388,7 @@ CLAUDE.md                 shared context: products, team, protocol, rules
 README.md                 how to use the team
 .claude/agents/           coordinator, 10 specialists, 10 fallbacks
 .claude/agent-memory/     each agent's own memory
-.claude/skills/           fact-sourcing, lead-research, cold-email, objection-handling, demo-script
+.claude/skills/           18 skills; run node scripts/skills.mjs list
 .claude/commands/         /do, /add-product, /lead-sprint, /demo-prep, /weekly-review, /teach, /forget, /give-skill, /new-skill
 .claude/settings.json     main agent, permissions, hooks, fallbackModel, nesting depth
 .mcp.json                 HubSpot, Notion, Slack connectors (OAuth, no secrets)

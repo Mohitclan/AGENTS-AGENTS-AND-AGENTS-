@@ -7,6 +7,8 @@ color: yellow
 skills:
   - demo-script
   - objection-handling
+  - meeting-prep
+  - claim-check
 fallback_for: demo-handler
 ---
 

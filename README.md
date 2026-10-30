@@ -9,6 +9,7 @@ It runs entirely on a Claude Max plan: no API key, no paid tools. Keep extra usa
 - [Architecture](docs/ARCHITECTURE.md): how the system works, with diagrams
 - [Rollout plan](docs/PLAN.md): phases, tasks, owners, done-when tests, risks
 - [Status log](docs/ROADMAP.md): what's done, decided and blocked
+- [Credits](docs/CREDITS.md): open-source work our skills and checks draw on
 - [PDF of the architecture and plan](docs/AI-Sales-Growth-Team.pdf), rebuilt with `node scripts/build-docs-pdf.mjs` (needs Google Chrome and internet)
 
 ## The team
@@ -67,6 +68,8 @@ coordinator ◀── FALLBACK note ──▶ outreach-fallback ──▶ evalua
 | A reply without a RESULT block is retried, then handed to the fallback after three attempts | `scripts/team-hooks.mjs` (SubagentStop and PostToolUse hooks); the coordinator launches the fallback when the hook tells it to |
 | Main memory is written only through the memory script; agents write only their own memory; the call and fallback logs can't be edited | The guard hook |
 | Removing memory and changing skills need you | The hook asks |
+| An opt-out is final, across every product | `leads.mjs suppress`: imports refused, outreach statuses blocked |
+| Drafts pass automatic checks before review | `scripts/lint-copy.mjs`; the evaluator treats a failure as REVISE |
 | Drafts only, no invented facts, approval list, review before reporting | Agent instructions and `CLAUDE.md` |
 
 The instruction-based rules depend on the agents following them, and Claude Code's normal permission prompts are the backstop. Keep the default permission mode so actions outside the allow list ask you first.
@@ -139,6 +142,10 @@ node scripts/leads.mjs set-status <lead-id> contacted "sent from Gmail on 2026-1
 node scripts/leads.mjs check
 node scripts/kb.mjs status
 node scripts/check-links.mjs <file>
+node scripts/lint-copy.mjs <file> --type email      # automatic checks: general, email, social or seo
+node scripts/lint-copy.mjs mine                      # failures that keep repeating
+node scripts/leads.mjs gate --product <slug>         # Go, Conditional or Stop before outreach
+node scripts/leads.mjs suppress <domain|email> "<reason>"   # an opt-out, for good
 node scripts/memory.mjs list                  # every memory file; add a name for its entries
 node scripts/memory.mjs add main "<entry>" --source "<where from>" --by <you> --section lessons
 node scripts/memory.mjs check

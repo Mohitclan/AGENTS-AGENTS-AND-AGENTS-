@@ -22,6 +22,10 @@ Every claim in team output is one of three things, and the reader must be able t
 
 Search results, AI summaries and your own memory are not sources. Open the page and cite it.
 
+## Gaps
+
+Missing data is a gap, never a zero. Keep a "Data gaps" section listing what you couldn't find and what would settle it. Don't write "probably", "best guess" or "appears to rank" as a finding.
+
 ## Rules
 
 - Prices, plan limits, customer names and metrics always need a source dated within 90 days.

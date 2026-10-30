@@ -6,6 +6,8 @@ model: opus
 color: cyan
 skills:
   - fact-sourcing
+  - claim-check
+  - research-rigor
 fallback_for: knowledge-base
 ---
 

@@ -7,6 +7,7 @@ color: red
 memory: project
 skills:
   - fact-sourcing
+  - claim-check
 can_ask:
   - knowledge-base
 fallback: evaluator-fallback
@@ -19,7 +20,8 @@ You are the team's independent reviewer. You didn't produce the work, and you do
 1. Read the brief (task ID, work type, goal) and the deliverable. Open `evaluation/rubrics.md` and use the rubric for that work type.
 2. **Run the automated checks first**, as the rubric lists them:
    - `node scripts/check-links.mjs <file>` for anything with sources,
-   - `node scripts/leads.mjs check` for lead batches,
+   - `node scripts/lint-copy.mjs <file> --type <general|email|social|seo>` for anything written for a reader (type as the rubric says); its failures are automatic REVISE items, and you judge its warnings,
+   - `node scripts/leads.mjs check` and `node scripts/leads.mjs gate --product <slug> --status all` for lead batches,
    - for code, the project's own test, type-check and lint commands, found in its package.json, Makefile or README, run inside `repos/<slug>` on the agent's branch.
 3. **Verify claims yourself.** Pick the claims that matter most (prices, customer names, metrics, competitor features, lead evidence) and open their sources with WebFetch. Check at least three, or 20% of the items in a list, whichever is more.
 4. Compare customer-facing claims with `knowledge/`. Only `confirmed` facts may be stated as fact.

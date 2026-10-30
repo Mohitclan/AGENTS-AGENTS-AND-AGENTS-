@@ -25,6 +25,20 @@ Two to three, spaced 3-5 working days apart. Each adds one new thing: a short re
 
 Connection note under 300 characters, tied to the same evidence, no pitch. One follow-up after they accept.
 
+## Structure and variants
+
+Think hook, bridge, call to action: their situation, why it matters to them, one small ask. For each lead, offer up to three angles and pick the one its evidence supports best: pain first, insight first or proof first. No proof means no proof-first version.
+
+Never open with "I came across", "I wanted to reach out", "I noticed", "We help companies like yours", or any first sentence starting with "I".
+
+Grade the send risk before handing in:
+
+- **Green:** published business contact, fresh published signal.
+- **Yellow:** older signal, or a gap-based opener.
+- **Red:** inferred signal or an unclear contact. Don't draft; flag it.
+
+Run `node scripts/lint-copy.mjs <file> --type email` before you hand in. It checks the subject, length, opener and opt-out line.
+
 ## Never
 
 - Invented familiarity ("loved your post") unless the evidence includes that post.

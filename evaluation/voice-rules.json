@@ -1,0 +1,34 @@
+{
+  "_comment": "Word lists for scripts/lint-copy.mjs. Edit freely. 'hard' fails the check, 'flag' warns with a suggestion, 'weak' warns when overused. Adapted from kai-cmo-harness scripts/quality_gates (MIT) and tuned to knowledge/company.md; see docs/CREDITS.md.",
+  "hard": [
+    "revolutionary", "revolutionise", "revolutionize", "revolutionising", "revolutionizing",
+    "game-changing", "game changing", "game-changer", "game changer",
+    "cutting-edge", "cutting edge", "state-of-the-art", "best-in-class", "world-class",
+    "seamless", "seamlessly", "synergy", "synergies", "guaranteed", "paradigm shift",
+    "utilise", "utilize", "utilising", "utilizing",
+    "deep dive", "dive deep", "circle back", "touch base", "low-hanging fruit", "move the needle",
+    "at the end of the day", "it's important to note", "it's worth noting", "in today's fast-paced",
+    "in today's rapidly evolving", "without further ado", "this comprehensive guide", "in conclusion",
+    "first and foremost", "take it to the next level", "next level", "thought leader", "thought leadership",
+    "empower", "empowers", "empowering", "transformative", "holistic", "actionable insights",
+    "i'd be happy to help", "hope you're well", "hope this finds you well", "just bumping this"
+  ],
+  "flag": {
+    "leverage": "use (fine as a noun)",
+    "solution": "name the thing",
+    "journey": "process or steps",
+    "stakeholders": "name the people",
+    "facilitate": "help or run",
+    "pain points": "name the problem",
+    "ai-powered": "say what it does for the reader",
+    "best practices": "say what to do",
+    "value proposition": "say what they get"
+  },
+  "weak": ["very", "really", "just", "actually", "basically", "literally", "honestly", "frankly", "clearly", "obviously", "simply", "a lot", "kind of", "sort of"],
+  "weakLimitPer100Words": 2,
+  "bannedOpeners": [
+    "i came across", "i wanted to reach out", "i'm reaching out", "i am reaching out", "i noticed", "i saw",
+    "we help companies like yours", "we help companies like", "my name is", "hope you", "hi there, i", "quick question"
+  ],
+  "sourceMarkers": ["source:", "sources:", "retrieved:", "observed:", "checked:", "evidence:", "told by", "http://", "https://", "knowledge/", "outputs/", "repos/", "[p:", "[c:"]
+}

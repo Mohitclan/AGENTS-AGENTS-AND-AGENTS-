@@ -7,6 +7,12 @@ color: orange
 skills:
   - objection-handling
   - cold-email
+  - reply-triage
+  - meeting-prep
+  - stalled-deal
+  - claim-check
+  - competitive-battlecard
+  - proof-library
 fallback_for: sales
 ---
 

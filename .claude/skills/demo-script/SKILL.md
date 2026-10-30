@@ -21,6 +21,12 @@ Show the outcome first, then how you got there. Skip setup screens and settings 
 
 Scene by scene: the problem in one sentence (10 s), the product solving it end to end (90 s), one proof point (15 s), the call to action (10 s). Write the narration and the on-screen action for each scene.
 
+## Earn the demo
+
+Hold a live demo only when you know the named pain, who's attending, what "good" looks like to them and the next step you'd agree. If any is missing, run a short discovery call first.
+
+For a pilot, the person who decides signs off the success criteria before anything is built, and we say up front which criterion we expect to miss. Use made-up sample data only, never another customer's. Give every published demo an owner and an expiry date.
+
 ## Before any demo
 
 - Every feature you show is `live` in the confirmed fact sheet. Label beta features as beta; never show planned ones as real.
