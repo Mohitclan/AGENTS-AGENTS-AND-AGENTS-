@@ -51,6 +51,19 @@ describe('retries', () => {
   it('accepts a reply with a RESULT block', () => assert.equal(decision(stop('run-ok', 'researcher', RESULT)), 'allow'));
   it('accepts a RESULT block written in bold', () =>
     assert.equal(decision(stop('run-bold', 'researcher', '**RESULT**\n- **task:** T-20261030-01\n- **status:** blocked\n')), 'allow'));
+  // Found in a live run: outreach's summary said "replied pong with a RESULT block".
+  it('accepts a block whose own lines mention RESULT', () =>
+    assert.equal(
+      decision(
+        stop(
+          'run-mention',
+          'outreach',
+          'The developer call was blocked.\n\nRESULT\ntask: T-20261030-99\nstatus: done\noutputs: none\n' +
+            'summary: knowledge-base replied "pong" with a RESULT block.\nasked: knowledge-base: reply pong and end with a RESULT block (answered)\n',
+        ),
+      ),
+      'allow',
+    ));
   it('sends a reply without one back, twice', () => {
     assert.equal(decision(stop('run-bad', 'researcher', 'I looked around.')), 'retry');
     const second = stop('run-bad', 'researcher', 'Still looking.');
