@@ -5,7 +5,7 @@
     "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH": "2"
   },
   "permissions": {
-    "allow": [
+        "allow": [
       "WebSearch",
       "WebFetch",
       "Bash(node scripts/*)",
@@ -13,7 +13,16 @@
       "Bash(gh repo view *)",
       "Bash(git status *)",
       "Bash(git diff *)",
-      "Bash(git log *)"
+      "Bash(git log *)",
+      "Bash(git switch *)",
+      "Bash(git checkout -b *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(npm test*)",
+      "Bash(npm run test*)",
+      "Bash(npm run lint*)",
+      "Bash(npm run typecheck*)",
+      "Bash(npx tsc *)"
     ],
     "ask": [
       "Bash(node scripts/kb.mjs confirm *)",
