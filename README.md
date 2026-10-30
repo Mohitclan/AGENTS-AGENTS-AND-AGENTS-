@@ -9,6 +9,7 @@ It runs entirely on a Claude Max plan: no API key, no paid tools. Keep extra usa
 - [Architecture](docs/ARCHITECTURE.md): how the system works, with diagrams
 - [Rollout plan](docs/PLAN.md): phases, tasks, owners, done-when tests, risks
 - [Status log](docs/ROADMAP.md): what's done, decided and blocked
+- [Credits](docs/CREDITS.md): open-source work our skills and checks draw on
 - [PDF of the architecture and plan](docs/AI-Sales-Growth-Team.pdf), rebuilt with `node scripts/build-docs-pdf.mjs` (needs Google Chrome and internet)
 
 ## The team
@@ -67,6 +68,8 @@ coordinator ◀── FALLBACK note ──▶ outreach-fallback ──▶ evalua
 | A reply without a RESULT block is retried, then handed to the fallback after three attempts | `scripts/team-hooks.mjs` (SubagentStop and PostToolUse hooks); the coordinator launches the fallback when the hook tells it to |
 | Main memory is written only through the memory script; agents write only their own memory; the call and fallback logs can't be edited | The guard hook |
 | Removing memory and changing skills need you | The hook asks |
+| An opt-out is final, across every product | `leads.mjs suppress`: imports refused, outreach statuses blocked |
+| Drafts pass automatic checks before review | `scripts/lint-copy.mjs`; the evaluator treats a failure as REVISE |
 | Drafts only, no invented facts, approval list, review before reporting | Agent instructions and `CLAUDE.md` |
 
 The instruction-based rules depend on the agents following them, and Claude Code's normal permission prompts are the backstop. Keep the default permission mode so actions outside the allow list ask you first.
@@ -109,6 +112,24 @@ The instruction-based rules depend on the agents following them, and Claude Code
 | `/forget <main\|agent> <number or words>` | Removes a memory entry |
 | `/give-skill <agent> <skill> [remove]` | Gives an agent a skill it loads on every run, or takes it away |
 | `/new-skill <name> <what it teaches>` | Writes a new skill with you |
+| `/do <any task>` | **Jarvis:** runs the whole chain on autopilot and gives you the finished result and a report |
+
+## Jarvis: hand over a task, get the result
+
+```bash
+node scripts/jarvis.mjs do "Write a one-page MotionRepo battlecard"   # run one task now
+node scripts/jarvis.mjs add "Run the first MotionRepo lead sprint, 15 leads"  # queue tasks...
+node scripts/jarvis.mjs run                                          # ...and work through them in order
+node scripts/jarvis.mjs list                                         # the queue (also ops/queue.md)
+node scripts/jarvis.mjs usage                                        # how full your Max plan windows are
+```
+
+- **One task, one session.** Each task runs as a headless coordinator session (`claude -p`) on your Max plan login: the whole chain, reviews and revisions, with no questions mid-way.
+- **The result** is a report in `outputs/reports/<id>.md`: the result, files, what needs your approval, questions, assumptions made, lessons recorded and suggested next tasks.
+- **Nothing leaves the folder.** Sends, posts and pushes still wait in `ops/approvals.md`.
+- **Lessons:** after each task, review fixes become lessons in the agents' memory, so the team improves with every task.
+- **Usage guard:** no task starts while a plan window is at or over 85% (`JARVIS_STOP_AT`), and a task the limit cuts off goes back in the queue.
+- **In the app**, `/do <task>` does the same in your open session.
 
 You can also just ask the coordinator in plain language, for example "Audit the landing page and onboarding for <product> and list what's costing us sign-ups."
 
@@ -121,6 +142,10 @@ node scripts/leads.mjs set-status <lead-id> contacted "sent from Gmail on 2026-1
 node scripts/leads.mjs check
 node scripts/kb.mjs status
 node scripts/check-links.mjs <file>
+node scripts/lint-copy.mjs <file> --type email      # automatic checks: general, email, social or seo
+node scripts/lint-copy.mjs mine                      # failures that keep repeating
+node scripts/leads.mjs gate --product <slug>         # Go, Conditional or Stop before outreach
+node scripts/leads.mjs suppress <domain|email> "<reason>"   # an opt-out, for good
 node scripts/memory.mjs list                  # every memory file; add a name for its entries
 node scripts/memory.mjs add main "<entry>" --source "<where from>" --by <you> --section lessons
 node scripts/memory.mjs check
@@ -128,6 +153,7 @@ node scripts/skills.mjs list                  # skills and which agents load the
 node scripts/skills.mjs give <agent> <skill>
 node scripts/fallbacks.mjs check              # fallbacks match their agents
 node scripts/test.mjs                         # tests for the hooks and scripts
+node scripts/jarvis.mjs list                  # the Jarvis queue
 ```
 
 `pipeline/leads.csv` is rewritten after every change, so you can open the pipeline in Excel or Google Sheets.
@@ -146,8 +172,8 @@ memory/MAIN.md            main memory, loaded by every agent
 docs/                     architecture, rollout plan, status log, PDF
 knowledge/                company.md, products/, competitors/, proposals/
 pipeline/                 leads.jsonl, leads.csv, inbox/, lead-schema.md
-outputs/                  research, outreach, sales, marketing, demos, docs, dev, reviews
-ops/                      board.md, approvals.md, messages.md, fallbacks.md, runs/ (not committed)
+outputs/                  research, outreach, sales, marketing, demos, docs, dev, reviews, reports (Jarvis)
+ops/                      board.md, approvals.md, messages.md, fallbacks.md, queue.json/queue.md (Jarvis), runs/ (not committed)
 evaluation/rubrics.md     scoring rules per work type
 scripts/                  leads, knowledge, memory, skills, fallbacks, link checks, hooks, tests, docs PDF
 repos/                    product repo clones (not committed)

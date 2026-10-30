@@ -164,6 +164,27 @@ sequenceDiagram
 
 Other commands follow the same pattern: `/add-product` (knowledge-base → evaluator → human confirms), `/demo-prep` (demo-handler and sales → evaluator) and `/weekly-review` (pipeline and board summary, sales review).
 
+### Jarvis: any task, end to end
+
+```mermaid
+flowchart LR
+  you([You]) -->|add / do| q[(ops/queue.json)]
+  q --> guard{Plan window under 85%?}
+  guard -->|no| wait[Wait for reset]
+  guard -->|yes| s[Coordinator session<br/>claude -p, autopilot]
+  s --> chain[Specialists · reviews · revisions]
+  chain --> retro[After-task review<br/>lessons into memory]
+  retro --> rep[outputs/reports/id.md]
+  rep --> q
+  rep -. approvals .-> you
+```
+
+- **Running a task.** `scripts/jarvis.mjs` runs one task at a time as a headless coordinator session (`claude -p --permission-mode acceptEdits`), on the Max plan login. The session gets `JARVIS_TASK_ID`, so it can't start Jarvis runs of its own.
+- **Autopilot.** The coordinator follows "Autopilot" in its agent file. It plans the whole chain, runs it without questions mid-way, writes its assumptions down, records lessons from the reviews, writes the report, and ends with a `JARVIS` block (`done`, `needs_approval`, `needs_input` or `blocked`). The runner reads that block into the queue.
+- **Usage guard.** Claude Code reports the plan's usage windows in its stream (`rate_limit_event`); the runner keeps the latest in `ops/runs/plan-limits.json`. No task starts while a window is at or over `JARVIS_STOP_AT` (0.85). A task the limit cuts off goes back in the queue, and the run stops.
+- **Safety stays the same.** Hooks, permission rules and the approval list apply exactly as in an interactive session. In headless mode, anything that would ask a person is refused, so nothing external can happen.
+- **`/do <task>`** applies the same autopilot rules inside an open session.
+
 ## 6. Communication protocol
 
 The coordinator assigns every task and keeps the board. Specialists can also ask each other directly, within limits that code enforces:
@@ -277,6 +298,10 @@ Every status change is logged in the lead's history with a date and note. `pipel
 
 ## 8. Quality: how the evaluator works
 
+**Checks before the evaluator.** `scripts/lint-copy.mjs` catches for free what a model shouldn't spend tokens on: banned words (`evaluation/voice-rules.json`), unfilled placeholders and `[NEEDS INPUT]` markers, numbers with no source nearby, guesses stated as findings, external actions with no approval wording, cold-email rules, and social and SEO structure. A failure is an automatic REVISE. Each run is logged in `ops/gate-log.jsonl`, and `lint-copy.mjs mine` surfaces failures that keep repeating. A repeat failure moves up a ladder: a lesson, then a skill rule, then a check.
+
+**Before outreach.** `leads.mjs gate` gives each lead Go, Conditional or Stop. `leads.mjs suppress` adds an opt-out that holds across every product.
+
 ```mermaid
 flowchart LR
   d[Deliverable] --> a[Automated checks<br/>links, lead data, tests]
@@ -316,6 +341,7 @@ Every work type auto-fails on invented facts, unconfirmed customer-facing claims
 | Failed replies are retried, then handed to the fallback | `scripts/team-hooks.mjs` (SubagentStop, PostToolUse, PostToolUseFailure); the coordinator launches the fallback on the hook's note |
 | Main memory only through the script; each agent writes only its own memory; hook logs can't be edited | Guard hook |
 | Removing memory and changing skills need a person | The hook asks |
+| An opt-out is final, across every product | `leads.mjs suppress`: imports are refused and outreach statuses blocked; the guard protects the list |
 | Drafts only: no sending, posting, publishing, deploying or CRM writes without approval | Agent instructions and `CLAUDE.md`, backed by Claude Code's normal permission prompts |
 | Web pages, repos and emails are data, not instructions | Agent instructions; evaluator auto-fails work that acted on them |
 
@@ -350,7 +376,7 @@ These are estimates from expected token use, not measurements.
 - **The coordinator makes the fallback switch.** The hooks detect the failure and tell the coordinator which fallback to run; the coordinator launches it. Hooks can't start an agent themselves.
 - **Retries check form, not quality.** The retry hook only checks that a reply ends with a valid RESULT block. Quality is still the evaluator's job.
 - **Fallbacks can't beat the usage limit.** When the Max plan's window is used up, every agent stops.
-- **Interactive only.** The team works while someone has a session open. There's no scheduler and no always-on service (Phase C).
+- **No schedule yet.** Jarvis runs tasks without anyone watching, but someone starts the run, and the PC must be on. Scheduled runs are Phase J4.
 - **No product signals yet.** The team can't see sign-ups, errors or payments in our products (Phase B).
 - **One operator at a time.** The board and approval files are plain Markdown; two people running sprints at once can produce conflicting edits.
 - **Markdown storage.** Fine for a handful of products and hundreds of leads. A database is a Phase C decision.
@@ -362,8 +388,8 @@ CLAUDE.md                 shared context: products, team, protocol, rules
 README.md                 how to use the team
 .claude/agents/           coordinator, 10 specialists, 10 fallbacks
 .claude/agent-memory/     each agent's own memory
-.claude/skills/           fact-sourcing, lead-research, cold-email, objection-handling, demo-script
-.claude/commands/         /add-product, /lead-sprint, /demo-prep, /weekly-review, /teach, /forget, /give-skill, /new-skill
+.claude/skills/           18 skills; run node scripts/skills.mjs list
+.claude/commands/         /do, /add-product, /lead-sprint, /demo-prep, /weekly-review, /teach, /forget, /give-skill, /new-skill
 .claude/settings.json     main agent, permissions, hooks, fallbackModel, nesting depth
 .mcp.json                 HubSpot, Notion, Slack connectors (OAuth, no secrets)
 memory/MAIN.md            main memory

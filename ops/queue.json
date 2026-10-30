@@ -1,0 +1,43 @@
+[
+  {
+    "id": "J-20261030-01",
+    "task": "Write a one-page MotionRepo sales battlecard: the 5 most likely objections from our first segment and honest answers, from confirmed knowledge only, saved in outputs/sales/",
+    "status": "needs_approval",
+    "added": "2026-10-30 12:58",
+    "started": "2026-10-30 12:58",
+    "note": "5 lesson(s) recorded",
+    "report": "outputs/reports/J-20261030-01.md",
+    "finished": "2026-10-30 13:17",
+    "turns": 31
+  },
+  {
+    "id": "J-20261030-02",
+    "task": "Run the first MotionRepo lead sprint: 15 leads in the first segment from the confirmed fact sheet and market brief, reviewed by the evaluator, then outreach drafts for the tier A and B leads, with every send listed in ops/approvals.md",
+    "status": "queued",
+    "added": "2026-10-30 13:38",
+    "started": "2026-10-30 14:04",
+    "note": "stopped by the plan's usage limit at 2026-10-30 14:11; runs again on the next jarvis run"
+  },
+  {
+    "id": "J-20261030-03",
+    "task": "Test run of the new skills and checks: find 3 MotionRepo leads in the first segment, with a signal class on each piece of evidence. Run the lead gate, have the evaluator review the batch, mark leads qualified or disqualified, then draft outreach for the Go leads only. Run lint-copy on each draft, have the evaluator review them, and list every send in ops/approvals.md. In the report, say what each automatic check caught. This replaces T-20261030-04 and T-20261030-05 on the board for now.",
+    "status": "needs_input",
+    "added": "2026-10-30 15:13",
+    "started": "2026-10-30 15:13",
+    "note": "4 lesson(s) recorded",
+    "report": "outputs/reports/J-20261030-03.md",
+    "finished": "2026-10-30 15:46",
+    "turns": 48
+  },
+  {
+    "id": "J-20261030-04",
+    "task": "Unblock T-20261030-07: draft outreach sequences for the two qualified MotionRepo leads, L-4d574242 Repowise and L-75e81825 Deplexo. Deplexo has a Conditional verdict and no named founder; the human allowed a draft, so mark it low confidence at the top, and a person approves it before any send. Run lint-copy with type email on each sequence and fix every failure, then have the evaluator review them as outreach sequences. Keep {{PLACEHOLDERS}} as they are. Recheck each gap before writing, and do not claim anything the evidence or confirmed knowledge does not support. List every send in ops/approvals.md. In the report, say what lint-copy caught on the real drafts, and what the evaluator caught that lint-copy missed.",
+    "status": "needs_approval",
+    "added": "2026-10-30 16:21",
+    "started": "2026-10-30 16:21",
+    "note": "10 lesson(s) recorded",
+    "report": "outputs/reports/J-20261030-04.md",
+    "finished": "2026-10-30 16:50",
+    "turns": 48
+  }
+]

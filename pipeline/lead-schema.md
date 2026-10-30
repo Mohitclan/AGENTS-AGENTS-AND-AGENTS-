@@ -19,7 +19,7 @@ The script assigns each lead an ID from its domain and product, so importing the
 | `product` | Yes | Slug of a product with a file in `knowledge/products/` |
 | `segment`, `industry`, `country`, `size` | No | Free text |
 | `fit_reason` | Yes | Why this company fits the product, at least 20 characters |
-| `evidence` | Yes | List of `{ "claim": "...", "url": "https://..." }`, at least one |
+| `evidence` | Yes | List of `{ "claim": "...", "url": "https://...", "signal": "published" }`, at least one. `signal` is optional: `published` (they said it), `observed_gap` (visible on their public surface) or `inferred` (our guess, which sets timing only). See the signal-outreach skill |
 | `score_breakdown` | Yes | Whole numbers: `icp_fit` 0-40, `need_evidence` 0-30, `timing` 0-20, `reachability` 0-10 |
 | `score_rationale` | Yes | One line explaining the score |
 | `contact` | No | `{ "name", "role", "channel", "value", "source_url" }`. `channel` is `email`, `linkedin`, `form`, `phone` or `other`. `source_url` must show where the contact was published |
@@ -68,6 +68,32 @@ The script allows only these moves:
 ```json
 {"company":"Example Goods","website":"https://example.com","product":"your-product-slug","segment":"Mid-size D2C brands","industry":"E-commerce","country":"India","size":"51-200","fit_reason":"Sells online across three marketplaces and is hiring a support lead to handle rising ticket volume.","evidence":[{"claim":"Careers page lists a customer support lead role citing growing ticket volume","url":"https://example.com/careers"}],"score_breakdown":{"icp_fit":32,"need_evidence":24,"timing":15,"reachability":6},"score_rationale":"Strong fit and a public hiring signal; no named contact yet.","contact":{"name":"","role":"","channel":"form","value":"https://example.com/contact","source_url":"https://example.com/contact"},"next_action":"Draft outreach through the contact form referencing the support-lead hire.","researched_at":"2026-10-29"}
 ```
+
+## Before outreach
+
+`node scripts/leads.mjs gate --product <slug>` gives each qualified lead a verdict (add `--status all` for every status):
+
+- **Go:** ready for drafts.
+- **Conditional:** a person decides: non-email or LinkedIn contact, a support-only inbox, research over 90 days old, tier C, or only inferred signals.
+- **Stop:** suppressed, disqualified, no published contact, or no evidence. Fix it at the source and run the gate again.
+
+A Go is only arithmetic: it doesn't read the claims. Before anyone drafts, a lead also needs a passed review and `qualified` status.
+
+## Contact quality
+
+The gate shows each lead's contact quality:
+
+| Quality | Example | Reachability cap |
+|---|---|---|
+| direct | A named person's published address or LinkedIn profile | 10 |
+| general | hello@, info@, contact@, team@ | 5 |
+| support | support@, help@, billing@ | 3, and never a Go |
+
+The import refuses a score above the cap.
+
+## Suppression
+
+`node scripts/leads.mjs suppress <domain|email> "<reason>"` adds an opt-out to `pipeline/suppression.jsonl`. It applies across every product: open leads are disqualified at once, imports are refused, and a suppressed lead can't move to `drafted`, `approved` or `contacted`. A domain covers the whole company; an email address covers that person. Removing an entry is a person's decision, made by editing the file.
 
 ## Other commands
 

@@ -7,6 +7,7 @@ color: blue
 memory: project
 skills:
   - fact-sourcing
+  - claim-check
 can_ask:
   - knowledge-base
   - marketing

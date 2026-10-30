@@ -6,12 +6,18 @@ What's done, what's decided, what's blocked, and how each sprint went. The full 
 
 | Phase | Status |
 |---|---|
-| A1 · Built | Done (29 Oct 2026). Scripts and guard hook tested; all 11 agents load in Claude Code. No full sprint run yet |
-| A2 · Add products | Waiting for the product list |
-| A3 · First sprint | Not started |
+| A1 · Built | ✅ Done (29 Oct 2026). Scripts and guard hook tested; all 11 agents load in Claude Code |
+| A1+ · Memory, skills, fallbacks | ✅ Done (30 Oct 2026). 21 agents, 5 skills, retry and fallback hooks; a live run found one bug, now fixed |
+| J1 · Jarvis core | ✅ Done (30 Oct 2026). `/do` and `jarvis.mjs` with a queue, usage guard, reports and after-task lessons; 122 tests pass; first live task passed at 95/100 |
+| A2 · Add products | 🟡 In progress. Company policies and MotionRepo confirmed; 4–5 products to go |
+| A3 · First sprint | ⏭ Next: `jarvis.mjs do "Run the first MotionRepo lead sprint, 15 leads"` |
+| J2 · Learning organisation | Not started |
+| J3 · Skill library and checks | ✅ Done (30 Oct 2026). 18 skills, automatic copy checks, opt-out list and lead gate, from three open-source repos; 170 tests pass; not yet used in a live sprint |
+| J4 · Autopilot | Not started |
 | A4 · All products | Not started |
+| J5 · More departments | When wanted |
 | B · Product signals | Only if needed |
-| C · Always-on system | Only if needed |
+| C · Always-on system | Only if needed (scheduling moved to J4) |
 
 ## Log
 
@@ -24,7 +30,26 @@ What's done, what's decided, what's blocked, and how each sprint went. The full 
   - Direct agent-to-agent calls limited to each agent's `can_ask` list, one level deep and logged.
   - A retry hook (three attempts per reply), plus a fallback agent for each specialist and the evaluator, with switches logged.
   - `fallbackModel` for model outages, and a test suite (`node scripts/test.mjs`).
-  - Not yet run in a live session.
+- **30 Oct 2026.** Live check with `claude -p`:
+  - The session started as the coordinator. `can_ask` blocked outreach → developer and allowed outreach → knowledge-base, and every call was logged.
+  - Researcher's reply without a RESULT block was retried once, then passed.
+  - It found a bug: a RESULT block whose summary mentioned "RESULT" was rejected, which caused a needless fallback. Fixed, with a test added.
+- **30 Oct 2026.** `knowledge/company.md` confirmed: discounts up to 20%, annual plans only; email and LinkedIn at 20 a day; Indian English. Company details are `{{PLACEHOLDERS}}` until the founders supply them.
+- **30 Oct 2026.** MotionRepo added. Its open questions were decided from the GitHub repo, PRs and live site.
+  - Fact sheet 93/100 and competitor file, both confirmed.
+  - Market brief and channel map 94/100. First segment: founder-led Indian software startups of 2–20 people with a launch due. Direct competitor: RepoClip.
+- **30 Oct 2026.** Built J1, the Jarvis core:
+  - `/do` and `scripts/jarvis.mjs` (queue, runner, plan-usage guard), autopilot rules for the coordinator, reports in `outputs/reports/`, and lessons recorded after each task.
+  - 122 tests pass.
+  - First live task, J-20261030-01: a MotionRepo battlecard, PASS 95/100 after two revisions, with 3 lessons for sales and 1 for main memory. Its answers wait for approval as A-20261030-01.
+  - The 5-hour window reached 83% during the run.
+
+- **30 Oct 2026.** Studied three open-source marketing repos and built J3, with credits in `docs/CREDITS.md`:
+  - `scripts/lint-copy.mjs`: automatic checks before review, a gate log, and mining of repeat failures.
+  - `leads.mjs`: a global opt-out list (`suppress`), a Go, Conditional or Stop gate (`gate`), and evidence signal classes.
+  - 13 new skills: claim-check, signal-outreach, reply-triage, meeting-prep, stalled-deal, research-rigor, competitive-battlecard, proof-library, hook-bank, positioning, linkedin-founder, seo-refresh, early-stage-guardrails. Five existing skills upgraded.
+  - Agents and rubrics now use the checks. Customer-facing work declares its outcome before drafting.
+  - Took: kai-cmo-harness (MIT parts only) for logic, saas-marketing-agents for methods. awesome-marketing added nothing useful: it's a list of mostly paid tools.
 
 ## Decisions
 
@@ -33,16 +58,25 @@ What's done, what's decided, what's blocked, and how each sprint went. The full 
 | D1 | First workflow to prove | Selling: research → leads → outreach → sales and demos | Decided, 29 Oct 2026 |
 | D2 | Where Phase A runs | Claude Code agents in this repo, on the Max plan, a person in the loop | Decided |
 | D3 | Phase A storage | Markdown knowledge files with a trust status; leads in JSON Lines behind a validating script | Decided |
-| D4 | Agent communication | Hub and spoke: only the coordinator assigns work; at most 3 handoff steps and 2 revisions | Decided |
+| D4 | Agent communication | The coordinator assigns work; specialists may call the agents in their `can_ask` list, one level deep; at most 3 handoff steps and 2 revisions (updated 30 Oct 2026) | Decided |
 | D5 | Quality | Automated checks, then an Opus evaluator with per-type rubrics; the evaluator can't approve actions | Decided |
 | D6 | Knowledge trust | `proposed` / `confirmed` / `deprecated`; a hook stops agents editing or confirming facts | Decided |
 | D7 | Phase C runtime, database and dashboard | Research when Phase C starts | Open |
+| D8 | How the team runs unattended | Jarvis: headless `claude -p` coordinator sessions on the Max plan login, one task at a time, stopping at 85% plan usage; no API key or Agent SDK | Decided, 30 Oct 2026 |
+| D10 | Outside playbooks | Rewrite in our own words as short skills, MIT sources only, credited in `docs/CREDITS.md`; no long persona files, because they cost tokens on every run | Decided, 30 Oct 2026 |
+| D9 | Fallbacks | One fallback agent per specialist and the evaluator, on the other model, after 3 failed attempts; then escalate | Decided, 30 Oct 2026 |
 
 ## Blockers
 
-- The product list: name, website and repo for each of the 5–6 products.
-- `knowledge/company.md` needs our answers: pricing and discount policy, outreach policy, voice, approvers.
-- Decisions from PLAN.md: first product, approvers, outreach mailbox, where the repo lives.
+- **PR #3** (`agent-memory-skills-fallbacks`) needs Mohit's review and merge.
+- **The rest of the product list:** name, website and repo for each of the other 4–5 products (Interlister?).
+- **Company details** in `knowledge/company.md` are placeholders: name, website, sender, markets, approvers.
+- **Autopilot developer tasks** can't commit or run tests until a person adds these to `permissions.allow` in `.claude/settings.json`. Claude may not change its own permissions.
+  ```
+  "Bash(git switch *)", "Bash(git checkout -b *)", "Bash(git add *)", "Bash(git commit *)",
+  "Bash(npm test*)", "Bash(npm run test*)", "Bash(npm run lint*)", "Bash(npm run typecheck*)", "Bash(npx tsc *)"
+  ```
+- **Approval A-20261030-01:** use the MotionRepo battlecard answers with prospects?
 
 ## Sprint results
 

@@ -6,6 +6,7 @@ model: sonnet
 color: red
 skills:
   - fact-sourcing
+  - claim-check
 fallback_for: evaluator
 ---
 

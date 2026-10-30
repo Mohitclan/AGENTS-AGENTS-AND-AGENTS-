@@ -8,17 +8,20 @@
 //   node scripts/leads.mjs show <id>
 //   node scripts/leads.mjs set-status <id[,id...]> <status> [note] [--force]
 //   node scripts/leads.mjs export-csv                           rewrite pipeline/leads.csv
+//   node scripts/leads.mjs suppress <domain|email> "<reason>"   never contact them again, across every product
+//   node scripts/leads.mjs gate [--product p] [--status s]      Go, Conditional or Stop for each lead before outreach
 import { createHash } from 'node:crypto';
 import {
-  closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync, writeSync,
+  appendFileSync, closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync, writeSync,
 } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
-import { ROOT, fail, printTable, today } from './_shared.mjs';
+import { ROOT, daysSince, fail, printTable, today } from './_shared.mjs';
 
 const PIPELINE = join(ROOT, 'pipeline');
 const DB = join(PIPELINE, 'leads.jsonl');
 const CSV = join(PIPELINE, 'leads.csv');
 const LOCK = join(PIPELINE, 'leads.lock');
+const SUPPRESSION = join(PIPELINE, 'suppression.jsonl');
 const PRODUCTS = join(ROOT, 'knowledge', 'products');
 
 const STATUSES = ['new', 'qualified', 'disqualified', 'drafted', 'approved', 'contacted', 'replied', 'meeting', 'trial', 'won', 'lost'];
@@ -40,6 +43,14 @@ const NEXT = {
 const LOCK_WAIT_MS = 15_000;
 const LOCK_STALE_MS = 120_000;
 const CHANNELS = ['email', 'linkedin', 'form', 'phone', 'other'];
+const SIGNALS = ['published', 'observed_gap', 'inferred']; // how we know: pipeline/lead-schema.md
+const FRESH_DAYS = 90;
+const GATE_CHANNELS = new Set(['email', 'linkedin']); // knowledge/company.md, outreach policy
+const OUTREACH_STATUSES = new Set(['drafted', 'approved', 'contacted']);
+// Contact quality: a named person beats a shared inbox, and a support desk isn't a sales route.
+const SUPPORT_INBOX = /^(support|help|helpdesk|care|customercare|customerservice|service|billing|abuse|security|legal|privacy|no-?reply|donotreply)@/i;
+const GENERAL_INBOX = /^(hello|hi|hey|info|contact|team|founders?|sales|marketing|admin|office|mail|enquir(y|ies)|inquir(y|ies))@/i;
+const REACHABILITY_CAP = { general: 5, support: 3 };
 const SCORE_PARTS = { icp_fit: 40, need_evidence: 30, timing: 20, reachability: 10 };
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -86,6 +97,7 @@ function validate(lead, products) {
     lead.evidence.forEach((ev, i) => {
       if (typeof ev?.claim !== 'string' || !ev.claim.trim()) errors.push(`evidence[${i}].claim is required`);
       if (!isUrl(ev?.url)) errors.push(`evidence[${i}].url must be an http(s) URL`);
+      if (ev?.signal != null && !SIGNALS.includes(ev.signal)) errors.push(`evidence[${i}].signal must be one of: ${SIGNALS.join(', ')}`);
     });
   }
 
@@ -125,7 +137,7 @@ function mergeEvidence(existing, incoming) {
     const key = `${e.url}|${e.claim.trim()}`;
     if (!seen.has(key)) {
       seen.add(key);
-      merged.push({ claim: e.claim.trim(), url: e.url, seen: e.seen || today() });
+      merged.push({ claim: e.claim.trim(), url: e.url, seen: e.seen || today(), ...(e.signal ? { signal: e.signal } : {}) });
     }
   }
   return merged;
@@ -214,12 +226,92 @@ function writeCsv(leads) {
   writeFileSync(CSV, [cols.join(','), ...rows.map((r) => cols.map((c) => cell(r[c])).join(','))].join('\n') + '\n');
 }
 
+function contactQuality(contact) {
+  if (!contact?.value) return 'none';
+  if (contact.channel !== 'email') return 'direct';
+  if (SUPPORT_INBOX.test(contact.value)) return 'support';
+  return GENERAL_INBOX.test(contact.value) ? 'general' : 'direct';
+}
+
+function suppressions() {
+  if (!existsSync(SUPPRESSION)) return [];
+  return readFileSync(SUPPRESSION, 'utf8').split('\n').filter((l) => l.trim()).map((l) => JSON.parse(l));
+}
+
+// A company domain covers everyone there; an email address covers that person.
+function suppressedBy(lead, list) {
+  const contact = String(lead.contact?.value || '').toLowerCase();
+  const domain = lead.domain || (isUrl(lead.website) ? domainOf(lead.website) : '');
+  return list.find((s) => s.value === domain || s.value === contact);
+}
+
+function suppress(value, reason) {
+  value = (value || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '');
+  if (!value || !value.includes('.') || !reason?.trim()) fail('Usage: node scripts/leads.mjs suppress <domain|email> "<reason>"');
+  lock();
+  if (suppressions().some((s) => s.value === value)) {
+    console.log(`${value} is already suppressed.`);
+    return;
+  }
+  appendFileSync(SUPPRESSION, `${JSON.stringify({ value, reason: reason.trim(), at: today() })}\n`);
+  const list = suppressions();
+  const leads = load();
+  const hit = leads.filter((l) => suppressedBy(l, list) && !['disqualified', 'lost', 'won'].includes(l.status));
+  for (const lead of hit) {
+    lead.history.push({ at: today(), event: 'status', from: lead.status, status: 'disqualified', note: `suppressed: ${reason.trim()}` });
+    lead.status = 'disqualified';
+    lead.disqualify_reason = `suppressed: ${reason.trim()}`;
+    lead.updated_at = today();
+  }
+  if (hit.length) save(leads);
+  console.log(`Suppressed ${value}.${hit.length ? ` ${hit.length} open lead(s) disqualified.` : ''}`);
+}
+
+// The last check before outreach is drafted or sent. Conditional means a person decides.
+function gateOf(lead, list) {
+  const stop = [];
+  const conditional = [];
+  if (suppressedBy(lead, list)) stop.push('suppressed');
+  if (['disqualified', 'lost'].includes(lead.status)) stop.push(`status is ${lead.status}`);
+  if (!lead.contact?.value) stop.push('no published contact');
+  else if (!GATE_CHANNELS.has(lead.contact.channel)) conditional.push(`contact is ${lead.contact.channel}; policy allows email and LinkedIn`);
+  if (contactQuality(lead.contact) === 'support') conditional.push('support-only inbox');
+  if (!lead.evidence?.length) stop.push('no evidence');
+  const age = daysSince(lead.researched_at);
+  if (age === null || age > FRESH_DAYS) conditional.push(`researched ${age ?? '?'} days ago; recheck the evidence`);
+  if (lead.tier === 'C') conditional.push('tier C');
+  if (lead.evidence?.length && lead.evidence.every((e) => e.signal === 'inferred')) conditional.push('only inferred signals');
+  const verdict = stop.length ? 'Stop' : conditional.length ? 'Conditional' : 'Go';
+  return { verdict, why: [...stop, ...conditional].join('; ') };
+}
+
+function gate(args) {
+  const flag = (name) => {
+    const i = args.indexOf(`--${name}`);
+    return i >= 0 ? args[i + 1] : undefined;
+  };
+  const product = flag('product');
+  const status = flag('status') || 'qualified';
+  const list = suppressions();
+  const leads = load().filter((l) => (!product || l.product === product) && (status === 'all' || l.status === status));
+  if (!leads.length) {
+    console.log('No leads match.');
+    return;
+  }
+  const rows = leads.map((l) => ({ id: l.id, tier: l.tier, contact: contactQuality(l.contact), company: l.company, ...gateOf(l, list) }));
+  printTable(rows, ['id', 'tier', 'verdict', 'contact', 'company', 'why']);
+  const counts = rows.reduce((c, r) => ({ ...c, [r.verdict]: (c[r.verdict] || 0) + 1 }), {});
+  console.log(`\n${Object.entries(counts).map(([v, n]) => `${n} ${v}`).join(', ')}. Fix a Stop at the source, then run the gate again.`);
+  if (counts.Stop) process.exit(1);
+}
+
 function importBatch(file) {
   const path = resolve(process.cwd(), file);
   if (!existsSync(path)) fail(`No such file: ${file}`);
   const products = productSlugs();
   if (!products.size) fail('No product fact sheets in knowledge/products/ yet. Add a product before importing leads.');
 
+  const blocklist = suppressions();
   const problems = [];
   const batch = [];
   const lineOfKey = new Map();
@@ -239,6 +331,11 @@ function importBatch(file) {
     }
     if (lead.score != null && lead.score !== totalOf(lead.score_breakdown)) {
       errors.push(`score ${lead.score} doesn't match the breakdown total ${totalOf(lead.score_breakdown)}`);
+    }
+    if (suppressedBy(lead, blocklist)) errors.push('this company or contact is on the suppression list');
+    const quality = contactQuality(lead.contact);
+    if (lead.score_breakdown?.reachability > (REACHABILITY_CAP[quality] ?? 10)) {
+      errors.push(`score_breakdown.reachability can be at most ${REACHABILITY_CAP[quality]} for a ${quality} inbox`);
     }
     if (errors.length) {
       problems.push(...errors.map((e) => `line ${n} (${lead.company || 'no company'}): ${e}`));
@@ -398,6 +495,9 @@ function setStatus(idList, status, note, force) {
   if (missing.length) fail(`Nothing changed. Unknown lead id(s): ${missing.join(', ')}`);
 
   const chosen = leads.filter((l) => ids.includes(l.id));
+  const blocklist = suppressions();
+  const barred = OUTREACH_STATUSES.has(status) ? chosen.filter((l) => suppressedBy(l, blocklist)) : [];
+  if (barred.length) fail(`Nothing changed. Suppressed, never contact: ${barred.map((l) => `${l.id} ${l.company}`).join(', ')}`);
   // Setting the same status again only adds a note to the history.
   const blocked = chosen.filter((l) => !force && l.status !== status && !NEXT[l.status]?.includes(status));
   if (blocked.length) {
@@ -441,11 +541,17 @@ switch (command) {
     setStatus(rest[0], rest[1], rest.slice(2).join(' '), rest.length < args.length);
     break;
   }
+  case 'suppress':
+    suppress(args[0], args.slice(1).join(' '));
+    break;
+  case 'gate':
+    gate(args);
+    break;
   case 'export-csv':
     lock();
     writeCsv(load());
     console.log(`Wrote ${toRel(CSV)}`);
     break;
   default:
-    fail('Usage: node scripts/leads.mjs import <file> | check | list [--product p] [--status s] [--tier A] | show <id> | set-status <ids> <status> [note] [--force] | export-csv');
+    fail('Usage: node scripts/leads.mjs import <file> | check | list [--product p] [--status s] [--tier A] | show <id> | set-status <ids> <status> [note] [--force] | export-csv | suppress <domain|email> "<reason>" | gate [--product p] [--status s]');
 }

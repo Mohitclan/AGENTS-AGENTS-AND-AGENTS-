@@ -7,6 +7,7 @@ color: green
 skills:
   - lead-research
   - fact-sourcing
+  - signal-outreach
 fallback_for: lead-generator
 ---
 

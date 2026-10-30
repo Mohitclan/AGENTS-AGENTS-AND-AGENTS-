@@ -7,6 +7,8 @@ color: blue
 skills:
   - fact-sourcing
   - lead-research
+  - research-rigor
+  - competitive-battlecard
 fallback_for: researcher
 ---
 

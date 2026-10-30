@@ -34,6 +34,8 @@ What it does, for whom, and the outcome they get.
 | Feature | Status (live, beta, planned) | What it does for the user | Source |
 |---|---|---|---|
 
+Grade each feature with the claim-check skill: supported today, supported with effort, roadmap with no date, or not supported.
+
 ## Limitations and known issues
 
 ## Pricing and plans

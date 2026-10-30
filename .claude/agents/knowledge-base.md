@@ -7,6 +7,8 @@ color: cyan
 memory: project
 skills:
   - fact-sourcing
+  - claim-check
+  - research-rigor
 can_ask:
   - researcher
 fallback: knowledge-base-fallback

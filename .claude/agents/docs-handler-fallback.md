@@ -6,6 +6,7 @@ model: opus
 color: blue
 skills:
   - fact-sourcing
+  - claim-check
 fallback_for: docs-handler
 ---
 
