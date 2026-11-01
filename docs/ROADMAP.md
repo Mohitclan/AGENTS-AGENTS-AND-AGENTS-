@@ -59,7 +59,7 @@ What's done, what's decided, what's blocked, and how each sprint went. The full 
 - **1 Nov 2026.** Phase H content, J-20261101-01: `/security`, README and the pricing comment corrected on local branch `agent/T-20261101-01` in the MotionRepo repo (`285480d`), not pushed. The frontend type check passes; the backend tests need app credentials and weren't run. The positioning proposal passed at 92/100, waiting for a person.
 - **1 Nov 2026.** Phase A3 sprint, J-20261101-02: 9 Peerlist candidates plus 4 from search; none met all six segment 1 tests, so no lead was imported and nothing was drafted. Most were solo makers, and no candidate showed a launch due in 60 days, because launch listings show past launches. Review passed at 89/100 after two revisions.
 - **1 Nov 2026.** Solo founders now count as segment 1 (D11). Re-test J-20261101-03 of the six candidates stopped for being solo: none imported. Three are free tools, two have demo videos, and Pippin was rejected afterwards when its X clip showed the product in use. Review passed at 84/100 after one revision; the Pippin change came after the review. No candidate has passed the launch test yet. Fact sheet change proposed in `knowledge/proposals/2026-11-01-motionrepo-solo-founders.md`.
-- **1 Nov 2026.** shivam-G05 approved pushing. `phase-h-a3` and the MotionRepo branch `agent/T-20261101-01` are on GitHub. Neither is merged, and nothing was deployed.
+- **1 Nov 2026.** shivam-G05 approved pushing and opening PRs. `phase-h-a3` is PR #5, and the MotionRepo site fix is Collateral-Pipeline PR #42. Neither is merged, and nothing was deployed.
 
 ## Decisions
 
@@ -85,8 +85,8 @@ What's done, what's decided, what's blocked, and how each sprint went. The full 
 - **Approval A-20261030-01:** use the MotionRepo battlecard answers with prospects?
 - **Approval A-20261030-02:** does "never contact competitors" cover Repowise? It stays on hold until a person answers.
 - **Knowledge proposals:** the solo-founders and one-run positioning changes wait for a person to apply them and confirm the fact sheet again.
-- **MotionRepo site fix:** branch `agent/T-20261101-01` is pushed and needs a PR, review, merge and deploy. `dashboard/plan/page.tsx:368` still contradicts the GST wording.
-- **Branch `phase-h-a3`:** pushed; needs a PR, review and merge into main.
+- **MotionRepo site fix:** [Collateral-Pipeline PR #42](https://github.com/PanScienceInnovation/Collateral-Pipeline/pull/42) needs review, merge and deploy. A person decides the wording at `dashboard/plan/page.tsx:368`, which depends on what the billing Hub charges.
+- **Phases H and A3:** [PR #5](https://github.com/Mohitclan/AGENTS-AGENTS-AND-AGENTS-/pull/5) needs review and merge into main.
 
 ## Sprint results
 
