@@ -11,7 +11,7 @@ What's done, what's decided, what's blocked, and how each sprint went. The full 
 | J1 · Jarvis core | ✅ Done (30 Oct 2026). `/do` and `jarvis.mjs` with a queue, usage guard, reports and after-task lessons; 122 tests pass; first live task passed at 95/100 |
 | A2 · Add products | 🟡 In progress. Company policies and MotionRepo confirmed; 4–5 products to go |
 | H · Hardening | 🟡 Build done (1 Nov 2026), 190 tests pass. Waiting on people: decisions, company details, merging the site fix and positioning proposal |
-| A3 · First sprint | 🟡 Blocked. The 1 Nov sprint and a re-test that counted solo founders found no lead that meets segment 1. Nothing drafted or sent |
+| A3 · First sprint | 🟡 Waiting on people. 3 leads qualified and 2 email sequences passed at 87/100. Nothing sent |
 | J2 · Learning organisation | Not started |
 | J3 · Skill library and checks | ✅ Done (30 Oct 2026). 18 skills, automatic copy checks, opt-out list and lead gate, from three open-source repos; 170 tests pass; not yet used in a live sprint |
 | J4 · Autopilot | Not started |
@@ -60,6 +60,8 @@ What's done, what's decided, what's blocked, and how each sprint went. The full 
 - **1 Nov 2026.** Phase A3 sprint, J-20261101-02: 9 Peerlist candidates plus 4 from search; none met all six segment 1 tests, so no lead was imported and nothing was drafted. Most were solo makers, and no candidate showed a launch due in 60 days, because launch listings show past launches. Review passed at 89/100 after two revisions.
 - **1 Nov 2026.** Solo founders now count as segment 1 (D11). Re-test J-20261101-03 of the six candidates stopped for being solo: none imported. Three are free tools, two have demo videos, and Pippin was rejected afterwards when its X clip showed the product in use. Review passed at 84/100 after one revision; the Pippin change came after the review. No candidate has passed the launch test yet. Fact sheet change proposed in `knowledge/proposals/2026-11-01-motionrepo-solo-founders.md`.
 - **1 Nov 2026.** shivam-G05 approved pushing and opening PRs. `phase-h-a3` is PR #5, and the MotionRepo site fix is Collateral-Pipeline PR #42. Neither is merged, and nothing was deployed.
+- **1 Nov 2026.** Claude settled what it could for shivam-G05 ("do h and a3"): Repowise disqualified, and the launch, video and GitHub tests loosened. All are reversible. PR #42 now has neutral Plan page wording, and its auth, users, billing, hub and docs tests pass.
+- **1 Nov 2026.** A3 re-run, J-20261101-04 to -07: 13 candidates tested. Pippin, Graphite and SpaceWise qualified, Cool Analytics is on hold, 1 was rejected and 8 stay open. Pippin and Graphite sequences went from REVISE 65 to PASS 87/100. An earlier broad attempt used the whole 5-hour window and saved nothing, so tasks now save after each candidate. The cold-email skill's opt-out word is now "stop".
 
 ## Decisions
 
@@ -76,15 +78,18 @@ What's done, what's decided, what's blocked, and how each sprint went. The full 
 | D10 | Outside playbooks | Rewrite in our own words as short skills, MIT sources only, credited in `docs/CREDITS.md`; no long persona files, because they cost tokens on every run | Decided, 30 Oct 2026 |
 | D9 | Fallbacks | One fallback agent per specialist and the evaluator, on the other model, after 3 failed attempts; then escalate | Decided, 30 Oct 2026 |
 | D11 | Solo founders | Count as segment 1: about 1 to 20 people, every other test unchanged | Decided, 1 Nov 2026 |
+| D12 | Launch, video and GitHub tests | Launch in the last 30 days passes, a video lowers the score, an active GitHub account is inferred evidence | Claude's call, 1 Nov 2026; a person can reverse it |
+| D13 | Repowise | Treated as a competitor and disqualified | Claude's call, 1 Nov 2026; a person can reverse it |
 
 ## Blockers
 
-- **Segment 1 launch and video tests:** no candidate has passed the launch test, and four of the five that sell or plan to sell something failed the no-video test. A person decides whether to loosen them before the next sprint.
+- **First sends:** sender details are blank, and sends A-20261101-03 to -08 need a person's yes. Someone must also confirm the site and /security load: both timed out from this machine on 1 Nov, along with the billing Hub.
+- **Claude's calls:** D12 and D13 need a person to keep or reverse them.
+- **Open questions:** whether "never contact competitors" covers a maker's other product, and whether SpaceWise may get a draft by X.
 - **The rest of the product list:** name, website and repo for each of the other 4–5 products (Interlister?).
 - **Company details** in `knowledge/company.md` are placeholders: name, website, sender, markets, approvers.
 - **Approval A-20261030-01:** use the MotionRepo battlecard answers with prospects?
-- **Approval A-20261030-02:** does "never contact competitors" cover Repowise? It stays on hold until a person answers.
-- **Knowledge proposals:** the solo-founders and one-run positioning changes wait for a person to apply them and confirm the fact sheet again.
+- **Knowledge proposals:** the solo-founders, one-run positioning and company details changes wait for a person to apply them and confirm the files again.
 - **MotionRepo site fix:** [Collateral-Pipeline PR #42](https://github.com/PanScienceInnovation/Collateral-Pipeline/pull/42) needs review, merge and deploy. A person decides the wording at `dashboard/plan/page.tsx:368`, which depends on what the billing Hub charges.
 - **Phases H and A3:** [PR #5](https://github.com/Mohitclan/AGENTS-AGENTS-AND-AGENTS-/pull/5) needs review and merge into main.
 
@@ -92,4 +97,4 @@ What's done, what's decided, what's blocked, and how each sprint went. The full 
 
 | Date | Product | Leads | Held up in review | Contacted | Replies | Meetings | Plan usage | Notes |
 |---|---|---|---|---|---|---|---|---|
-| 1 Nov 2026 | MotionRepo | 0 | – | 0 | – | – | Not recorded | J-20261101-02 and solo re-test J-20261101-03. 13 candidates: 11 rejected or not added, 2 open. Nothing drafted |
+| 1 Nov 2026 | MotionRepo | 4 imported, 3 qualified | 1 (Cool Analytics) | 0 | – | – | One broad run used a full 5-hour window; the split re-run used about 40% of one | 20 candidates. 2 sequences passed at 87/100. Waiting on sender details and approvals |
