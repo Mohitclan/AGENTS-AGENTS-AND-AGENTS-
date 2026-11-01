@@ -11,8 +11,9 @@ Dates are proposals. Names in `[brackets]` are for the team to fill in.
 | A1 · Built | The team, knowledge base, lead pipeline, checks and guardrails exist | ✅ Done, 29 Oct 2026 | Scripts and hook tested; agents load |
 | A1+ · Memory, skills, fallbacks | Main and per-agent memory, skills, direct agent calls, retries and fallback agents | ✅ Done, 30 Oct 2026 | Tests pass; a live run shows the hooks working |
 | J1 · Jarvis core | Hand over any task with `/do` or `jarvis.mjs`; it runs the whole chain and returns a finished result and report; task queue; plan-usage guard; lessons recorded after each task | ✅ Done, 30 Oct 2026 | A real task runs end to end from one command, with a report and recorded lessons |
+| H · Hardening | Fix what live tests exposed: stronger copy checks and lead gate, hold state, corrected records, site and positioning fixes | 🟡 Build done 1 Nov 2026; waiting on people | Open decisions answered, company details filled in, site fixes merged |
 | A2 · Add products | Confirmed fact sheets for our 5–6 products | 🟡 1 of 5–6 (MotionRepo, 30 Oct) | Every fact sheet confirmed |
-| A3 · First sprint | 15 leads and outreach for one product, run through Jarvis; measure results | ⏭ Next | Sprint passes review; results recorded |
+| A3 · First sprint | 15 leads and outreach for one product, run through Jarvis; measure results | 🟡 Blocked: the sprint and a solo-founder re-test found no lead that fits segment 1; waiting on a decision about the launch and video tests | Sprint passes review; results recorded |
 | J2 · Learning organisation | Feed company documents into knowledge and memory; turn work scoring 90+ into skills (gate-log mining is done) | After A3 | Org documents ingested; first skill mined from real work |
 | J3 · Skill library and checks | 13 new skills, 5 upgraded, automatic copy checks, opt-out list and lead gate, adapted from open-source marketing repos | ✅ Done, 30 Oct 2026 | Every selling agent preloads 3+ skills; checks pass on reviewed work with no false alarms |
 | J4 · Autopilot | Daily queue run and weekly review as desktop scheduled tasks, on the Max plan | After J3 | A week of scheduled runs with reports and no lost tasks |
@@ -32,8 +33,9 @@ gantt
   J1 Jarvis core                :done, j1, 2026-10-30, 1d
   J3 Skills and checks          :done, j3, 2026-10-30, 1d
   section Next
+  H Hardening                   :active, h, 2026-11-01, 7d
   A2 Add products               :active, a2, 2026-10-30, 8d
-  A3 First sprint and results   :a3, 2026-11-02, 14d
+  A3 First sprint and results   :active, a3, 2026-11-01, 15d
   J2 Learning organisation      :j2, 2026-11-04, 7d
   J4 Autopilot                  :j4, after j2, 7d
   A4 All products               :a4, after j4, 26d
@@ -67,6 +69,26 @@ gantt
 | 5 | Agents, rubrics, the coordinator and `/weekly-review` use all of the above; outcomes are declared before drafting | `.claude/agents/`, `evaluation/rubrics.md` |
 | 6 | 170 tests; the checks ran clean on the reviewed battlecard and market brief | `scripts/tests/` |
 
+## Phase H · Hardening (build done 1 Nov 2026, waiting on people)
+
+| # | What | Where | Status |
+|---|---|---|---|
+| 1 | Copy checks cover every email, stop each email at the next heading, and warn on two questions. They found Repowise's Email 2 at 122 words | `scripts/lint-copy.mjs` | ✅ Done |
+| 2 | The lead gate shows Not reviewed instead of Go, and flags old signals and evidence with no signal class | `scripts/leads.mjs` | ✅ Done |
+| 3 | `hold`, `release`, `supersede` and `next` for lead records; Repowise is on hold | `scripts/leads.mjs`, `pipeline/lead-schema.md` | ✅ Done |
+| 4 | Skills corrected from the live tests | `.claude/skills/cold-email/`, `.claude/skills/lead-research/` | ✅ Done |
+| 5 | `/security`, README and the pricing comment corrected. The frontend type check passes; the backend tests need app credentials and weren't run | Branch `agent/T-20261101-01` in `repos/motionrepo`, pushed 1 Nov 2026 | 🟡 Waiting: PR, review, merge and deploy |
+| 6 | Positioning proposal for the "one run" claim, passed at 92/100 | `knowledge/proposals/2026-11-01-motionrepo-one-run-positioning.md` | 🟡 Waiting: a person applies it |
+| 7 | 190 tests pass | `scripts/tests/` | ✅ Done |
+
+**Still to do by a person:**
+
+- [ ] Decide whether "never contact competitors" covers Repowise (A-20261030-02).
+- [ ] Fill in the company details in `knowledge/company.md` and confirm it again.
+- [ ] Open a PR for the site fix, correct `dashboard/plan/page.tsx:368` ("charged exactly the price shown"), then merge and deploy it.
+- [ ] Apply the positioning proposal and confirm the fact sheets again.
+- [ ] Open a PR for branch `phase-h-a3`, then review and merge it.
+
 ## Phase J2 · Learning organisation
 
 | # | Task |
@@ -80,31 +102,41 @@ gantt
 
 ## Phase A2 · Add the products (week of 2 Nov)
 
-| # | Task | Owner |
-|---|---|---|
-| 1 | Create a private GitHub repo and push this folder | [name] |
-| 2 | Fill in `knowledge/company.md` (pricing and discount policy, outreach policy, voice, approvers), then confirm it with `node scripts/kb.mjs confirm knowledge/company.md` | [name] |
-| 3 | List the 5–6 products with website and repo | [name] |
-| 4 | Run `/add-product <name> <website> <owner/repo>` for each product | [name] |
-| 5 | Review each fact sheet, answer its open questions, then confirm it | Product owner for each |
-| 6 | Optional: set up a separate domain and mailbox for outreach | [name] |
+| # | Task | Owner | Status |
+|---|---|---|---|
+| 1 | Create a private GitHub repo and push this folder | [name] | ✅ Done |
+| 2 | Fill in `knowledge/company.md` (pricing and discount policy, outreach policy, voice, approvers), then confirm it with `node scripts/kb.mjs confirm knowledge/company.md` | [name] | 🟡 Part done: confirmed, but company details are placeholders |
+| 3 | List the 5–6 products with website and repo | [name] | 🟡 Waiting: MotionRepo listed, a person names the rest |
+| 4 | Run `/add-product <name> <website> <owner/repo>` for each product | [name] | 🟡 Part done: MotionRepo only |
+| 5 | Review each fact sheet, answer its open questions, then confirm it | Product owner for each | 🟡 Part done: MotionRepo only |
+| 6 | Optional: set up a separate domain and mailbox for outreach | [name] | ⬜ Not started |
 
 **Done when**
 
-- [ ] `node scripts/kb.mjs status` shows `knowledge/company.md` and every product file as `confirmed`.
-- [ ] Each fact sheet passed review with a score of 80 or more, and no pricing conflicts are left open.
-- [ ] `/agents` lists all 21 agents (coordinator, ten specialists, ten fallbacks), a new session in the repo starts as the coordinator, and `node scripts/test.mjs` passes.
+- [ ] `node scripts/kb.mjs status` shows `knowledge/company.md` and every product file as `confirmed`. (MotionRepo and company confirmed; other products not added)
+- [ ] Each fact sheet passed review with a score of 80 or more, and no pricing conflicts are left open. (MotionRepo passed at 93/100; other products not added)
+- [x] `/agents` lists all 21 agents (coordinator, ten specialists, ten fallbacks), a new session in the repo starts as the coordinator, and `node scripts/test.mjs` passes.
 
 ## Phase A3 · First lead sprint (weeks of 9 and 16 Nov)
 
-| # | Task | Owner |
-|---|---|---|
-| 1 | Pick the first product: the one with the clearest buyer and a sign-up and checkout that work | Founders |
-| 2 | Run `/lead-sprint <product-slug> 15` | [name] |
-| 3 | Read the approval list in `ops/approvals.md`; send the approved emails ourselves; mark each lead `contacted` | [name] |
-| 4 | Paste replies to the coordinator; use `/demo-prep <lead-id>` for any meeting | [name] |
-| 5 | Run `/usage` after the sprint and note how much of the 5-hour window it used | [name] |
-| 6 | After two weeks, record the results in `docs/ROADMAP.md` | [name] |
+**Where it stands, 1 Nov 2026: blocked.** No lead imported, nothing drafted, nobody contacted.
+
+- **Sprint J-20261101-02:** 13 candidates checked, none met all six segment 1 tests. Review passed at 89/100.
+- **Solo founders:** now count as segment 1, about 1 to 20 people. Fact sheet change is in `knowledge/proposals/2026-11-01-motionrepo-solo-founders.md`, waiting for a person.
+- **Re-test J-20261101-03:** the six candidates stopped for being solo were all rejected on other tests. Review passed at 84/100, before Pippin moved from open to rejected.
+- **Still open:** Astiva AI and chalk (https://chalkbrain.com/, six tests not run yet).
+- **The blocker:** no candidate has passed the launch test, because launch listings show past launches. Of the five candidates that sell or plan to sell something, four failed the no-video test. Both tests are stricter than the fact sheet, which counts a launch just posted as a trigger and treats a missing video as a low-confidence signal, not a disqualifier.
+
+**Next:** a person decides whether a launch or release in the last 30 days passes, and whether a video lowers a lead's score instead of rejecting it. If yes, re-run the sprint on a fresh batch. If no, the researcher needs a source for dated upcoming launches.
+
+| # | Task | Owner | Status |
+|---|---|---|---|
+| 1 | Pick the first product: the one with the clearest buyer and a sign-up and checkout that work | Founders | ✅ Done: MotionRepo |
+| 2 | Run `/lead-sprint <product-slug> 15` | [name] | 🟡 Blocked: ran through Jarvis, 0 leads |
+| 3 | Read the approval list in `ops/approvals.md`; send the approved emails ourselves; mark each lead `contacted` | [name] | ⬜ Not started |
+| 4 | Paste replies to the coordinator; use `/demo-prep <lead-id>` for any meeting | [name] | ⬜ Not started |
+| 5 | Run `/usage` after the sprint and note how much of the 5-hour window it used | [name] | ⬜ Not started |
+| 6 | After two weeks, record the results in `docs/ROADMAP.md` | [name] | ⬜ Not started |
 
 **Done when**
 
@@ -175,6 +207,7 @@ gantt
 | Who approves what | Sending, publishing, code, discounts | Founders | Next meeting |
 | Outreach mailbox | Separate domain or main domain | [name] | Week of 2 Nov |
 | Where the repo lives | Personal account or company organisation | [name] | Week of 2 Nov |
+| Segment 1 launch and video tests | Loosen them, or keep them and find a source for upcoming launches | shivam-G05 | Before the next sprint |
 
 ## Risks and how we handle them
 

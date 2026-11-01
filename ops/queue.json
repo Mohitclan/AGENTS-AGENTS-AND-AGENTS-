@@ -11,14 +11,6 @@
     "turns": 31
   },
   {
-    "id": "J-20261030-02",
-    "task": "Run the first MotionRepo lead sprint: 15 leads in the first segment from the confirmed fact sheet and market brief, reviewed by the evaluator, then outreach drafts for the tier A and B leads, with every send listed in ops/approvals.md",
-    "status": "queued",
-    "added": "2026-10-30 13:38",
-    "started": "2026-10-30 14:04",
-    "note": "stopped by the plan's usage limit at 2026-10-30 14:11; runs again on the next jarvis run"
-  },
-  {
     "id": "J-20261030-03",
     "task": "Test run of the new skills and checks: find 3 MotionRepo leads in the first segment, with a signal class on each piece of evidence. Run the lead gate, have the evaluator review the batch, mark leads qualified or disqualified, then draft outreach for the Go leads only. Run lint-copy on each draft, have the evaluator review them, and list every send in ops/approvals.md. In the report, say what each automatic check caught. This replaces T-20261030-04 and T-20261030-05 on the board for now.",
     "status": "needs_input",
@@ -39,5 +31,38 @@
     "report": "outputs/reports/J-20261030-04.md",
     "finished": "2026-10-30 16:50",
     "turns": 48
+  },
+  {
+    "id": "J-20261101-01",
+    "task": "Phase H content fixes for MotionRepo. Task 1: have the developer work in repos/motionrepo on a new local branch cut from origin/main. Update the /security page and the README so they say new GitHub sign-ups are approved automatically, matching PR 39, and make the comment in frontend/content/pricing.ts agree with the live pricing page that listed prices are plus 18 percent GST. Change nothing else. Run the project's tests and type checks and report the results. Commit on the branch with no Co-Authored-By trailer, since that repo's policy is no AI co-author line. Do not push. Task 2: have knowledge-base write a proposal in knowledge/proposals to replace the documents and video from one run positioning in the MotionRepo fact sheet and competitor file, because the product's architecture doc calls the video a separate pipeline. Have the evaluator review both. List pushing the branch and applying the proposal in ops/approvals.md.",
+    "status": "needs_input",
+    "added": "2026-11-01 13:58",
+    "started": "2026-11-01 13:58",
+    "note": "8 lesson(s) recorded",
+    "report": "outputs/reports/J-20261101-01.md",
+    "finished": "2026-11-01 14:23",
+    "turns": 70
+  },
+  {
+    "id": "J-20261101-02",
+    "task": "Phase A3: first MotionRepo lead sprint, as many real leads as the evidence supports, up to 15. Start from the open rows in pipeline/human-research.md: verify each from sources you can reach, mark it imported or rejected with the reason, then add more only if time allows. Do not weaken segment 1, and do not guess a location from a name. Declare the outcome before drafting. Have the evaluator review the batch; only qualified leads with a Go get drafts, tier A and B only. Run lint-copy on each sequence, have the evaluator review them, and list every send in ops/approvals.md. Nothing is sent, and sender placeholders stay as they are. Keep revisions to the limit and report what is still needed from a person.",
+    "status": "needs_input",
+    "added": "2026-11-01 14:23",
+    "started": "2026-11-01 14:23",
+    "note": "4 lesson(s) recorded",
+    "report": "outputs/reports/J-20261101-02.md",
+    "finished": "2026-11-01 14:49",
+    "turns": 39
+  },
+  {
+    "id": "J-20261101-03",
+    "task": "Narrow re-test after the 2026-11-01 decision that segment 1 includes solo founders. Re-test only these six candidates: Ogimg.in, QueueJump, Pippin, Lightning, envgrid (rows in pipeline/human-research.md) and MailMark (outputs/research/2026-11-01-motionrepo-lead-notes.md). All were stopped at test 3 for being solo, so tests 4, 5 and 6 were left unknown. Have the lead-generator re-run test 3 under the new rule, then do the real checks for tests 1, 4, 5 and 6 on each. Test 4 is unchanged: a past launch alone does not pass it, and a closed beta or release cadence with no date stays unknown. A free tool with no paid plan or business behind it is the deferred open-source group in the fact sheet, line 48, not segment 1. Import a lead only if all six tests pass on evidence; zero is an acceptable result. Update each row's status and notes in pipeline/human-research.md and write outputs/research/2026-11-01-motionrepo-solo-retest.md. Do not re-test any other candidate, draft outreach or contact anyone. Send it to the evaluator as usual.",
+    "status": "done",
+    "added": "2026-11-01 16:32",
+    "started": "2026-11-01 16:32",
+    "note": "4 lesson(s) recorded",
+    "report": "outputs/reports/J-20261101-03.md",
+    "finished": "2026-11-01 16:58",
+    "turns": 31
   }
 ]

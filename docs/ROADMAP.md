@@ -10,7 +10,8 @@ What's done, what's decided, what's blocked, and how each sprint went. The full 
 | A1+ · Memory, skills, fallbacks | ✅ Done (30 Oct 2026). 21 agents, 5 skills, retry and fallback hooks; a live run found one bug, now fixed |
 | J1 · Jarvis core | ✅ Done (30 Oct 2026). `/do` and `jarvis.mjs` with a queue, usage guard, reports and after-task lessons; 122 tests pass; first live task passed at 95/100 |
 | A2 · Add products | 🟡 In progress. Company policies and MotionRepo confirmed; 4–5 products to go |
-| A3 · First sprint | ⏭ Next: `jarvis.mjs do "Run the first MotionRepo lead sprint, 15 leads"` |
+| H · Hardening | 🟡 Build done (1 Nov 2026), 190 tests pass. Waiting on people: decisions, company details, merging the site fix and positioning proposal |
+| A3 · First sprint | 🟡 Blocked. The 1 Nov sprint and a re-test that counted solo founders found no lead that meets segment 1. Nothing drafted or sent |
 | J2 · Learning organisation | Not started |
 | J3 · Skill library and checks | ✅ Done (30 Oct 2026). 18 skills, automatic copy checks, opt-out list and lead gate, from three open-source repos; 170 tests pass; not yet used in a live sprint |
 | J4 · Autopilot | Not started |
@@ -51,6 +52,15 @@ What's done, what's decided, what's blocked, and how each sprint went. The full 
   - Agents and rubrics now use the checks. Customer-facing work declares its outcome before drafting.
   - Took: kai-cmo-harness (MIT parts only) for logic, saas-marketing-agents for methods. awesome-marketing added nothing useful: it's a list of mostly paid tools.
 
+- **1 Nov 2026.** Built the code side of phase H:
+  - Copy checks now cover every email and warn on two questions. They found Repowise's Email 2 at 122 words.
+  - The lead gate adds Not reviewed, signal age and missing signal checks, plus `hold`, `release`, `supersede` and `next`.
+  - Repowise is on hold until a person decides. 190 tests pass.
+- **1 Nov 2026.** Phase H content, J-20261101-01: `/security`, README and the pricing comment corrected on local branch `agent/T-20261101-01` in the MotionRepo repo (`285480d`), not pushed. The frontend type check passes; the backend tests need app credentials and weren't run. The positioning proposal passed at 92/100, waiting for a person.
+- **1 Nov 2026.** Phase A3 sprint, J-20261101-02: 9 Peerlist candidates plus 4 from search; none met all six segment 1 tests, so no lead was imported and nothing was drafted. Most were solo makers, and no candidate showed a launch due in 60 days, because launch listings show past launches. Review passed at 89/100 after two revisions.
+- **1 Nov 2026.** Solo founders now count as segment 1 (D11). Re-test J-20261101-03 of the six candidates stopped for being solo: none imported. Three are free tools, two have demo videos, and Pippin was rejected afterwards when its X clip showed the product in use. Review passed at 84/100 after one revision; the Pippin change came after the review. No candidate has passed the launch test yet. Fact sheet change proposed in `knowledge/proposals/2026-11-01-motionrepo-solo-founders.md`.
+- **1 Nov 2026.** shivam-G05 approved pushing. `phase-h-a3` and the MotionRepo branch `agent/T-20261101-01` are on GitHub. Neither is merged, and nothing was deployed.
+
 ## Decisions
 
 | ID | Decision | Choice | Status |
@@ -65,21 +75,21 @@ What's done, what's decided, what's blocked, and how each sprint went. The full 
 | D8 | How the team runs unattended | Jarvis: headless `claude -p` coordinator sessions on the Max plan login, one task at a time, stopping at 85% plan usage; no API key or Agent SDK | Decided, 30 Oct 2026 |
 | D10 | Outside playbooks | Rewrite in our own words as short skills, MIT sources only, credited in `docs/CREDITS.md`; no long persona files, because they cost tokens on every run | Decided, 30 Oct 2026 |
 | D9 | Fallbacks | One fallback agent per specialist and the evaluator, on the other model, after 3 failed attempts; then escalate | Decided, 30 Oct 2026 |
+| D11 | Solo founders | Count as segment 1: about 1 to 20 people, every other test unchanged | Decided, 1 Nov 2026 |
 
 ## Blockers
 
-- **PR #3** (`agent-memory-skills-fallbacks`) needs Mohit's review and merge.
+- **Segment 1 launch and video tests:** no candidate has passed the launch test, and four of the five that sell or plan to sell something failed the no-video test. A person decides whether to loosen them before the next sprint.
 - **The rest of the product list:** name, website and repo for each of the other 4–5 products (Interlister?).
 - **Company details** in `knowledge/company.md` are placeholders: name, website, sender, markets, approvers.
-- **Autopilot developer tasks** can't commit or run tests until a person adds these to `permissions.allow` in `.claude/settings.json`. Claude may not change its own permissions.
-  ```
-  "Bash(git switch *)", "Bash(git checkout -b *)", "Bash(git add *)", "Bash(git commit *)",
-  "Bash(npm test*)", "Bash(npm run test*)", "Bash(npm run lint*)", "Bash(npm run typecheck*)", "Bash(npx tsc *)"
-  ```
 - **Approval A-20261030-01:** use the MotionRepo battlecard answers with prospects?
+- **Approval A-20261030-02:** does "never contact competitors" cover Repowise? It stays on hold until a person answers.
+- **Knowledge proposals:** the solo-founders and one-run positioning changes wait for a person to apply them and confirm the fact sheet again.
+- **MotionRepo site fix:** branch `agent/T-20261101-01` is pushed and needs a PR, review, merge and deploy. `dashboard/plan/page.tsx:368` still contradicts the GST wording.
+- **Branch `phase-h-a3`:** pushed; needs a PR, review and merge into main.
 
 ## Sprint results
 
 | Date | Product | Leads | Held up in review | Contacted | Replies | Meetings | Plan usage | Notes |
 |---|---|---|---|---|---|---|---|---|
-| | | | | | | | | |
+| 1 Nov 2026 | MotionRepo | 0 | – | 0 | – | – | Not recorded | J-20261101-02 and solo re-test J-20261101-03. 13 candidates: 11 rejected or not added, 2 open. Nothing drafted |

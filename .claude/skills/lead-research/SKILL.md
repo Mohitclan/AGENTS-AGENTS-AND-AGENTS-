@@ -24,6 +24,10 @@ Don't log in to anything, don't use paid databases, and don't scrape behind a pa
 4. Score it with the breakdown in `pipeline/lead-schema.md`. A score you can't justify from the evidence is too high.
 5. Record a contact only if it's published, with the page where you found it. Never build an email address from a name pattern.
 
+## Before you record a gap or "not found"
+
+Look beyond the homepage first: listing sites (Product Hunt, PeerPush, Peerlist), Show HN, YouTube, the README and docs, LinkedIn, and any demo or booking page. Check what the lead sells against our competitor file, including indirect categories. Give an evidence item a `dated` field when the event has its own date.
+
 ## Who counts as founder-led
 
 A parent company, studio or group doesn't count as founder-led, unless a named founder actually runs the product and the whole team is small (about 20 or fewer). Otherwise it's a separate segment: note it, and don't force it into this one.

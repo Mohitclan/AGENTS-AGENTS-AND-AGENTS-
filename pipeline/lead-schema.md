@@ -73,11 +73,20 @@ The script allows only these moves:
 
 `node scripts/leads.mjs gate --product <slug>` gives each qualified lead a verdict (add `--status all` for every status):
 
-- **Go:** ready for drafts.
-- **Conditional:** a person decides: non-email or LinkedIn contact, a support-only inbox, research over 90 days old, tier C, or only inferred signals.
-- **Stop:** suppressed, disqualified, no published contact, or no evidence. Fix it at the source and run the gate again.
+- **Go:** reviewed, and ready for drafts.
+- **Not reviewed:** still `new`, so it can't be a Go yet. Any concerns are listed.
+- **Conditional:** a person decides: non-email or LinkedIn contact, a support-only inbox, research over 90 days old, tier C, evidence with no signal class, only inferred signals, or a newest signal over 60 days old.
+- **Stop:** suppressed, disqualified, on hold, no published contact, or no current evidence. Fix it at the source and run the gate again.
 
-A Go is only arithmetic: it doesn't read the claims. Before anyone drafts, a lead also needs a passed review and `qualified` status.
+A Go still doesn't read the claims, so a passed review is what clears them.
+
+Signal age comes from an evidence item's optional `dated` field (when the event happened), or else the date we saw it.
+
+## Hold, corrections and next actions
+
+- `node scripts/leads.mjs hold <id> "<reason>" --owner <who>` stops all outreach to a lead while a person decides. `release <id> "<note>"` lifts it, and Claude Code asks a person first.
+- `node scripts/leads.mjs supersede <id> <n> "<why>"` marks evidence item n as wrong or out of date. It stays in the record but no longer counts, and `show` lists it last.
+- `node scripts/leads.mjs next <id> "<action>"` updates a lead's next action.
 
 ## Contact quality
 

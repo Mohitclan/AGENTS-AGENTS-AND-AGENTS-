@@ -15,6 +15,7 @@ import { ROOT, fail, printTable } from './_shared.mjs';
 const RULES = JSON.parse(readFileSync(join(ROOT, 'evaluation', 'voice-rules.json'), 'utf8'));
 const LOG = join(ROOT, 'ops', 'gate-log.jsonl');
 const TYPES = ['general', 'email', 'social', 'seo'];
+const OPT_OUT = /\b(opt.?out|unsubscribe|reply ['"“]?(no|stop|remove)|won['’]t write again|not relevant|no more emails)\b/i;
 const SUBJECT_MAX_WORDS = 6;
 const EMAIL_MAX_WORDS = 120;
 const toRel = (p) => relative(ROOT, p).split(sep).join('/');
@@ -127,14 +128,19 @@ function checkMutations(lines, start, report) {
   });
 }
 
-// One entry per email: a heading such as "## Email 2", or the whole file if there are none.
+// One entry per email: a heading such as "## Email 2", ending at the next heading of the same or a
+// higher level, so a "## LinkedIn" section isn't counted as part of the last email.
 function splitEmails(lines, start) {
   const heads = [];
   lines.forEach((l, i) => {
     if (i >= start && /^#{1,5}\s.*\bemail\s*\d/i.test(l)) heads.push(i);
   });
   if (!heads.length) return [{ n: 1, from: start, to: lines.length }];
-  return heads.map((from, k) => ({ n: k + 1, from, to: k + 1 < heads.length ? heads[k + 1] : lines.length }));
+  return heads.map((from, k) => {
+    const level = lines[from].match(/^#+/)[0].length;
+    const next = lines.findIndex((l, i) => i > from && new RegExp(`^#{1,${level}}\\s`).test(l));
+    return { n: k + 1, from, to: next < 0 ? lines.length : next };
+  });
 }
 
 function checkEmails(lines, start, report) {
@@ -155,10 +161,9 @@ function checkEmails(lines, start, report) {
     const bad = RULES.bannedOpeners.find((o) => opener.startsWith(o));
     if (bad) report.fail('email-opener', email.from + 1, `email ${email.n} opens with "${bad}"`);
     else if (/^i\b/i.test(noGreeting)) report.warn('email-opener', email.from + 1, `email ${email.n}'s first sentence starts with "I"; open on their problem`);
-    if (email.n === 1) {
-      if (countWords(text) > EMAIL_MAX_WORDS) report.fail('email-length', email.from + 1, `email 1 has ${countWords(text)} words; the limit is ${EMAIL_MAX_WORDS}`);
-      if (!/\b(opt.?out|unsubscribe|reply ['"“]?(no|stop|remove)|won't write again|not relevant)\b/i.test(text)) report.fail('email-optout', email.from + 1, 'email 1 has no opt-out line');
-    }
+    if (countWords(text) > EMAIL_MAX_WORDS) report.fail('email-length', email.from + 1, `email ${email.n} has ${countWords(text)} words; the limit is ${EMAIL_MAX_WORDS}`);
+    if (!OPT_OUT.test(text)) report.fail('email-optout', email.from + 1, `email ${email.n} has no opt-out line`);
+    if ((text.match(/\?/g) || []).length > 1) report.warn('email-cta', email.from + 1, `email ${email.n} asks more than one question; keep to one call to action`);
     if (/\bbook (a|your) (call|demo|meeting)\b|\bcalendly\b/i.test(text)) report.warn('email-cta', email.from + 1, `email ${email.n} asks for a booking; check the product's fact sheet allows it`);
   }
 }

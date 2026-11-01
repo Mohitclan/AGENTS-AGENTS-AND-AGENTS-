@@ -2,4 +2,6 @@
 - [Search-summary claims](feedback_search_summary_claims.md) — dead URLs mean no source; check vendor FAQ before accepting "unconfirmed feature" caveats
 - [Sales asset checks](feedback_sales_asset_checks.md) — hunt inferred contract terms, measure length yourself, test each remedy, note stale status text
 - [Outreach checks](feedback_outreach_checks.md) — test pitch vs repo, lead vs competitor types, count emails; every markdown gets a fix; PASS + Go isn't clearance
-- [Lead batch checks](feedback_lead_batch_checks.md) — test gaps and "not found" claims; recompute tiers; premise checks block `qualified`; read board lines literally
+- [Code change checks](feedback_code_change_checks.md) — open scripts before listing commands; state score ceiling; ask human before last revision
+- [Revision round checks](feedback_revision_round_checks.md) — r2: check repo branch drift, every hook behind "no X" claims, uneven markers, row refs
+- [Lead batch checks](feedback_lead_batch_checks.md) — test gaps, "not found" and rejections past the homepage; recompute tiers; read board lines literally

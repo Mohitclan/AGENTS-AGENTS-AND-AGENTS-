@@ -11,7 +11,7 @@ description: How to write honest, short cold emails, LinkedIn notes and follow-u
 2. **Opening line:** one fact from the lead's own evidence, e.g. the job post, the review, the launch. No "Hope you're well".
 3. **Their problem**, in the words their evidence uses.
 4. **One outcome** our product delivers, from confirmed facts only. One, not a feature list.
-5. **One small ask:** "Worth a 15-minute look?" or "Should I send the 2-minute video?" Not "book a demo on my calendar".
+5. **One small ask:** "Worth trying on one repo?" or "Should I send a sample?" Check the product's fact sheet first: use only offers it allows, and only assets that exist. Not "book a demo on my calendar".
 6. **Signature:** a real person's name and role, the company and website.
 7. **Opt-out:** "If this isn't relevant, reply 'no' and I won't write again."
 
@@ -36,8 +36,9 @@ Grade the send risk before handing in:
 - **Green:** published business contact, fresh published signal.
 - **Yellow:** older signal, or a gap-based opener.
 - **Red:** inferred signal or an unclear contact. Don't draft; flag it.
+- **Hold:** the copy is fine but a policy question is open, such as whether the lead counts as a competitor. Put the lead on hold with `node scripts/leads.mjs hold`. Nothing goes out until a person releases it.
 
-Run `node scripts/lint-copy.mjs <file> --type email` before you hand in. It checks the subject, length, opener and opt-out line.
+Run `node scripts/lint-copy.mjs <file> --type email` before you hand in. It checks every email's subject, length, opener and opt-out line. A clean run says nothing about whether claims are true.
 
 ## Never
 

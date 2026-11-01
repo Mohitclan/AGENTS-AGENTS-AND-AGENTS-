@@ -67,6 +67,7 @@ if (tool === 'Bash' && typeof args.command === 'string') {
     }
     if (/--force\b/.test(cmd)) ask('--force skips the lead status order. Allow this only to correct a mistake.');
   }
+  if (/\bleads\.mjs\b/.test(cmd) && /\brelease\b/.test(cmd)) ask('Lifting a hold is a person\'s decision.');
   if (/\bmemory\.mjs\b/.test(cmd) && /\bremove\b/.test(cmd)) ask('This removes an entry from team memory.');
   if (/\bskills\.mjs\b/.test(cmd) && /\b(give|take|new)\b/.test(cmd)) ask("This changes an agent's skills or adds a skill.");
   if (/\bnode\s+\S*\.\./.test(cmd)) ask('This runs a script outside scripts/.');

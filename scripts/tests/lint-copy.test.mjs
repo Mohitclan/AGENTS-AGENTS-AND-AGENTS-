@@ -81,6 +81,21 @@ describe('email', () => {
   it('warns on a first sentence starting with I', () => assert.ok(warned(lint(GOOD_EMAIL.replace('Your careers page lists', 'I read that your careers page lists'), 'email'), 'email-opener')));
   it('fails an email over 120 words', () => assert.ok(failed(lint(GOOD_EMAIL.replace('Worth a look', `${'word '.repeat(130)}Worth a look`), 'email'), 'email-length')));
   it('fails a missing opt-out', () => assert.ok(failed(lint(GOOD_EMAIL.replace(`If this isn't relevant, reply "no" and I won't write again.`, ''), 'email'), 'email-optout')));
+  it('applies the word limit to every email', () => {
+    const r = lint(`${GOOD_EMAIL}\n## Email 3\n\nSubject: one more thing\n\nHi Asha,\n\n${'word '.repeat(125)}\n\nReply "no" to opt out.\n`, 'email');
+    assert.ok(failed(r, 'email-length'));
+    assert.match(r.out, /email 2 has \d+ words/);
+  });
+  it('requires an opt-out in every email', () => {
+    const r = lint(`${GOOD_EMAIL}\n## Email 2\n\nSubject: a sample\n\nHi Asha,\n\nHere is a sample.\n`, 'email');
+    assert.ok(failed(r, 'email-optout'));
+    assert.match(r.out, /email 2 has no opt-out line/);
+  });
+  it('stops an email at the next heading', () => {
+    const r = lint(`${GOOD_EMAIL}\n## LinkedIn\n\n${'word '.repeat(140)}\n`, 'email');
+    assert.equal(r.code, 0, r.out);
+  });
+  it('warns on two questions in one email', () => assert.ok(warned(lint(GOOD_EMAIL.replace('Worth a look before Friday?', 'Worth a look before Friday? Or next week?'), 'email'), 'email-cta')));
   it('warns on a booking ask', () => assert.ok(warned(lint(GOOD_EMAIL.replace('Worth a look before Friday?', 'Book a call this week?'), 'email'), 'email-cta')));
 });
 
