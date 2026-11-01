@@ -57,11 +57,11 @@ describe('batch gate', () => {
   it('gives each lead a verdict and a reason', () => {
     const out = gate('--status', 'all').stdout;
     const line = (name) => out.split('\n').find((l) => l.includes(name));
-    assert.match(line('Go Co'), /\bGo\b/);
-    assert.match(line('Inferred Co'), /Conditional.*only inferred signals/);
-    assert.match(line('Form Co'), /Conditional.*contact is form/);
-    assert.match(line('Stale Co'), /Conditional.*recheck the evidence/);
-    assert.match(line('Tier C Co'), /Conditional.*tier C/);
+    assert.match(line('Go Co'), /Not reviewed/);
+    assert.match(line('Inferred Co'), /Not reviewed.*only inferred signals/);
+    assert.match(line('Form Co'), /Not reviewed.*contact is form/);
+    assert.match(line('Stale Co'), /Not reviewed.*recheck the evidence/);
+    assert.match(line('Tier C Co'), /Not reviewed.*tier C/);
     assert.match(line('No Contact Co'), /Stop.*no published contact/);
   });
   it('exits 1 when any lead is a Stop', () => assert.equal(gate('--status', 'all').code, 1));
@@ -90,11 +90,13 @@ describe('contact quality', () => {
   });
   it('lets a general inbox reach Go, shown as general', () => {
     assert.equal(importLeads('ok-general', [inbox('generalok', 'hello', 5)]).code, 0);
-    assert.match(gate('--status', 'all').stdout.split('\n').find((l) => l.includes('generalok.example') || l.includes('generalok')), /\bGo\s+general\b/);
+    assert.equal(repo.run('leads.mjs', 'set-status', byCompany('generalok').id, 'qualified').code, 0);
+    assert.match(gate().stdout.split('\n').find((l) => l.includes('generalok')), /\bGo\s+general\b/);
   });
   it('never gives a support-only inbox a Go', () => {
     assert.equal(importLeads('ok-support', [inbox('supportok', 'support', 3)]).code, 0);
-    assert.match(gate('--status', 'all').stdout.split('\n').find((l) => l.includes('supportok')), /Conditional\s+support.*support-only inbox/);
+    assert.equal(repo.run('leads.mjs', 'set-status', byCompany('supportok').id, 'qualified').code, 0);
+    assert.match(gate().stdout.split('\n').find((l) => l.includes('supportok')), /Conditional\s+support.*support-only inbox/);
   });
   it('treats a named address as direct', () => assert.match(gate('--status', 'all').stdout.split('\n').find((l) => l.includes('Go Co')), /\bGo\s+direct\b/));
 });
@@ -128,4 +130,68 @@ describe('suppression', () => {
     repo.run('leads.mjs', 'suppress', 'twice.example', 'one');
     assert.match(repo.run('leads.mjs', 'suppress', 'twice.example', 'two').stdout, /already suppressed/);
   });
+});
+
+describe('hardened gate', () => {
+  const line = (name, ...args) => gate(...args).stdout.split('\n').find((l) => l.includes(name));
+  const qualified = (l) => {
+    assert.equal(importLeads(l.company, [l]).code, 0);
+    assert.equal(repo.run('leads.mjs', 'set-status', byCompany(l.company).id, 'qualified').code, 0);
+  };
+  it('never shows Go on a lead nobody has reviewed', () => {
+    assert.equal(importLeads('fresh', [lead('Fresh', 'https://fresh.example')]).code, 0);
+    assert.match(line('Fresh', '--status', 'all'), /Not reviewed/);
+    assert.doesNotMatch(line('Fresh', '--status', 'all'), /\bGo\b/);
+  });
+  it('flags evidence with no signal class', () => {
+    qualified(lead('Nosignal', 'https://nosignal.example', { evidence: [{ claim: 'Launch', url: 'https://nosignal.example/blog' }] }));
+    assert.match(line('Nosignal'), /Conditional.*no signal class/);
+  });
+  it('flags an old signal, by the date of the event', () => {
+    qualified(lead('Oldsignal', 'https://oldsignal.example', { evidence: [{ claim: 'Launch', url: 'https://oldsignal.example/blog', signal: 'published', dated: '2025-01-01' }] }));
+    assert.match(line('Oldsignal'), /Conditional.*newest signal is \d+ days old/);
+  });
+  it('refuses a date in the future', () => {
+    const r = importLeads('future', [lead('Future', 'https://future.example', { evidence: [{ claim: 'x', url: 'https://future.example', signal: 'published', dated: '2999-01-01' }] })]);
+    assert.equal(r.code, 1);
+    assert.match(r.stderr, /dated must be/);
+  });
+  it('a hold is a Stop, blocks outreach and needs an owner', () => {
+    qualified(lead('Held', 'https://held.example'));
+    const id = byCompany('Held').id;
+    assert.equal(repo.run('leads.mjs', 'hold', id, 'is this a competitor?').code, 1);
+    assert.equal(repo.run('leads.mjs', 'hold', id, 'is', 'this', 'a', 'competitor?', '--owner', 'founders').code, 0);
+    assert.match(line('Held'), /Stop.*on hold \(founders\): is this a competitor\?/);
+    const r = repo.run('leads.mjs', 'set-status', id, 'drafted', 'seq');
+    assert.equal(r.code, 1);
+    assert.match(r.stderr, /On hold/);
+  });
+  it('release lifts a hold and needs a note', () => {
+    const id = byCompany('Held').id;
+    assert.equal(repo.run('leads.mjs', 'release', id).code, 1);
+    assert.equal(repo.run('leads.mjs', 'release', id, 'founders', 'said', 'fine').code, 0);
+    assert.equal(byCompany('Held').hold, undefined);
+    assert.equal(repo.run('leads.mjs', 'set-status', id, 'drafted', 'seq').code, 0);
+    assert.equal(repo.run('leads.mjs', 'release', id, 'again').code, 1);
+  });
+  it('superseded evidence stops counting and shows last', () => {
+    qualified(lead('Corrected', 'https://corrected.example', {
+      evidence: [{ claim: 'Wrong claim', url: 'https://corrected.example/a', signal: 'published' }, { claim: 'Right claim', url: 'https://corrected.example/b', signal: 'published' }],
+    }));
+    const id = byCompany('Corrected').id;
+    assert.equal(repo.run('leads.mjs', 'supersede', id, '0', 'the page says otherwise').code, 0);
+    const shown = JSON.parse(repo.run('leads.mjs', 'show', id).stdout);
+    assert.equal(shown.evidence[0].claim, 'Right claim');
+    assert.equal(shown.evidence[1].n, 0);
+    assert.equal(repo.run('leads.mjs', 'supersede', id, '1', 'also wrong').code, 0);
+    assert.match(line('Corrected'), /Stop.*no evidence/);
+    assert.equal(repo.run('leads.mjs', 'supersede', id, '9', 'nope').code, 1);
+  });
+  it('updates a next action and records it', () => {
+    const id = byCompany('Fresh').id;
+    assert.equal(repo.run('leads.mjs', 'next', id, 'Recheck', 'the', 'launch').code, 0);
+    assert.equal(byCompany('Fresh').next_action, 'Recheck the launch');
+    assert.equal(byCompany('Fresh').history.at(-1).event, 'next');
+  });
+  it('still passes the full check', () => assert.equal(repo.run('leads.mjs', 'check').code, 0));
 });

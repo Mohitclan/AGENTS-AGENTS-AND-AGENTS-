@@ -10,6 +10,10 @@
 //   node scripts/leads.mjs export-csv                           rewrite pipeline/leads.csv
 //   node scripts/leads.mjs suppress <domain|email> "<reason>"   never contact them again, across every product
 //   node scripts/leads.mjs gate [--product p] [--status s]      Go, Conditional or Stop for each lead before outreach
+//   node scripts/leads.mjs hold <id> "<reason>" --owner <who>   stop all outreach to a lead until a person releases it
+//   node scripts/leads.mjs release <id> "<note>"                lift a hold
+//   node scripts/leads.mjs supersede <id> <n> "<why>"           mark evidence item n as wrong or out of date
+//   node scripts/leads.mjs next <id> "<action>"                 update a lead's next action
 import { createHash } from 'node:crypto';
 import {
   appendFileSync, closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync, writeSync,
@@ -45,6 +49,7 @@ const LOCK_STALE_MS = 120_000;
 const CHANNELS = ['email', 'linkedin', 'form', 'phone', 'other'];
 const SIGNALS = ['published', 'observed_gap', 'inferred']; // how we know: pipeline/lead-schema.md
 const FRESH_DAYS = 90;
+const SIGNAL_DAYS = 60; // a signal older than this can't be the reason to write
 const GATE_CHANNELS = new Set(['email', 'linkedin']); // knowledge/company.md, outreach policy
 const OUTREACH_STATUSES = new Set(['drafted', 'approved', 'contacted']);
 // Contact quality: a named person beats a shared inbox, and a support desk isn't a sales route.
@@ -98,6 +103,7 @@ function validate(lead, products) {
       if (typeof ev?.claim !== 'string' || !ev.claim.trim()) errors.push(`evidence[${i}].claim is required`);
       if (!isUrl(ev?.url)) errors.push(`evidence[${i}].url must be an http(s) URL`);
       if (ev?.signal != null && !SIGNALS.includes(ev.signal)) errors.push(`evidence[${i}].signal must be one of: ${SIGNALS.join(', ')}`);
+      if (ev?.dated != null && (!DATE.test(ev.dated) || ev.dated > today())) errors.push(`evidence[${i}].dated must be a YYYY-MM-DD date, not in the future`);
     });
   }
 
@@ -137,7 +143,7 @@ function mergeEvidence(existing, incoming) {
     const key = `${e.url}|${e.claim.trim()}`;
     if (!seen.has(key)) {
       seen.add(key);
-      merged.push({ claim: e.claim.trim(), url: e.url, seen: e.seen || today(), ...(e.signal ? { signal: e.signal } : {}) });
+      merged.push({ claim: e.claim.trim(), url: e.url, seen: e.seen || today(), ...(e.signal ? { signal: e.signal } : {}), ...(e.dated ? { dated: e.dated } : {}) });
     }
   }
   return merged;
@@ -276,13 +282,21 @@ function gateOf(lead, list) {
   if (!lead.contact?.value) stop.push('no published contact');
   else if (!GATE_CHANNELS.has(lead.contact.channel)) conditional.push(`contact is ${lead.contact.channel}; policy allows email and LinkedIn`);
   if (contactQuality(lead.contact) === 'support') conditional.push('support-only inbox');
-  if (!lead.evidence?.length) stop.push('no evidence');
+  if (lead.hold) stop.push(`on hold (${lead.hold.owner}): ${lead.hold.reason}`);
+  const evidence = (lead.evidence || []).filter((e) => !e.superseded);
+  if (!evidence.length) stop.push('no evidence');
   const age = daysSince(lead.researched_at);
   if (age === null || age > FRESH_DAYS) conditional.push(`researched ${age ?? '?'} days ago; recheck the evidence`);
   if (lead.tier === 'C') conditional.push('tier C');
-  if (lead.evidence?.length && lead.evidence.every((e) => e.signal === 'inferred')) conditional.push('only inferred signals');
-  const verdict = stop.length ? 'Stop' : conditional.length ? 'Conditional' : 'Go';
-  return { verdict, why: [...stop, ...conditional].join('; ') };
+  if (evidence.some((e) => !e.signal)) conditional.push('evidence with no signal class');
+  const real = evidence.filter((e) => e.signal && e.signal !== 'inferred');
+  if (evidence.length && !real.length) conditional.push('only inferred signals');
+  const newest = Math.min(...real.map((e) => daysSince(e.dated || e.seen) ?? Infinity));
+  if (real.length && newest > SIGNAL_DAYS) conditional.push(`newest signal is ${Number.isFinite(newest) ? newest : '?'} days old`);
+  const notes = [...stop, ...conditional].join('; ');
+  // A Go means a person or the evaluator has reviewed the lead, so a new lead can't have one yet.
+  const verdict = stop.length ? 'Stop' : lead.status === 'new' ? 'Not reviewed' : conditional.length ? 'Conditional' : 'Go';
+  return { verdict, why: notes };
 }
 
 function gate(args) {
@@ -477,10 +491,65 @@ function list(args) {
   console.log(`\n${leads.length} lead(s): ${Object.entries(counts).map(([s, n]) => `${n} ${s}`).join(', ')}`);
 }
 
+// Current evidence first, so nobody reads a corrected claim as the latest one.
 function show(id) {
   const lead = load().find((l) => l.id === id);
   if (!lead) fail(`No lead with id ${id}`);
-  console.log(JSON.stringify(lead, null, 2));
+  const numbered = (lead.evidence || []).map((e, n) => ({ n, ...e }));
+  const evidence = [...numbered.filter((e) => !e.superseded), ...numbered.filter((e) => e.superseded)];
+  console.log(JSON.stringify({ ...lead, evidence }, null, 2));
+}
+
+// Changes one lead while holding the lock, and records it in the lead's history.
+function changeLead(id, change) {
+  lock();
+  const leads = load();
+  const lead = leads.find((l) => l.id === id);
+  if (!lead) fail(`No lead with id ${id}`);
+  const event = change(lead);
+  lead.history.push({ at: today(), ...event });
+  lead.updated_at = today();
+  save(leads);
+  return lead;
+}
+
+function hold(id, reason, owner) {
+  if (!id || !reason?.trim() || !owner?.trim()) fail('Usage: node scripts/leads.mjs hold <id> "<reason>" --owner <who>');
+  const lead = changeLead(id, (l) => {
+    l.hold = { reason: reason.trim(), owner: owner.trim(), at: today() };
+    return { event: 'hold', note: reason.trim() };
+  });
+  console.log(`${lead.id} ${lead.company} is on hold, owned by ${owner.trim()}.`);
+}
+
+function release(id, note) {
+  if (!id || !note?.trim()) fail('Usage: node scripts/leads.mjs release <id> "<note>"');
+  const lead = changeLead(id, (l) => {
+    if (!l.hold) fail(`${id} isn't on hold.`);
+    delete l.hold;
+    return { event: 'release', note: note.trim() };
+  });
+  console.log(`${lead.id} ${lead.company} is off hold.`);
+}
+
+function supersede(id, n, why) {
+  if (!id || !/^\d+$/.test(n || '') || !why?.trim()) fail('Usage: node scripts/leads.mjs supersede <id> <evidence number> "<why>"');
+  const lead = changeLead(id, (l) => {
+    const item = l.evidence?.[Number(n)];
+    if (!item) fail(`${id} has no evidence item ${n}.`);
+    item.superseded = { why: why.trim(), at: today() };
+    return { event: 'supersede', note: `evidence ${n}: ${why.trim()}` };
+  });
+  console.log(`Evidence ${n} on ${lead.company} is marked superseded.`);
+}
+
+function setNext(id, action) {
+  if (!id || !action?.trim()) fail('Usage: node scripts/leads.mjs next <id> "<action>"');
+  const lead = changeLead(id, (l) => {
+    l.next_action = action.trim();
+    return { event: 'next', note: action.trim() };
+  });
+  console.log(`Updated the next action on ${lead.company}.`);
 }
 
 function setStatus(idList, status, note, force) {
@@ -498,6 +567,8 @@ function setStatus(idList, status, note, force) {
   const blocklist = suppressions();
   const barred = OUTREACH_STATUSES.has(status) ? chosen.filter((l) => suppressedBy(l, blocklist)) : [];
   if (barred.length) fail(`Nothing changed. Suppressed, never contact: ${barred.map((l) => `${l.id} ${l.company}`).join(', ')}`);
+  const held = OUTREACH_STATUSES.has(status) ? chosen.filter((l) => l.hold) : [];
+  if (held.length) fail(`Nothing changed. On hold: ${held.map((l) => `${l.id} ${l.company} (${l.hold.reason})`).join(', ')}`);
   // Setting the same status again only adds a note to the history.
   const blocked = chosen.filter((l) => !force && l.status !== status && !NEXT[l.status]?.includes(status));
   if (blocked.length) {
@@ -547,11 +618,25 @@ switch (command) {
   case 'gate':
     gate(args);
     break;
+  case 'hold': {
+    const i = args.indexOf('--owner');
+    hold(args[0], args.slice(1, i < 0 ? undefined : i).join(' '), i < 0 ? '' : args.slice(i + 1).join(' '));
+    break;
+  }
+  case 'release':
+    release(args[0], args.slice(1).join(' '));
+    break;
+  case 'supersede':
+    supersede(args[0], args[1], args.slice(2).join(' '));
+    break;
+  case 'next':
+    setNext(args[0], args.slice(1).join(' '));
+    break;
   case 'export-csv':
     lock();
     writeCsv(load());
     console.log(`Wrote ${toRel(CSV)}`);
     break;
   default:
-    fail('Usage: node scripts/leads.mjs import <file> | check | list [--product p] [--status s] [--tier A] | show <id> | set-status <ids> <status> [note] [--force] | export-csv | suppress <domain|email> "<reason>" | gate [--product p] [--status s]');
+    fail('Usage: node scripts/leads.mjs import <file> | check | list [--product p] [--status s] [--tier A] | show <id> | set-status <ids> <status> [note] [--force] | export-csv | suppress <domain|email> "<reason>" | gate [--product p] [--status s] | hold <id> "<reason>" --owner <who> | release <id> "<note>" | supersede <id> <n> "<why>" | next <id> "<action>"');
 }
