@@ -77,7 +77,7 @@ gantt
 | 2 | The lead gate shows Not reviewed instead of Go, and flags old signals and evidence with no signal class | `scripts/leads.mjs` | ✅ Done |
 | 3 | `hold`, `release`, `supersede` and `next` for lead records; Repowise is on hold | `scripts/leads.mjs`, `pipeline/lead-schema.md` | ✅ Done |
 | 4 | Skills corrected from the live tests | `.claude/skills/cold-email/`, `.claude/skills/lead-research/` | ✅ Done |
-| 5 | `/security`, README and the pricing comment corrected. The frontend type check passes; the backend tests need app credentials and weren't run | [Collateral-Pipeline PR #42](https://github.com/PanScienceInnovation/Collateral-Pipeline/pull/42), branch `agent/T-20261101-01` | 🟡 Waiting: review, merge and deploy |
+| 5 | `/security`, README and the pricing comment corrected. The frontend type check passes; the backend tests need app credentials and weren't run | [Collateral-Pipeline PR #42](https://github.com/PanScienceInnovation/Collateral-Pipeline/pull/42), branch `agent/T-20261101-01` | 🟡 Waiting: PR #42 is merged, but follow-up commit `e239934` is not |
 | 6 | Positioning proposal for the "one run" claim, passed at 92/100 | `knowledge/proposals/2026-11-01-motionrepo-one-run-positioning.md` | 🟡 Waiting: a person applies it |
 | 7 | 190 tests pass | `scripts/tests/` | ✅ Done |
 
@@ -85,9 +85,10 @@ gantt
 
 - [x] Decide whether "never contact competitors" covers Repowise (A-20261030-02). Claude decided yes for shivam-G05, and a person can reverse it.
 - [ ] Fill in the company details in `knowledge/company.md` and confirm it again.
-- [ ] Check whether the billing Hub adds GST, then review, merge and deploy PR #42. Its Plan page wording now holds either way.
+- [ ] Merge follow-up commit `e239934` from branch `agent/T-20261101-01` and deploy. PR #42 merged before it, so the old Plan page wording is still in main. Check whether the billing Hub adds GST.
 - [ ] Apply the positioning proposal and confirm the fact sheets again.
-- [ ] Review and merge [PR #5](https://github.com/Mohitclan/AGENTS-AGENTS-AND-AGENTS-/pull/5).
+- [x] Review and merge [PR #5](https://github.com/Mohitclan/AGENTS-AGENTS-AND-AGENTS-/pull/5). Merged 1 Nov 2026.
+- [ ] Merge the later commits on branch `phase-h-a3`, which came after PR #5.
 
 ## Phase J2 · Learning organisation
 

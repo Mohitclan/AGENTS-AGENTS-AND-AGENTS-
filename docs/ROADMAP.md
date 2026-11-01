@@ -59,7 +59,7 @@ What's done, what's decided, what's blocked, and how each sprint went. The full 
 - **1 Nov 2026.** Phase H content, J-20261101-01: `/security`, README and the pricing comment corrected on local branch `agent/T-20261101-01` in the MotionRepo repo (`285480d`), not pushed. The frontend type check passes; the backend tests need app credentials and weren't run. The positioning proposal passed at 92/100, waiting for a person.
 - **1 Nov 2026.** Phase A3 sprint, J-20261101-02: 9 Peerlist candidates plus 4 from search; none met all six segment 1 tests, so no lead was imported and nothing was drafted. Most were solo makers, and no candidate showed a launch due in 60 days, because launch listings show past launches. Review passed at 89/100 after two revisions.
 - **1 Nov 2026.** Solo founders now count as segment 1 (D11). Re-test J-20261101-03 of the six candidates stopped for being solo: none imported. Three are free tools, two have demo videos, and Pippin was rejected afterwards when its X clip showed the product in use. Review passed at 84/100 after one revision; the Pippin change came after the review. No candidate has passed the launch test yet. Fact sheet change proposed in `knowledge/proposals/2026-11-01-motionrepo-solo-founders.md`.
-- **1 Nov 2026.** shivam-G05 approved pushing and opening PRs. `phase-h-a3` is PR #5, and the MotionRepo site fix is Collateral-Pipeline PR #42. Neither is merged, and nothing was deployed.
+- **1 Nov 2026.** shivam-G05 approved pushing and opening PRs. `phase-h-a3` is PR #5, and the MotionRepo site fix is Collateral-Pipeline PR #42. shivam-G05 merged both later that day, before the follow-up commits were pushed.
 - **1 Nov 2026.** Claude settled what it could for shivam-G05 ("do h and a3"): Repowise disqualified, and the launch, video and GitHub tests loosened. All are reversible. PR #42 now has neutral Plan page wording, and its auth, users, billing, hub and docs tests pass.
 - **1 Nov 2026.** A3 re-run, J-20261101-04 to -07: 13 candidates tested. Pippin, Graphite and SpaceWise qualified, Cool Analytics is on hold, 1 was rejected and 8 stay open. Pippin and Graphite sequences went from REVISE 65 to PASS 87/100. An earlier broad attempt used the whole 5-hour window and saved nothing, so tasks now save after each candidate. The cold-email skill's opt-out word is now "stop".
 
@@ -90,8 +90,8 @@ What's done, what's decided, what's blocked, and how each sprint went. The full 
 - **Company details** in `knowledge/company.md` are placeholders: name, website, sender, markets, approvers.
 - **Approval A-20261030-01:** use the MotionRepo battlecard answers with prospects?
 - **Knowledge proposals:** the solo-founders, one-run positioning and company details changes wait for a person to apply them and confirm the files again.
-- **MotionRepo site fix:** [Collateral-Pipeline PR #42](https://github.com/PanScienceInnovation/Collateral-Pipeline/pull/42) needs review, merge and deploy. A person decides the wording at `dashboard/plan/page.tsx:368`, which depends on what the billing Hub charges.
-- **Phases H and A3:** [PR #5](https://github.com/Mohitclan/AGENTS-AGENTS-AND-AGENTS-/pull/5) needs review and merge into main.
+- **MotionRepo site fix:** [Collateral-Pipeline PR #42](https://github.com/PanScienceInnovation/Collateral-Pipeline/pull/42) is merged, but follow-up commit `e239934` on `agent/T-20261101-01` is not, so main still has the old Plan page wording. It needs a follow-up PR, a merge and a deploy.
+- **Phases H and A3:** [PR #5](https://github.com/Mohitclan/AGENTS-AGENTS-AND-AGENTS-/pull/5) is merged. The later commits on `phase-h-a3`, including the A3 re-run, need a follow-up PR and merge.
 
 ## Sprint results
 
