@@ -54,3 +54,4 @@ Every time one agent started another. Written by `scripts/team-hooks.mjs`.
 | 2026-11-01 16:41 | coordinator | evaluator | T-20261101-05 | Review solo re-test |
 | 2026-11-01 16:48 | coordinator | lead-generator | T-20261101-05 | Apply review r1 fixes |
 | 2026-11-01 16:51 | coordinator | evaluator | T-20261101-05 | Review solo re-test revision |
+| 2026-11-01 17:41 | coordinator | lead-generator | T-20261101-06 | T-06 re-test and lead batch |

@@ -12,6 +12,7 @@ Add and remove entries with `/teach` and `/forget`, or with `node scripts/memory
 - 2026-10-30 · A lead with no known founder may get a draft, but it is marked low confidence and a person approves it before sending. (source: told by shivam-G05 on 2026-10-30 · by: human)
 - 2026-10-30 · General inboxes such as hello@ or contact@ are valid contacts with a lower contact-quality score. A support-only inbox never gets a Go. (source: told by shivam-G05 on 2026-10-30 · by: human)
 - 2026-11-01 · Segment 1 includes solo founders: a named founder running the product alone counts, so the range is about 1 to 20 people. This changes only the 2-person minimum; every other segment 1 test stays. (source: told by shivam-G05 on 2026-11-01 · by: human)
+- 2026-11-01 · Segment 1 tests for now: a launch or major release in the last 30 days, or dated in the next 60, passes test 4. A product demo video lowers a lead's score and no longer rejects it. An active GitHub account of the maker or company counts as inferred evidence for test 5. Claude's call, not yet a person's; a person can reverse it. (source: asked by shivam-G05 on 2026-11-01: do h and a3 · by: coordinator)
 
 ## Preferences
 
