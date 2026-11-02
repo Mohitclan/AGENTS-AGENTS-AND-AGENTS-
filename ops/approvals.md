@@ -49,5 +49,5 @@ E. Email 3 only: it lists what the security page says we lack. Fact sheet line 1
 
 | ID | Task | Action | Files to review | Risk | Decision | By | Date |
 |---|---|---|---|---|---|---|---|
-| A-TEST-001 | System verification | Send test email to shivamkgjj2005@gmail.com from sushant.789.mishra@gmail.com. Verifies: sender email works, recipient receives it, pipeline tracks the send, reply handling works | outputs/outreach/test-shivam.md | None. This is a test of the system workflow, not a real sales outreach | **AWAITING YOUR APPROVAL** | | 2026-11-02 |
-
+| A-TEST-001 | System verification | Send test email to shivamkgjj2005@gmail.com from sushant.789.mishra@gmail.com. Verifies: sender email works, recipient receives it, pipeline tracks the send, reply handling works | outputs/outreach/test-shivam.md | None. This is a test of the system workflow, not a real sales outreach | Yes, sent 2026-11-02 (told by the user in chat: "send it directly from here") | Sushant Mishra | 2026-11-02 |
+| A-TEST-002 | Phase 2 demo | Send reviewed Pippin Email 1 (outputs/outreach/L-ab940a31.md) to the sender's own inbox sushant.789.mishra@gmail.com as a [DEMO], and email a send report to founder Raj at rajgupta.connects@gmail.com for every send | ops/send-log.jsonl, ops/mail-config.json | No prospect contacted; Pippin's lead status unchanged. Raj receives one report per send | Yes, sent 2026-11-02 (told by the user in chat: "for every sent email, a system generated report must be sent to him") | Sushant Mishra | 2026-11-02 |
