@@ -6,7 +6,12 @@
 //   node scripts/dashboard.mjs              serve it at http://127.0.0.1:4317
 //   node scripts/dashboard.mjs --port 5000  on another port
 //   node scripts/dashboard.mjs --once       print the page and exit
+//   node scripts/dashboard.mjs --hash       read a password on stdin and print its hash
+//
+// To put it online behind HTTPS, see docs/DEPLOY-team-page.md. TEAM_PAGE_PASSWORD_HASH turns on the
+// sign-in, and TEAM_PAGE_HOST is the public name. The page refuses to start with a name and no hash.
 import { spawn, spawnSync } from 'node:child_process';
+import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { closeSync, existsSync, fstatSync, mkdirSync, openSync, readdirSync, readFileSync, readSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { join, posix, resolve } from 'node:path';
@@ -19,6 +24,11 @@ const TASK_LABEL = { needs_approval: 'Needs a yes', needs_input: 'Needs an answe
 const STOP_AT = Number(process.env.JARVIS_STOP_AT || 0.85);
 const MAX_TASK = 2000;
 const MAX_BODY = 16 * 1024;
+const COOKIE = 'team_session';
+const SESSION_MS = 12 * 3_600_000;
+const LOCK_MS = 15 * 60_000;
+const MAX_TRIES = 5; // from one address, per LOCK_MS
+const MAX_TRIES_ALL = 30; // from everywhere, per LOCK_MS
 const STAGE_LABEL = { new: 'Found', qualified: 'Qualified', drafted: 'Drafted', disqualified: 'Ruled out' };
 const VIEWABLE = /^outputs\/(outreach|reports|reviews|research|sales)\/[\w.-]+\.md$/;
 
@@ -388,8 +398,15 @@ button{font:700 1rem "Atkinson Hyperlegible",system-ui,sans-serif;background:var
 button:hover{background:#17557f}
 button.quiet{background:none;color:var(--stop);padding:0 .3rem;text-decoration:underline;font-weight:400}
 button:disabled{opacity:.55;cursor:wait}
-textarea{font:inherit;color:inherit;width:100%;padding:.55rem .7rem;border:2px solid var(--rail);border-radius:4px;background:#fff;resize:vertical}
-button:focus-visible,textarea:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+textarea,input{font:inherit;color:inherit;width:100%;padding:.55rem .7rem;border:2px solid var(--rail);border-radius:4px;background:#fff}
+textarea{resize:vertical}
+button:focus-visible,textarea:focus-visible,input:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+.top .quiet{color:#fff;margin-left:1rem}
+.signin{max-width:24rem;margin:clamp(2rem,12vh,6rem) auto;padding:0 1rem}
+.signin h1{font-size:2rem;line-height:1.1;margin:0 0 1rem}
+.signin label{display:block;margin-bottom:.3rem}
+.signin button{margin-top:.75rem}
+#said.bad{margin:.6rem 0 0}
 body{margin:0;background:var(--paper);color:var(--ink);font:400 1.0625rem/1.5 "Atkinson Hyperlegible",system-ui,sans-serif}
 h1,h2,h3,.stop strong,.gate strong{font-family:"Bricolage Grotesque",system-ui,sans-serif}
 a{color:var(--rail);text-underline-offset:.15em}
@@ -484,7 +501,7 @@ const SCRIPT = `
 const hero=document.getElementById('hero'),live=document.getElementById('live'),said=document.getElementById('said');
 const form=document.getElementById('ask'),box=document.getElementById('task');
 let last='';
-async function refresh(){try{const html=await (await fetch('/live')).text();if(html===last)return;last=html;
+async function refresh(){try{const res=await fetch('/live');if(res.status===401){location.reload();return}const html=await res.text();if(html===last)return;last=html;
 const [top,rest]=html.split('${SPLIT}');const open=live.querySelector('details')?.open;
 hero.innerHTML=top;live.innerHTML=rest;if(open)live.querySelector('details').open=true}catch{}}
 async function post(path,body){const res=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json','X-Team-Page':'1'},body:JSON.stringify(body||{})});
@@ -493,8 +510,15 @@ form.addEventListener('submit',async(e)=>{e.preventDefault();const button=form.q
 try{if(await post('/tasks',{task:box.value}))box.value=''}catch{said.textContent="The page can't reach the server. Check that dashboard.mjs is still running.";said.className='bad'}button.disabled=false});
 box.addEventListener('keydown',(e)=>{if(e.key==='Enter'&&e.ctrlKey)form.requestSubmit()});
 document.addEventListener('click',(e)=>{const b=e.target.closest('button');if(!b)return;
-if(b.dataset.run)post('/run');if(b.dataset.cancel)post('/tasks/'+b.dataset.cancel+'/cancel')});
+if(b.dataset.signout)post('/logout');if(b.dataset.run)post('/run');if(b.dataset.cancel)post('/tasks/'+b.dataset.cancel+'/cancel')});
 setInterval(refresh,3000);
+`;
+
+const SIGN_IN_SCRIPT = `
+const form=document.getElementById('signin'),said=document.getElementById('said');
+form.addEventListener('submit',async(e)=>{e.preventDefault();said.textContent='';
+try{const res=await fetch('/login',{method:'POST',headers:{'Content-Type':'application/json','X-Team-Page':'1'},body:JSON.stringify({password:document.getElementById('password').value})});
+if(res.ok){location.reload();return}said.textContent=(await res.json()).message}catch{said.textContent="The page can't reach the server. Try again."}said.className='bad'});
 `;
 
 function shell(title, head, body, script = '') {
@@ -507,10 +531,20 @@ function shell(title, head, body, script = '') {
 <body>${head}${body}${script ? `<script>${script}</script>` : ''}</body></html>`;
 }
 
-export function renderPage(data) {
+export function renderPage(data, signOut = false) {
   const [top, rest] = renderLive(data).split(SPLIT);
-  return shell('Sales team', `<header class="top"><b>AI sales team</b>${renderUsage(data.usage)}</header>`, `<main><div id="hero">${top}</div><div class="body">${TASK_BOX}<div id="live">${rest}</div></div></main>`, SCRIPT);
+  const out = signOut ? '<button class="quiet" type="button" data-signout="1">Sign out</button>' : '';
+  return shell('Sales team', `<header class="top"><b>AI sales team</b><div>${renderUsage(data.usage)}${out}</div></header>`, `<main><div id="hero">${top}</div><div class="body">${TASK_BOX}<div id="live">${rest}</div></div></main>`, SCRIPT);
 }
+
+// Shows nothing about the team, because anyone on the internet can reach it.
+export const renderSignIn = () =>
+  shell(
+    'Sign in',
+    '',
+    `<main class="signin"><h1>AI sales team</h1><form id="signin"><label for="password">Password</label><input id="password" type="password" autocomplete="current-password" required autofocus><button type="submit">Sign in</button><p id="said" role="status"></p></form></main>`,
+    SIGN_IN_SCRIPT,
+  );
 
 export function renderView(root, file) {
   if (!VIEWABLE.test(file) || !existsSync(join(root, file))) return null;
@@ -523,9 +557,59 @@ export function renderView(root, file) {
 
 // ---- the server ------------------------------------------------------------------------------
 
-const CSP = "default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'";
+const CSP = "default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 
 const isLocal = (host) => /^(127\.0\.0\.1|localhost)(:\d+)?$/.test(host || '');
+// `site` is the public name when the page is online behind HTTPS.
+const goodHost = (host, site) => (site ? host === site : isLocal(host));
+export const sameSite = ({ host, origin, marker, site }) => goodHost(host, site) && origin === (site ? `https://${site}` : `http://${host}`) && marker === '1';
+
+export function hashPassword(password) {
+  const salt = randomBytes(16);
+  return `scrypt:${salt.toString('hex')}:${scryptSync(password, salt, 32).toString('hex')}`;
+}
+
+export function checkPassword(password, stored) {
+  const [kind, salt, hash] = stored.split(':');
+  if (kind !== 'scrypt' || !salt || !hash) return false;
+  return timingSafeEqual(scryptSync(String(password), Buffer.from(salt, 'hex'), 32), Buffer.from(hash, 'hex'));
+}
+
+// Sessions live in memory, so a restart signs everyone out. Wrong passwords lock one address after
+// MAX_TRIES and every address after MAX_TRIES_ALL, so a password can't be guessed by brute force.
+export function createAuth(stored, clock = Date.now) {
+  const sessions = new Map();
+  const tries = new Map();
+  let all = { count: 0, since: 0 };
+  const fresh = (entry) => (clock() - entry.since < LOCK_MS ? entry : { count: 0, since: clock() });
+  return {
+    signIn(password, address) {
+      all = fresh(all);
+      const mine = fresh(tries.get(address) ?? { count: 0, since: 0 });
+      if (mine.count >= MAX_TRIES || all.count >= MAX_TRIES_ALL) return { locked: true };
+      if (!checkPassword(password, stored)) {
+        if (tries.size > 10_000) tries.clear();
+        tries.set(address, { ...mine, count: mine.count + 1 });
+        all = { ...all, count: all.count + 1 };
+        return {};
+      }
+      tries.delete(address);
+      const token = randomBytes(32).toString('hex');
+      sessions.set(token, clock() + SESSION_MS);
+      return { token };
+    },
+    valid(token) {
+      if (!token || !sessions.has(token)) return false;
+      if (sessions.get(token) > clock()) return true;
+      sessions.delete(token);
+      return false;
+    },
+    signOut: (token) => sessions.delete(token),
+  };
+}
+
+const cookieHeader = (value, site, age) => `${COOKIE}=${value}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${age}${site ? '; Secure' : ''}`;
+const readCookie = (header) => new RegExp(`(?:^|;\\s*)${COOKIE}=([a-f0-9]+)`).exec(header || '')?.[1];
 
 function jarvis(root, ...args) {
   const env = { ...process.env, CLAUDE_PROJECT_DIR: root };
@@ -547,9 +631,9 @@ function startRun(root) {
 }
 
 // A POST from the page. The Origin and custom header keep other websites from reaching it.
-export function act(root, path, { host, origin, marker, body }) {
+export function act(root, path, { host, origin, marker, body, site }) {
   const reply = (status, message, extra = {}) => ({ status, type: 'json', body: JSON.stringify({ message, ...extra }) });
-  if (!isLocal(host) || origin !== `http://${host}` || marker !== '1') return reply(403, 'Use the page on this computer.');
+  if (!sameSite({ host, origin, marker, site })) return reply(403, 'Use the team page itself.');
   const full = planUsage(root)?.full;
   const start = (id) => {
     if (full) return reply(200, `${id} is queued. It can't start until the plan's ${full} window resets.`, { id });
@@ -580,11 +664,11 @@ export function act(root, path, { host, origin, marker, body }) {
   return reply(404, 'Page not found.');
 }
 
-export function handle(root, method, rawUrl, host) {
+export function handle(root, method, rawUrl, host, { site, signOut } = {}) {
   if (method !== 'GET') return { status: 405, body: 'Use GET.' };
-  if (!isLocal(host)) return { status: 403, body: 'Open this page on the computer running it.' };
+  if (!goodHost(host, site)) return { status: 403, body: 'Open this page at its own address.' };
   const url = new URL(rawUrl, 'http://127.0.0.1');
-  if (url.pathname === '/') return { status: 200, body: renderPage(collect(root)) };
+  if (url.pathname === '/') return { status: 200, body: renderPage(collect(root), signOut) };
   if (url.pathname === '/live') return { status: 200, body: renderLive(collect(root)) };
   if (url.pathname === '/view') {
     const page = renderView(root, url.searchParams.get('file') || '');
@@ -599,21 +683,45 @@ function main() {
     process.stdout.write(renderPage(collect()));
     return;
   }
+  if (args.includes('--hash')) {
+    const password = readFileSync(0, 'utf8').replace(/\r?\n$/, '');
+    if (password.length < 12) {
+      console.error('Use a password of at least 12 characters.');
+      process.exit(1);
+    }
+    console.log(hashPassword(password));
+    return;
+  }
+  const site = process.env.TEAM_PAGE_HOST || null;
+  const stored = process.env.TEAM_PAGE_PASSWORD_HASH || null;
+  if (site && !stored?.startsWith('scrypt:')) {
+    console.error('TEAM_PAGE_HOST needs TEAM_PAGE_PASSWORD_HASH: the page must not go online without a sign-in. Make one with --hash.');
+    process.exit(1);
+  }
+  const auth = stored ? createAuth(stored) : null;
   const flag = args.indexOf('--port');
   const port = flag >= 0 ? Number(args[flag + 1]) : DEFAULT_PORT;
   if (!Number.isInteger(port) || port < 0) {
     console.error('Usage: node scripts/dashboard.mjs [--port <number>] [--once]');
     process.exit(1);
   }
-  const send = (res, { status, body, type }) => {
+  const send = (res, { status, body, type, cookie }) => {
     const kind = type === 'json' ? 'application/json' : `text/${status === 200 ? 'html' : 'plain'}`;
-    res.writeHead(status, { 'Content-Type': `${kind}; charset=utf-8`, 'Content-Security-Policy': CSP, 'Cache-Control': 'no-store' });
+    const headers = { 'Content-Type': `${kind}; charset=utf-8`, 'Content-Security-Policy': CSP, 'Cache-Control': 'no-store' };
+    res.writeHead(status, cookie ? { ...headers, 'Set-Cookie': cookie } : headers);
     res.end(body);
   };
+  const json = (status, message, cookie) => ({ status, type: 'json', body: JSON.stringify({ message }), cookie });
   const server = createServer((req, res) => {
+    const token = readCookie(req.headers.cookie);
+    const signedIn = !auth || auth.valid(token);
+    const path = (req.url || '/').split('?')[0];
     if (req.method !== 'POST') {
       try {
-        send(res, handle(ROOT, req.method, req.url, req.headers.host));
+        if (signedIn) send(res, handle(ROOT, req.method, req.url, req.headers.host, { site, signOut: !!auth }));
+        else if (!goodHost(req.headers.host, site)) send(res, { status: 403, body: 'Open this page at its own address.' });
+        else if (path === '/live') send(res, { status: 401, body: 'Sign in first.' });
+        else send(res, { status: 200, body: renderSignIn() });
       } catch (error) {
         send(res, { status: 500, body: `The page couldn't be built: ${error.message}` });
       }
@@ -627,7 +735,24 @@ function main() {
     });
     req.on('end', () => {
       try {
-        send(res, act(ROOT, req.url, { host: req.headers.host, origin: req.headers.origin, marker: req.headers['x-team-page'], body }));
+        const from = { host: req.headers.host, origin: req.headers.origin, marker: req.headers['x-team-page'], body, site };
+        if (auth && (path === '/login' || path === '/logout') && !sameSite(from)) send(res, json(403, 'Use the team page itself.'));
+        else if (auth && path === '/login') {
+          let password = '';
+          try {
+            password = String(JSON.parse(body || '{}').password ?? '');
+          } catch {
+            // an unreadable request counts as a wrong password
+          }
+          // nginx sets X-Real-IP; a value sent by the caller only counts when the page is behind it.
+          const result = auth.signIn(password, (site && req.headers['x-real-ip']) || req.socket.remoteAddress);
+          if (result.token) send(res, json(200, 'Signed in.', cookieHeader(result.token, site, SESSION_MS / 1000)));
+          else send(res, json(result.locked ? 429 : 401, result.locked ? 'Too many tries. Wait 15 minutes and try again.' : 'That password is wrong.'));
+        } else if (auth && path === '/logout') {
+          auth.signOut(token);
+          send(res, json(200, 'Signed out.', cookieHeader('', site, 0)));
+        } else if (!signedIn) send(res, json(401, 'Sign in first.'));
+        else send(res, act(ROOT, path, from));
       } catch (error) {
         send(res, { status: 500, type: 'json', body: JSON.stringify({ message: `That didn't work: ${error.message}` }) });
       }

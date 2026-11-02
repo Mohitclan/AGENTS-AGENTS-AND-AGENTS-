@@ -130,7 +130,7 @@ node scripts/jarvis.mjs usage                                        # how full 
 - **Lessons:** after each task, review fixes become lessons in the agents' memory, so the team improves with every task.
 - **Usage guard:** no task starts while a plan window is at or over 85% (`JARVIS_STOP_AT`), and a task the limit cuts off goes back in the queue.
 - **In the app**, `/do <task>` does the same in your open session.
-- **Use the page:** `node scripts/dashboard.mjs` serves http://127.0.0.1:4317, where you give the team a task, watch it work and read the report. It also shows the leads, the team and what's waiting for a person. It only listens on this computer, and its only actions are adding, starting and cancelling Jarvis tasks. Keep its terminal open while a task runs.
+- **Use the page:** `node scripts/dashboard.mjs` serves http://127.0.0.1:4317, where you give the team a task, watch it work and read the report. It also shows the leads, the team and what's waiting for a person. It only listens on this computer, and its only actions are adding, starting and cancelling Jarvis tasks. Keep its terminal open while a task runs. To put it online with a password, follow [docs/DEPLOY-team-page.md](docs/DEPLOY-team-page.md).
 
 You can also just ask the coordinator in plain language, for example "Audit the landing page and onboarding for <product> and list what's costing us sign-ups."
 

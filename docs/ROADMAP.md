@@ -64,6 +64,7 @@ What's done, what's decided, what's blocked, and how each sprint went. The full 
 - **1 Nov 2026.** A3 re-run, J-20261101-04 to -07: 13 candidates tested. Pippin, Graphite and SpaceWise qualified, Cool Analytics is on hold, 1 was rejected and 8 stay open. Pippin and Graphite sequences went from REVISE 65 to PASS 87/100. An earlier broad attempt used the whole 5-hour window and saved nothing, so tasks now save after each candidate. The cold-email skill's opt-out word is now "stop".
 - **2 Nov 2026.** shivam-G05 merged PR #6 and Collateral-Pipeline PR #43. The site and /security loaded from this machine; a person still needs to confirm the deployed text.
 - **2 Nov 2026.** Added `scripts/dashboard.mjs`, a local page built from the team's own files. Give it a task, watch the steps, and read the report. It shows the lead line, tasks, leads, agents and pending approvals, and it opens reports and drafts. It listens only on this computer, and its only actions are adding, starting and cancelling Jarvis tasks. Approvals stay in chat.
+- **2 Nov 2026.** The team page can now go online: it has a password sign-in, and it refuses to start on a public name without one. It isn't deployed yet. The steps are in [DEPLOY-team-page.md](DEPLOY-team-page.md).
 
 ## Decisions
 
