@@ -3,7 +3,7 @@ import { after, before, test } from 'node:test';
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { act, checkPassword, collect, createAuth, escapeHtml, handle, hashPassword, parseApprovals, recentSteps, renderMarkdown, renderSignIn, sameSite } from '../dashboard.mjs';
+import { act, activeAgents, checkPassword, collect, createAuth, escapeHtml, handle, hashPassword, parseApprovals, recentSteps, renderLive, renderMarkdown, renderSignIn, sameSite } from '../dashboard.mjs';
 import { makeCopy } from './_helpers.mjs';
 
 let copy;
@@ -238,4 +238,59 @@ test('small helpers cope with missing and awkward input', () => {
   assert.equal(escapeHtml(null), '');
   assert.deepEqual(parseApprovals('no table here'), []);
   assert.deepEqual(recentSteps(copy.dir, 'J-none'), []);
+});
+
+test('the running task shows which agents it has reached, and a backup counts for its agent', () => {
+  const names = ['coordinator', 'researcher', 'sales', 'evaluator'];
+  const steps = ['Wrote outputs/reviews/T-1-r1.md', 'Handed work to sales-fallback: Reply', 'Handed work to an agent: x', 'Handed work to researcher: Check', 'Wrote ops/board.md', 'Wrote outputs/outreach/L-1.md'];
+  const got = activeAgents(steps, names);
+  assert.equal(got.focus, 'evaluator');
+  assert.deepEqual(got.seen, ['evaluator', 'sales', 'researcher']);
+  assert.deepEqual(got.backup, ['sales']);
+  assert.deepEqual(activeAgents(['Read x'], names), { focus: null, seen: [], backup: [] });
+});
+
+test('the map plays a demo when nothing runs, and lights the working agent when a run is alive', () => {
+  assert.equal(collect(copy.dir).working, null, 'a log without a live run is not work in progress');
+  const idle = handle(copy.dir, 'GET', '/', HOST).body;
+  assert.match(idle, /id="map"[^>]*data-mode="demo"/);
+  assert.match(idle, /<svg class="mapsvg"[^>]*role="img"[^>]*aria-labelledby="map-t map-d"/);
+  for (const name of ['researcher', 'lead-generator', 'outreach', 'sales', 'demo-handler', 'developer', 'docs-handler', 'marketing', 'knowledge-base', 'evaluator']) assert.ok(idle.includes(`data-k="n-${name}"`), name);
+  assert.match(idle, /data-k="g-n">1</, 'the waiting sends show at the gate');
+  assert.match(idle, /data-k="t-found">3 FOUND</);
+
+  const repo = makeCopy();
+  try {
+    mkdirSync(repo.path('ops', 'runs'), { recursive: true });
+    writeFileSync(repo.path('ops', 'queue.json'), JSON.stringify([{ id: 'J-1', task: 'Find leads.', status: 'running', started: '2026-11-02 10:00' }]));
+    writeFileSync(repo.path('ops', 'runs', 'J-1.log'), `${JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Agent', input: { subagent_type: 'researcher', description: 'Look' } }] } })}
+`);
+    writeFileSync(repo.path('ops', 'runs', 'jarvis.lock'), String(process.pid));
+    const data = collect(repo.dir);
+    assert.equal(data.working.focus, 'researcher');
+    const html = renderLive(data);
+    assert.match(html, /id="map"[^>]*data-mode="live"/);
+    assert.match(html, /data-k="n-researcher" data-st="work"/);
+    assert.match(html, /data-k="n-sales" data-st="idle"/);
+    assert.equal(html.split('<!--split-->').length, 2, 'the live refresh still has two parts');
+    assert.ok(html.split('<!--split-->')[0].includes('id="map"'), 'the map sits in the first part, which the page patches in place');
+  } finally {
+    rmSync(repo.dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+  }
+});
+
+test('the page uses its own fonts and colours, and keeps the walkthrough readable without scripts', () => {
+  const body = handle(copy.dir, 'GET', '/', HOST).body;
+  const faces = [...body.matchAll(/--(?:head|serif|mono):([^;]*);|href="(https:\/\/fonts\.googleapis[^"]*)"/g)].map((m) => m[1] ?? m[2]).join(' ');
+  for (const font of ['Inter', 'Roboto', 'Poppins', 'Montserrat', 'Open+Sans', 'Open Sans', 'Space+Grotesk', 'DM+Sans', 'Manrope', 'Jakarta', 'Outfit', 'Geist', 'Atkinson', 'Bricolage', 'system-ui']) assert.ok(!faces.includes(font), font);
+  assert.match(body, /family=Big\+Shoulders\+Display/);
+  assert.match(body, /<h2 id="how-h">How the team works<\/h2>/);
+  assert.equal((body.match(/class="step"/g) ?? []).length, 6);
+  assert.ok(!/purple|violet|indigo|backdrop-filter/i.test(body));
+});
+
+test('the sign-in page has a picture but no team data', () => {
+  const html = renderSignIn();
+  assert.match(html, /<svg class="lockart"[^>]*aria-hidden="true"/);
+  assert.ok(!html.includes('id="map"'));
 });
