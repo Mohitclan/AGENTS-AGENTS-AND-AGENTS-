@@ -57,7 +57,23 @@ describe('pipeline and logs', () => {
   });
   it('blocks editing the opt-out list', () => assert.equal(write('pipeline/suppression.jsonl', 'x'), 'block'));
   it('blocks editing the gate log', () => assert.equal(write('ops/gate-log.jsonl', 'x'), 'block'));
+  it('blocks editing the send log', () => assert.equal(write('ops/send-log.jsonl', 'x'), 'block'));
+  it('blocks editing the reply log', () => assert.equal(edit('ops/replies.jsonl', 'a', 'b'), 'block'));
   it('allows writing a report', () => assert.equal(write('outputs/reports/J-20261030-01.md', 'x'), 'allow'));
+});
+
+describe('sending', () => {
+  const row = (id, decision) => `| ${id} | T-1 | Send Email 1 to a@b.com | f | r | ${decision} | | |`;
+  writeFileSync(repo.path('ops', 'approvals.md'), `| ID | Task | Action | Files | Risk | Decision | By | Date |\n|---|---|---|---|---|---|---|---|\n${row('A-9', 'pending')}\n`);
+
+  it('asks before a real send', () => assert.equal(bash('node scripts/send-email.mjs --draft d.md --email 1 --to a@b.com --approval A-9'), 'ask'));
+  it('asks before the mail settings change', () => assert.equal(edit('ops/mail-config.json', 'sushant', 'someone'), 'ask'));
+  it('allows a dry run', () => assert.equal(bash('node scripts/send-email.mjs --draft d.md --email 1 --to a@b.com --dry-run'), 'allow'));
+  it('asks before a pending row becomes Yes', () => assert.equal(edit('ops/approvals.md', '| pending |', '| Yes, approved |'), 'ask'));
+  it('asks before a new row is written with Yes', () =>
+    assert.equal(edit('ops/approvals.md', row('A-9', 'pending'), `${row('A-9', 'pending')}\n${row('A-10', '**Yes**')}`), 'ask'));
+  it('allows adding a pending row', () =>
+    assert.equal(edit('ops/approvals.md', row('A-9', 'pending'), `${row('A-9', 'pending')}\n${row('A-10', 'pending')}`), 'allow'));
 });
 
 describe('memory', () => {

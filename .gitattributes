@@ -1,0 +1,7 @@
+# Keep LF line endings on every machine. On Windows with core.autocrlf=true, CRLF checkouts made
+# two tests fail (fallback sync and skills compare exact text). PDFs and images stay binary.
+* text=auto eol=lf
+*.pdf binary
+*.png binary
+*.jpg binary
+*.gif binary

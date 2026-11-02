@@ -13,7 +13,8 @@
 //   - The logs that scripts/team-hooks.mjs keeps (ops/runs/, ops/messages.md, ops/fallbacks.md) can't be edited.
 //   - Removing memory and changing an agent's skills always ask.
 //   - The Jarvis queue (ops/queue.json, ops/queue.md) is written only by scripts/jarvis.mjs.
-//   - The opt-out list and the gate log are written only by their scripts.
+//   - The opt-out list, the gate log, the send log and the reply log are written only by their scripts.
+//   - A real send, and a Yes written into ops/approvals.md, always ask.
 import { existsSync, readFileSync } from 'node:fs';
 import { basename, relative, resolve, sep } from 'node:path';
 import { frontmatter } from './_shared.mjs';
@@ -71,6 +72,9 @@ if (tool === 'Bash' && typeof args.command === 'string') {
   if (/\bmemory\.mjs\b/.test(cmd) && /\bremove\b/.test(cmd)) ask('This removes an entry from team memory.');
   if (/\bskills\.mjs\b/.test(cmd) && /\b(give|take|new)\b/.test(cmd)) ask("This changes an agent's skills or adds a skill.");
   if (/\bnode\s+\S*\.\./.test(cmd)) ask('This runs a script outside scripts/.');
+  if (/\bsend-email\.mjs\b/.test(cmd) && !/--dry-run\b/.test(cmd)) {
+    ask('This sends a real email. Allow it only if a person approved this exact send in this session.');
+  }
   process.exit(0);
 }
 
@@ -110,6 +114,11 @@ if (rel === 'ops/gate-log.jsonl') {
   block('ops/gate-log.jsonl is a log kept by scripts/lint-copy.mjs and can\'t be edited.');
 }
 
+// send-email.mjs reads both to stop a sequence and to keep the daily limit, so nobody edits them by hand.
+if (rel === 'ops/send-log.jsonl' || rel === 'ops/replies.jsonl') {
+  block(`${rel} is a log kept by scripts/${rel.endsWith('replies.jsonl') ? 'replies' : 'send-email'}.mjs and can't be edited.`);
+}
+
 // Inside a subagent the hook input names the agent; it may write only its own memory
 // (a fallback may write the memory of the agent it stands in for).
 const memoryOwner = /^\.claude\/agent-memory\/([^/]+)\//.exec(rel)?.[1];
@@ -131,6 +140,31 @@ function afterEdits(edits) {
     else text = e.replace_all ? text.split(from).join(to) : text.replace(from, () => to);
   }
   return text;
+}
+
+// A Yes in ops/approvals.md is what lets send-email.mjs send, so only a person may add one: any edit
+// that turns a row's decision into Yes or Approved asks. Pending rows and other notes go through.
+const YES = /^(\*\*)?(yes|approved)\b/i;
+function yesRows(text) {
+  const rows = new Set();
+  for (const line of String(text).split(/\r?\n/)) {
+    const cells = line.split('|').map((c) => c.trim());
+    if (line.startsWith('|') && /^A-/.test(cells[1] || '') && YES.test(cells[6] || '')) rows.add(cells[1]);
+  }
+  return rows;
+}
+// The mail settings hold the pilot's allow-list and the sender, so changing them is a person's call.
+if (rel === 'ops/mail-config.json') {
+  ask('ops/mail-config.json holds the sender, the report address and the pilot allow-list. Allow this only if a person asked for this change.');
+}
+
+if (rel === 'ops/approvals.md') {
+  const before = yesRows(existsSync(abs) ? readFileSync(abs, 'utf8') : '');
+  const after = yesRows(tool === 'Write' ? args.content || '' : afterEdits(args.edits || [args]));
+  const added = [...after].filter((id) => !before.has(id));
+  if (added.length) {
+    ask(`This records a Yes for ${added.join(', ')} in ops/approvals.md, which allows a real send. Allow it only if a person gave that answer in this session.`);
+  }
 }
 
 if (rel.startsWith('knowledge/')) {

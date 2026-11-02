@@ -1,9 +1,20 @@
 // Helpers shared by the scripts in this folder. Node 20+, no dependencies.
-import { readdirSync } from 'node:fs';
+import { readdirSync, realpathSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+// True when the module at metaUrl is the script node was started with. Compares real paths, so a
+// symlinked folder (macOS's /var is /private/var) doesn't make a script silently do nothing.
+export function isMain(metaUrl) {
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(metaUrl));
+  } catch {
+    return false;
+  }
+}
 
 // Local date as YYYY-MM-DD.
 export function today() {
