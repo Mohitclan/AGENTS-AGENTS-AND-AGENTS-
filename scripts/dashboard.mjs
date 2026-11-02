@@ -437,7 +437,7 @@ button{font:600 .82rem var(--mono);letter-spacing:.08em;text-transform:uppercase
 button:hover{transform:translate(2px,2px);box-shadow:2px 2px 0 var(--verm)}
 button:active{transform:translate(4px,4px);box-shadow:0 0 0 var(--verm)}
 button.quiet{background:none;color:var(--verm-ink);border:0;box-shadow:none;padding:0 .2rem;text-decoration:underline;font-weight:500;letter-spacing:0;text-transform:none;transform:none}
-button.quiet:hover{background:var(--mustard);box-shadow:none}
+button.quiet:hover{background:var(--mustard);color:var(--ink);box-shadow:none}
 button:disabled{opacity:.55;cursor:wait}
 textarea,input{font:inherit;color:inherit;width:100%;padding:.6rem .8rem;border:2px solid var(--ink);border-radius:0;background:var(--card)}
 textarea{resize:vertical;font:400 .95rem/1.6 var(--mono)}

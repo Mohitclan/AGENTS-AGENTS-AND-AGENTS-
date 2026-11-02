@@ -4,6 +4,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { act, activeAgents, checkPassword, collect, createAuth, escapeHtml, handle, hashPassword, parseApprovals, recentSteps, renderLive, renderMarkdown, renderSignIn, sameSite } from '../dashboard.mjs';
+import { ART_SCRIPT } from '../dashboard-art.mjs';
 import { makeCopy } from './_helpers.mjs';
 
 let copy;
@@ -254,7 +255,7 @@ test('the map plays a demo when nothing runs, and lights the working agent when 
   assert.equal(collect(copy.dir).working, null, 'a log without a live run is not work in progress');
   const idle = handle(copy.dir, 'GET', '/', HOST).body;
   assert.match(idle, /id="map"[^>]*data-mode="demo"/);
-  assert.match(idle, /<svg class="mapsvg"[^>]*role="img"[^>]*aria-labelledby="map-t map-d"/);
+  assert.match(idle, /<svg class="mapsvg"[^>]*role="img"[^>]*aria-labelledby="map-t"[^>]*aria-describedby="map-d"/);
   for (const name of ['researcher', 'lead-generator', 'outreach', 'sales', 'demo-handler', 'developer', 'docs-handler', 'marketing', 'knowledge-base', 'evaluator']) assert.ok(idle.includes(`data-k="n-${name}"`), name);
   assert.match(idle, /data-k="g-n">1</, 'the waiting sends show at the gate');
   assert.match(idle, /data-k="t-found">3 FOUND</);
@@ -277,6 +278,19 @@ test('the map plays a demo when nothing runs, and lights the working agent when 
   } finally {
     rmSync(repo.dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   }
+});
+
+test('the map review fixes hold: hover contrast, long names, readable size, and a map that stays in the page', () => {
+  const body = handle(copy.dir, 'GET', '/', HOST).body;
+  assert.ok(body.includes('button.quiet:hover{background:var(--mustard);color:var(--ink);'), 'red text on mustard is under 4.5:1, so the hover uses ink');
+  assert.match(body, /class="nm long" x="49" y="27">LEAD-GENERATOR</);
+  assert.match(body, /class="nm long" x="49" y="27">KNOWLEDGE-BASE</);
+  assert.match(body, /class="nm" x="49" y="27">SALES</);
+  assert.ok(body.includes('@media (max-width:1279px){.mapsvg,[data-pause]{display:none!important}.route{display:block}}'), 'the drawing only shows where its 11 px text stays near 10 px');
+  const sizes = [...body.matchAll(/\.mapsvg \.(?:nm\.long|nm|ct|kick|lbl|tg|bkt)\{[^}]*?font-size:([\d.]+)px/g)].map((m) => Number(m[1]));
+  assert.ok(sizes.length >= 7 && Math.min(...sizes) >= 11, 'no map text under 11 px');
+  assert.match(body, /class="kick" x="\d+" y="\d+" text-anchor="end">CHECKPOINT</, 'the label sits left of the gate figure');
+  assert.ok(!/old\.remove\(\)|fresh\.replaceWith/.test(ART_SCRIPT), 'setTop keeps #map in the page so its CSS animations are not restarted');
 });
 
 test('the page uses its own fonts and colours, and keeps the walkthrough readable without scripts', () => {
