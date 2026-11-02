@@ -68,7 +68,9 @@ coordinator ◀── FALLBACK note ──▶ outreach-fallback ──▶ evalua
 | A reply without a RESULT block is retried, then handed to the fallback after three attempts | `scripts/team-hooks.mjs` (SubagentStop and PostToolUse hooks); the coordinator launches the fallback when the hook tells it to |
 | Main memory is written only through the memory script; agents write only their own memory; the call and fallback logs can't be edited | The guard hook |
 | Removing memory and changing skills need you | The hook asks |
-| An opt-out is final, across every product | `leads.mjs suppress`: imports refused, outreach statuses blocked |
+| An opt-out is final, across every product | `leads.mjs suppress`: imports refused, outreach statuses blocked. `replies.mjs check` suppresses clear opt-out and complaint replies at once |
+| A real send needs a person | The hook asks before any `send-email.mjs` run that is not `--dry-run`, and before anyone writes a Yes into `ops/approvals.md`. A live send then marks the lead `contacted` |
+| Any answer stops the sequence | `replies.mjs` records replies, opt-outs and bounces in `ops/replies.jsonl`; `send-email.mjs` refuses a live send to anyone at a company that answered, or to an address that bounced |
 | Drafts pass automatic checks before review | `scripts/lint-copy.mjs`; the evaluator treats a failure as REVISE |
 | Drafts only, no invented facts, approval list, review before reporting | Agent instructions and `CLAUDE.md` |
 
@@ -132,6 +134,17 @@ node scripts/jarvis.mjs usage                                        # how full 
 - **In the app**, `/do <task>` does the same in your open session.
 - **Use the page:** `node scripts/dashboard.mjs` serves http://127.0.0.1:4317, where you give the team a task, watch it work and read the report. It also shows the leads, the team and what's waiting for a person. It only listens on this computer, and its only actions are adding, starting and cancelling Jarvis tasks. Keep its terminal open while a task runs. To put it online with a password, follow [docs/DEPLOY-team-page.md](docs/DEPLOY-team-page.md).
 
+**Mission control** (`node scripts/control.mjs`, http://127.0.0.1:4318) is the fuller page for running the team from a browser, and the one to host on your domain. Every agent has its own animated character, a SubE Gem, that reacts to its real state ([docs/AVATARS.md](docs/AVATARS.md)):
+
+- **Working** (the landing page): an office where each gem sits at its desk, types, researches, celebrates or looks worried as its agent really does, and walks to the coordinator's table or a colleague's desk when work is handed over. A demo switch plays a simulated task, clearly labelled.
+- **Gem gallery:** every gem in every state and size, with a simulator. **The dock** in the corner shows the busy gems and can be hidden, resized, muted or popped out on top of other windows.
+- **Overview:** give the team a task, see the queue, the numbers that matter, everything waiting for you and a live feed. Each agent sits at a desk with its own avatar; when a task runs, the agent doing the work lights up, types, and shows what it's doing ("Opened https://…", "Wrote outputs/research/…"), and hand-offs fly from desk to desk.
+- **One page per agent:** what it made (each file opens in a reader), everything it did, its failures and why, its tasks on the board, and its memory and skills.
+- **Logs:** every step of every agent, as a table or as one column per agent, filtered by agent, kind (web, file, hand-off, review, copy check, email, reply…), failures only, or a search.
+- **Leads, Reports, Needs you:** the pipeline, every task report and review, and the approvals, blocked tasks, backups used and knowledge to confirm.
+
+It reads the same files as everything else (the Jarvis run logs give the live view), and its only actions are giving, starting and cancelling tasks. To host it, follow [docs/DEPLOY-team-page.md](docs/DEPLOY-team-page.md), section "Hosting mission control instead".
+
 You can also just ask the coordinator in plain language, for example "Audit the landing page and onboarding for <product> and list what's costing us sign-ups."
 
 ## Scripts
@@ -145,6 +158,10 @@ node scripts/kb.mjs status
 node scripts/check-links.mjs <file>
 node scripts/lint-copy.mjs <file> --type email      # automatic checks: general, email, social or seo
 node scripts/lint-copy.mjs mine                      # failures that keep repeating
+node scripts/send-email.mjs --draft <file> --email <n> --to <address> [--approval <A-id>] [--dry-run]   # one reviewed email; a live send needs a Yes row
+node scripts/replies.mjs check [--dry-run]           # read the inbox for answers to our sends; act on opt-outs, replies and bounces
+node scripts/replies.mjs watch --every 15            # the same check every 15 minutes; keep the terminal open
+node scripts/replies.mjs list                        # answers recorded so far (saved in outputs/replies/)
 node scripts/leads.mjs gate --product <slug>         # Go, Conditional or Stop before outreach
 node scripts/leads.mjs suppress <domain|email> "<reason>"   # an opt-out, for good
 node scripts/memory.mjs list                  # every memory file; add a name for its entries
