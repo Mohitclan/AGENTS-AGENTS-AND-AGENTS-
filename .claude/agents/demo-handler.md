@@ -10,6 +10,7 @@ skills:
   - objection-handling
   - meeting-prep
   - claim-check
+  - self-review
 can_ask:
   - knowledge-base
   - sales

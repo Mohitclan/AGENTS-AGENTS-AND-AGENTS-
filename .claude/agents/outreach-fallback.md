@@ -10,6 +10,7 @@ skills:
   - signal-outreach
   - hook-bank
   - reply-triage
+  - self-review
 fallback_for: outreach
 ---
 

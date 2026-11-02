@@ -120,3 +120,33 @@ sudo rm /etc/nginx/sites-enabled/team-page
 sudo nginx -t
 sudo systemctl reload nginx
 ```
+
+## Hosting mission control instead
+
+`scripts/control.mjs` is the fuller page: the agents at their desks working live, a page per agent (what it made, its activity, its failures and why, its tasks, its memory), logs as a table or one column per agent, leads, reports and everything waiting for a person. It uses the same `.env.team-page` (password hash and host name), so steps 1–5 stay the same.
+
+- **Step 6:** start it on its own port instead of, or as well as, the team page:
+
+  ```bash
+  set -a; . ./.env.team-page; set +a
+  pm2 start scripts/control.mjs --name mission-control
+  pm2 save
+  ```
+
+- **Step 7:** point nginx at port 4318, and let the live stream through unbuffered:
+
+  ```nginx
+  location / {
+      proxy_pass http://127.0.0.1:4318;
+      proxy_set_header Host $host;
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_http_version 1.1;
+      proxy_set_header Connection "";
+      proxy_buffering off;
+      proxy_read_timeout 1h;
+  }
+  ```
+
+- **Step 8:** the page should show the password box first, then the floor of agents. Give it one small task and watch the agent it hands work to light up.
+
+Both pages sign people in separately; one password covers both. Neither can send an email or approve anything.

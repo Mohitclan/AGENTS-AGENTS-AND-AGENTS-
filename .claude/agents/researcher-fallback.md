@@ -9,6 +9,7 @@ skills:
   - lead-research
   - research-rigor
   - competitive-battlecard
+  - self-review
 fallback_for: researcher
 ---
 

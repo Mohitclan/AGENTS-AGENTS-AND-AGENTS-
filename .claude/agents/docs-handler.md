@@ -8,6 +8,7 @@ memory: project
 skills:
   - fact-sourcing
   - claim-check
+  - self-review
 can_ask:
   - knowledge-base
   - marketing

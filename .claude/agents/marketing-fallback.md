@@ -13,6 +13,7 @@ skills:
   - positioning
   - linkedin-founder
   - seo-refresh
+  - self-review
 fallback_for: marketing
 ---
 

@@ -9,6 +9,7 @@ skills:
   - lead-research
   - fact-sourcing
   - signal-outreach
+  - self-review
 can_ask:
   - knowledge-base
   - researcher

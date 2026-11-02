@@ -1,0 +1,122 @@
+/* SubE Gem avatars: sizing, expressions and motion for every state. Only transform and opacity
+   animate, so the browser can keep it cheap; avatars off screen (.gem-off), muted effects and
+   prefers-reduced-motion all stop the movement. */
+
+.gem { --gem-size: 88px; --gem-primary: #b9a8f6; --gem-soft: #f1ecff; --gem-ink: #4c3d8a;
+  position: relative; display: inline-block; flex: none; width: var(--gem-size); aspect-ratio: 160 / 200; line-height: 0; vertical-align: middle; }
+.gem-xs { --gem-size: 28px; } .gem-sm { --gem-size: 44px; } .gem-md { --gem-size: 88px; } .gem-lg { --gem-size: 140px; } .gem-xl { --gem-size: 220px; }
+.gem .gm-svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.gem.gem-badge { aspect-ratio: 1; border-radius: 50%; overflow: hidden; background: radial-gradient(circle at 35% 28%, #fff 0, var(--gem-soft) 72%); box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .7), 0 2px 8px rgba(10, 8, 30, .25); }
+.gem.gem-badge .gm-svg { overflow: hidden; }
+.gem.gem-badge .gm-shadow, .gem.gem-badge .gm-fx, .gem.gem-desk .gm-prop, .gem.gem-desk .gm-shadow { display: none; }
+.gem-img { width: 24px; height: 24px; border-radius: 50%; vertical-align: middle; flex: none; box-shadow: 0 1px 4px rgba(0, 0, 0, .25); }
+
+.gem * { transform-box: fill-box; }
+.gm-root, .gm-figure, .gm-body { transform-origin: 50% 100%; }
+.gm-head { transform-origin: 50% 85%; transition: transform .5s cubic-bezier(.3, 1.3, .5, 1); }
+.gm-brow { transform-origin: 50% 50%; transition: transform .35s ease; }
+.gm-eye { transform-origin: 50% 50%; }
+.gm-arm-l { transform-origin: 85% 10%; } .gm-arm-r { transform-origin: 15% 10%; }
+.gm-leg-l, .gm-leg-r { transform-origin: 50% 0; }
+.gm-eyes, .gm-mouth, .gm-fx > g { opacity: 0; transition: opacity .28s ease; }
+.gm-eyes-open, .gm-mouth-smile { opacity: 1; }
+
+/* ---- idle: float, breathe, blink ---- */
+.gm-root { animation: gm-float 4.4s ease-in-out var(--gem-phase, 0s) infinite; }
+.gm-body { animation: gm-breathe 3.8s ease-in-out var(--gem-phase, 0s) infinite; }
+.gm-eyes-open .gm-eye, .gm-eyes-focus .gm-eye { animation: gm-blink var(--gem-blink, 4.6s) linear var(--gem-blink-delay, 0s) infinite; }
+
+/* ---- working: focused face, typing, a soft glow on the screen ---- */
+.st-working .gm-eyes-open, .st-working .gm-mouth-smile { opacity: 0; }
+.st-working .gm-eyes-focus, .st-working .gm-mouth-flat, .st-working .gm-fx-working { opacity: 1; }
+.st-working .gm-brow-l { transform: rotate(9deg) translateY(1.5px); }
+.st-working .gm-brow-r { transform: rotate(-9deg) translateY(1.5px); }
+.st-working .gm-head { animation: gm-nod 1.8s ease-in-out infinite; }
+.st-working .gm-arm-l { animation: gm-type .28s ease-in-out infinite alternate; }
+.st-working .gm-arm-r { animation: gm-type .28s ease-in-out .14s infinite alternate; }
+.st-working .gm-glow { animation: gm-glow 1.2s ease-in-out infinite; }
+.st-working .gm-fx-working { animation: gm-bob 1.4s ease-in-out infinite; }
+
+/* ---- researching: curious face, head tilts and looks around ---- */
+.st-researching .gm-mouth-smile { opacity: 0; }
+.st-researching .gm-mouth-o, .st-researching .gm-fx-researching { opacity: 1; }
+.st-researching .gm-brow { transform: translateY(-2.5px); }
+.st-researching .gm-head { animation: gm-look 3.4s ease-in-out infinite; }
+.st-researching .gm-eyes-open { animation: gm-glance 3.4s ease-in-out infinite; }
+.st-researching .gm-tool { transform-origin: 20% 100%; animation: gm-wiggle 1.7s ease-in-out infinite; }
+.st-researching .gm-fx-researching { animation: gm-bob 2s ease-in-out infinite; }
+
+/* ---- success: happy face, a small hop, sparkles ---- */
+.st-success .gm-eyes-open, .st-success .gm-mouth-smile { opacity: 0; }
+.st-success .gm-eyes-happy, .st-success .gm-mouth-open, .st-success .gm-fx-success { opacity: 1; }
+.st-success .gm-brow { transform: translateY(-2px); }
+.st-success .gm-fx-success path, .st-success .gm-fx-success circle { transform-origin: 50% 50%; animation: gm-twinkle 1.6s ease-in-out infinite; }
+.st-success .gm-fx-success path:nth-child(2) { animation-delay: .4s; } .st-success .gm-fx-success path:nth-child(3) { animation-delay: .8s; }
+
+/* ---- waiting: calm, a slow sway and a thinking bubble ---- */
+.st-waiting .gm-root { animation: gm-sway 6s ease-in-out infinite; }
+.st-waiting .gm-fx-waiting { opacity: 1; }
+.st-waiting .gm-dot1, .st-waiting .gm-dot2, .st-waiting .gm-dot3 { animation: gm-dot 1.8s ease-in-out infinite; }
+.st-waiting .gm-dot2 { animation-delay: .3s; } .st-waiting .gm-dot3 { animation-delay: .6s; }
+
+/* ---- error: concerned, never flashing ---- */
+.st-error .gm-mouth-smile { opacity: 0; }
+.st-error .gm-mouth-worry, .st-error .gm-fx-error { opacity: 1; }
+.st-error .gm-brow-l { transform: rotate(-16deg) translateY(1px); }
+.st-error .gm-brow-r { transform: rotate(16deg) translateY(1px); }
+.st-error .gm-head { transform: rotate(-3deg); }
+.st-error .gm-root { animation: gm-sway 7s ease-in-out infinite; }
+.st-error .gm-fx-error path:first-child { animation: gm-drip 3.2s ease-in-out infinite; }
+
+/* ---- paused: eyes closed, still, a few slow z's ---- */
+.st-paused .gm-eyes-open, .st-paused .gm-mouth-smile { opacity: 0; }
+.st-paused .gm-eyes-closed, .st-paused .gm-mouth-smile, .st-paused .gm-fx-paused { opacity: 1; }
+.st-paused .gm-root, .st-paused .gm-body { animation: none; }
+.st-paused .gm-head { transform: rotate(4deg) translateY(1px); }
+.st-paused .gm-z1, .st-paused .gm-z2 { animation: gm-z 3.6s ease-in-out infinite; }
+.st-paused .gm-z2 { animation-delay: 1.2s; }
+.st-paused .gm-svg { filter: saturate(.85); }
+
+/* ---- moments: work starts, finishes, or goes wrong ---- */
+.gem-start .gm-figure { animation: gm-pop .6s cubic-bezier(.3, 1.5, .5, 1); }
+.gem-done .gm-figure { animation: gm-hop .5s ease-out 2; }
+.gem-oops .gm-figure { animation: gm-shiver .7s ease-in-out; }
+
+/* ---- walking (the office) ---- */
+.gem-walk .gm-root { animation: gm-walkbob .34s ease-in-out infinite alternate; }
+.gem-walk .gm-leg-l { animation: gm-step .34s ease-in-out infinite alternate; }
+.gem-walk .gm-leg-r { animation: gm-step .34s ease-in-out -.34s infinite alternate; }
+.gem-walk .gm-arm-l { animation: gm-swing .34s ease-in-out infinite alternate; }
+.gem-walk .gm-arm-r { animation: gm-swing .34s ease-in-out -.34s infinite alternate; }
+
+/* ---- tooltip ---- */
+.gem[data-tip]:hover::after { content: attr(data-tip); position: absolute; z-index: 60; left: 50%; bottom: calc(100% + 6px); transform: translateX(-50%); width: max-content; max-width: 260px; white-space: normal; line-height: 1.35; font: 500 12px/1.35 ui-sans-serif, system-ui, sans-serif; color: #241c3d; background: #fffdf8; border-radius: 10px; padding: 6px 10px; box-shadow: 0 8px 24px rgba(20, 12, 50, .25); pointer-events: none; }
+
+/* ---- pausing ---- */
+.gem.gem-off *, .gems-muted .gem * { animation-play-state: paused !important; }
+.gems-muted .gem .gm-fx { opacity: .6; }
+@media (prefers-reduced-motion: reduce) {
+  .gem, .gem * { animation: none !important; transition: none !important; }
+}
+
+@keyframes gm-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(var(--gem-float, -1.5px)); } }
+@keyframes gm-breathe { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(1.018); } }
+@keyframes gm-blink { 0%, 93%, 100% { transform: scaleY(1); } 95.5% { transform: scaleY(.08); } }
+@keyframes gm-nod { 0%, 100% { transform: rotate(0) translateY(0); } 50% { transform: rotate(-1.5deg) translateY(1.2px); } }
+@keyframes gm-type { from { transform: translateY(0); } to { transform: translateY(-2.6px); } }
+@keyframes gm-glow { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+@keyframes gm-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes gm-look { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(var(--gem-tilt, 5deg)); } 65% { transform: rotate(calc(var(--gem-tilt, 5deg) * -.8)); } }
+@keyframes gm-glance { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(2.4px); } 65% { transform: translateX(-2.4px); } }
+@keyframes gm-wiggle { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(-9deg); } }
+@keyframes gm-twinkle { 0%, 100% { transform: scale(.75); opacity: .7; } 50% { transform: scale(1.12); opacity: 1; } }
+@keyframes gm-sway { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(-1.6deg); } }
+@keyframes gm-dot { 0%, 100% { opacity: .25; } 40% { opacity: 1; } }
+@keyframes gm-drip { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(3px); } }
+@keyframes gm-z { 0% { transform: translate(0, 4px); opacity: 0; } 30% { opacity: .9; } 100% { transform: translate(5px, -8px); opacity: 0; } }
+@keyframes gm-pop { 0% { transform: scale(1); } 40% { transform: scale(1.08, .94); } 70% { transform: scale(.97, 1.04); } 100% { transform: scale(1); } }
+@keyframes gm-hop { 0%, 100% { transform: translateY(0); } 45% { transform: translateY(-9px); } }
+@keyframes gm-shiver { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-2px); } 40%, 80% { transform: translateX(2px); } }
+@keyframes gm-walkbob { from { transform: translateY(0); } to { transform: translateY(-3px); } }
+@keyframes gm-step { from { transform: rotate(-16deg); } to { transform: rotate(16deg); } }
+@keyframes gm-swing { from { transform: rotate(-10deg); } to { transform: rotate(10deg); } }

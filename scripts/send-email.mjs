@@ -8,7 +8,8 @@
 // Demo mode: --to is the sender's own address. Nothing reaches a prospect, so no approval is needed.
 // Live mode: any other --to. Needs --approval <id> whose row in ops/approvals.md says Yes/Approved
 // and names the recipient. Live sends are refused when the recipient is suppressed, the copy fails
-// lint-copy, or today's live sends have reached the daily limit.
+// lint-copy, today's live sends have reached the daily limit, or the person or company has answered
+// (ops/replies.jsonl, kept by scripts/replies.mjs).
 //
 // Secrets: the SMTP password comes from the SMTP_PASS environment variable, else from .env.
 // It is never printed or logged.
@@ -16,11 +17,12 @@ import { spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { ROOT } from './_shared.mjs';
+import { ROOT, isMain } from './_shared.mjs';
+import { replyStop } from './replies.mjs';
 
 const CONFIG = join(ROOT, 'ops', 'mail-config.json');
 const SEND_LOG = join(ROOT, 'ops', 'send-log.jsonl');
+const REPLY_LOG = join(ROOT, 'ops', 'replies.jsonl');
 const APPROVALS = join(ROOT, 'ops', 'approvals.md');
 const SUPPRESSION = join(ROOT, 'pipeline', 'suppression.jsonl');
 const LEADS = join(ROOT, 'pipeline', 'leads.jsonl');
@@ -191,6 +193,10 @@ async function main() {
   const n = Number(args.email);
   const to = args.to.trim().toLowerCase();
   const demo = to === config.sender.email.toLowerCase();
+  // Pilot: while pilot.allow_only lists anyone, nobody else can receive an email from this script,
+  // whatever ops/approvals.md says. The send report still goes to report_to.
+  const allowed = (config.pilot?.allow_only || []).map((a) => a.toLowerCase());
+  if (allowed.length && !allowed.includes(to)) die(`pilot mode: only ${allowed.join(', ')} may receive emails (ops/mail-config.json pilot.allow_only). Drafts for ${to} wait for people to approve the wording and end the pilot rule`);
   const draftPath = join(ROOT, args.draft);
   if (!existsSync(draftPath)) die(`${args.draft} not found`);
   const text = readFileSync(draftPath, 'utf8');
@@ -209,6 +215,12 @@ async function main() {
   // Checks.
   const suppressed = isSuppressed(to, readJsonl(SUPPRESSION));
   if (suppressed) die(`${to} is on the opt-out list (${suppressed.reason})`);
+  if (!demo) {
+    const answered = replyStop(to, readJsonl(REPLY_LOG));
+    const when = (answered?.received || answered?.at || '').slice(0, 10);
+    if (answered?.kind === 'bounce') die(`${answered.sent_to} bounced on ${when} (${answered.file}). Find another published contact`);
+    if (answered) die(`${answered.from} answered on ${when} (${answered.kind}, ${answered.file}), so the sequence has stopped. A person decides what goes next`);
+  }
   const lint = lintEmail(parsed.subject, body);
   const log = readJsonl(SEND_LOG);
   const today = new Date().toISOString().slice(0, 10);
@@ -227,7 +239,7 @@ async function main() {
   const next = nextInSequence(text, n);
   const nextText = demo
     ? `none. Demo send; the lead's status is unchanged${next ? ` (in a live run, Email ${next.email} would follow on working day ${next.day} if there is no reply)` : ''}.`
-    : `${leadId ? `a person marks ${leadId} contacted: node scripts/leads.mjs set-status ${leadId} contacted "Email ${n} sent ${today}". ` : ''}${next ? `Email ${next.email} on working day ${next.day}, only if there is no reply.` : 'This was the last email in the sequence.'}`;
+    : `${lead ? `${leadId} is marked contacted by this script (the approval above is the person's decision). ` : ''}${next ? `Email ${next.email} on working day ${next.day}, only if there is no reply.` : 'This was the last email in the sequence.'}`;
 
   const from = `${config.sender.name} <${config.sender.email}>`;
   const reportBase = {
@@ -255,6 +267,23 @@ async function main() {
   appendFileSync(SEND_LOG, JSON.stringify(entry) + '\n');
   console.log(`Sent. Message ID ${info.messageId} (${info.response})`);
 
+  // A live send under a Yes row is the person's decision to contact this lead, so record it, so that
+  // replies.mjs can move the lead on when they answer.
+  if (!demo && lead) {
+    const steps = ['drafted', 'approved', 'contacted'];
+    const at = steps.indexOf(lead.status);
+    const todo = lead.status === 'qualified' ? steps : at >= 0 ? steps.slice(at + 1) : [];
+    for (const status of todo) {
+      const r = spawnSync(process.execPath, [join(ROOT, 'scripts', 'leads.mjs'), 'set-status', leadId, status, `Email ${n} sent ${today} to ${to} under ${args.approval}`], { encoding: 'utf8' });
+      if (r.status !== 0) {
+        console.error(`Sent, but ${leadId} could not be set to ${status}: ${(r.stderr || r.stdout).trim()}`);
+        break;
+      }
+      reportBase.leadStatus = status;
+    }
+    if (reportBase.leadStatus === 'contacted') console.log(`${leadId} is now contacted.`);
+  }
+
   const report = buildReport({ ...reportBase, sentAt, messageId: info.messageId, response: info.response });
   const reportSubject = `[Send report] ${demo ? 'DEMO' : 'LIVE'} · ${subject} → ${to}`;
   try {
@@ -268,6 +297,6 @@ async function main() {
   }
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+if (isMain(import.meta.url)) {
   main().catch((e) => die(e.message));
 }

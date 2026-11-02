@@ -9,9 +9,8 @@
 // A fallback has the main agent's tools (except Agent), skills and colour, runs on a different
 // model, reads the main agent's file and memory, and works in small steps.
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { AGENTS_DIR, MAIN_AGENT, agentNames, isFallback, list, readAgent, splitTools, writeAgent } from './_agents.mjs';
-import { fail } from './_shared.mjs';
+import { fail, isMain } from './_shared.mjs';
 
 const MODEL_SWAP = { opus: 'sonnet', sonnet: 'opus', haiku: 'sonnet', fable: 'opus' };
 
@@ -102,7 +101,7 @@ function check() {
   console.log(`OK: ${names.filter(isFallback).length} fallback agent(s) match their main agents.`);
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
+if (isMain(import.meta.url)) {
   const [command] = process.argv.slice(2);
   if (command === 'sync') {
     const written = syncFallbacks();

@@ -14,6 +14,7 @@ skills:
   - positioning
   - linkedin-founder
   - seo-refresh
+  - self-review
 can_ask:
   - knowledge-base
   - researcher

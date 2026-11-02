@@ -7,6 +7,7 @@ color: blue
 skills:
   - fact-sourcing
   - claim-check
+  - self-review
 fallback_for: docs-handler
 ---
 

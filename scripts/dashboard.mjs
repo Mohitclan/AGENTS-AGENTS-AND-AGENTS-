@@ -14,9 +14,8 @@ import { spawn, spawnSync } from 'node:child_process';
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { closeSync, existsSync, fstatSync, mkdirSync, openSync, readdirSync, readFileSync, readSync } from 'node:fs';
 import { createServer } from 'node:http';
-import { join, posix, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { frontmatter, ROOT } from './_shared.mjs';
+import { join, posix } from 'node:path';
+import { frontmatter, isMain, ROOT } from './_shared.mjs';
 import { ART_SCRIPT, ART_STYLE, renderMap, renderWalkthrough, signInArt } from './dashboard-art.mjs';
 
 const DEFAULT_PORT = 4317;
@@ -839,4 +838,4 @@ function main() {
   server.listen(port, '127.0.0.1', () => console.log(`Team page: http://127.0.0.1:${server.address().port}`));
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();
+if (isMain(import.meta.url)) main();
