@@ -468,7 +468,7 @@ const goodHost = (host, site) => (site ? host === site : isLocal(host));
 const cookieHeader = (value, site, age) => `${COOKIE}=${value}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${age}${site ? '; Secure' : ''}`;
 const readCookie = (header) => new RegExp(`(?:^|;\\s*)${COOKIE}=([a-f0-9]+)`).exec(header || '')?.[1];
 
-const shell = (body, script) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SubE Gems · Mission control</title><link rel="stylesheet" href="/app.css"><link rel="stylesheet" href="/gems/gems.css"><link rel="stylesheet" href="/gems/ui.css"></head><body>${body}<script type="module" src="/${script}"></script></body></html>`;
+const shell = (body, script) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SubE Gems · Mission control</title><link rel="stylesheet" href="/app.css"><link rel="stylesheet" href="/gems/gems.css"><link rel="stylesheet" href="/gems/office.css"><link rel="stylesheet" href="/gems/ui.css"><link rel="stylesheet" href="/gems/home.css"></head><body>${body}<script type="module" src="/${script}"></script></body></html>`;
 const APP = shell('<div id="app" class="app"><noscript>Mission Control needs JavaScript.</noscript></div>', 'app.js');
 const SIGN_IN = shell('<main class="signin"><form id="signin" class="signin-card"><div class="brand"><span class="brand-mark"></span>SubE Gems</div><p>Sign in to run the sales team.</p><label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" required><button type="submit">Sign in</button><p id="msg" role="status"></p></form></main>', 'signin.js');
 

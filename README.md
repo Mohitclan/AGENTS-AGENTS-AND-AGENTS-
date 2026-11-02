@@ -136,7 +136,8 @@ node scripts/jarvis.mjs usage                                        # how full 
 
 **Mission control** (`node scripts/control.mjs`, http://127.0.0.1:4318) is the fuller page for running the team from a browser, and the one to host on your domain. Every agent has its own animated character, a SubE Gem, that reacts to its real state ([docs/AVATARS.md](docs/AVATARS.md)):
 
-- **Working** (the landing page): an office where each gem sits at its desk, types, researches, celebrates or looks worried as its agent really does, and walks to the coordinator's table or a colleague's desk when work is handed over. A demo switch plays a simulated task, clearly labelled.
+- **Home:** after a short black opening, the office fills the screen; the glowing dot at the top opens the navigation, and "Watch the demo" plays a narrated task from start to approval.
+- **Working:** an office where each gem sits at its desk, types, researches, celebrates or looks worried as its agent really does, and walks to the coordinator's table or a colleague's desk when work is handed over. A demo switch plays a simulated task, clearly labelled.
 - **Gem gallery:** every gem in every state and size, with a simulator. **The dock** in the corner shows the busy gems and can be hidden, resized, muted or popped out on top of other windows.
 - **Overview:** give the team a task, see the queue, the numbers that matter, everything waiting for you and a live feed. Each agent sits at a desk with its own avatar; when a task runs, the agent doing the work lights up, types, and shows what it's doing ("Opened https://…", "Wrote outputs/research/…"), and hand-offs fly from desk to desk.
 - **One page per agent:** what it made (each file opens in a reader), everything it did, its failures and why, its tasks on the board, and its memory and skills.
