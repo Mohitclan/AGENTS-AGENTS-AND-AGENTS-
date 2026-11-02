@@ -64,3 +64,5 @@ Every time one agent started another. Written by `scripts/team-hooks.mjs`.
 | 2026-11-01 22:06 | coordinator | evaluator | T-20261101-09 | Review Pippin and Graphite sequences |
 | 2026-11-01 22:15 | coordinator | outreach | T-20261101-09 | Apply review fixes to sequences |
 | 2026-11-01 22:19 | coordinator | evaluator | T-20261101-09 | Re-score two outreach sequences |
+| 2026-11-02 11:19 | coordinator | developer | T-20261102-01 | Redesign team page as agent system |
+| 2026-11-02 11:41 | coordinator | evaluator | T-20261102-01 | Review team page redesign |
