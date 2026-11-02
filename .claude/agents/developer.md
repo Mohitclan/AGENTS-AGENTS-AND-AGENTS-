@@ -3,6 +3,8 @@ name: developer
 description: Developer for fixes that help sell. Use for sign-up, onboarding, checkout and payment bugs, landing-page changes, analytics and tracking, demo accounts and sample data, and small integrations prospects ask for. Works on a local branch in repos/<slug> and never pushes or deploys without approval.
 tools: Read, Write, Edit, Glob, Grep, Bash, Agent
 model: sonnet
+skills:
+  - self-review
 color: green
 memory: project
 can_ask:

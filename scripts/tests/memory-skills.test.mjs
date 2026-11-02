@@ -67,14 +67,15 @@ describe('skills', () => {
   it('every preloaded skill exists', () => assert.doesNotMatch(skills('list').stdout, /Missing skills/));
   it('gives a skill to an agent and its fallback', () => {
     assert.equal(skills('give', 'developer', 'fact-sourcing').code, 0);
-    assert.match(text('.claude', 'agents', 'developer.md'), /\nskills:\n {2}- fact-sourcing\n/);
-    assert.match(text('.claude', 'agents', 'developer-fallback.md'), /\nskills:\n {2}- fact-sourcing\n/);
+    assert.match(text('.claude', 'agents', 'developer.md'), /\nskills:\n {2}- self-review\n {2}- fact-sourcing\n/);
+    assert.match(text('.claude', 'agents', 'developer-fallback.md'), /\nskills:\n {2}- self-review\n {2}- fact-sourcing\n/);
     assert.equal(repo.run('fallbacks.mjs', 'check').code, 0);
   });
   it('takes it away again', () => {
     assert.equal(skills('take', 'developer', 'fact-sourcing').code, 0);
-    assert.doesNotMatch(text('.claude', 'agents', 'developer.md'), /skills:/);
-    assert.doesNotMatch(text('.claude', 'agents', 'developer-fallback.md'), /skills:/);
+    assert.doesNotMatch(text('.claude', 'agents', 'developer.md'), /fact-sourcing/);
+    assert.doesNotMatch(text('.claude', 'agents', 'developer-fallback.md'), /fact-sourcing/);
+    assert.match(text('.claude', 'agents', 'developer.md'), /\nskills:\n {2}- self-review\n/);
   });
   it("keeps the rest of the agent's file as it was", () => {
     const body = (s) => s.slice(s.indexOf('\n---\n'));

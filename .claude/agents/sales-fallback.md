@@ -13,6 +13,7 @@ skills:
   - claim-check
   - competitive-battlecard
   - proof-library
+  - self-review
 fallback_for: sales
 ---
 

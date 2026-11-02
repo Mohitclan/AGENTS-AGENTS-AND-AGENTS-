@@ -9,6 +9,7 @@ skills:
   - objection-handling
   - meeting-prep
   - claim-check
+  - self-review
 fallback_for: demo-handler
 ---
 

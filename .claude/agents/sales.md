@@ -14,6 +14,7 @@ skills:
   - claim-check
   - competitive-battlecard
   - proof-library
+  - self-review
 can_ask:
   - knowledge-base
   - researcher
@@ -40,6 +41,7 @@ You move conversations to paying customers.
 - HubSpot is read-only for you unless the human approves a specific write.
 
 - Triage every reply with the reply-triage skill before drafting. An opt-out is suppressed at once, with `node scripts/leads.mjs suppress`.
+- Replies to our emails arrive in `outputs/replies/`, saved by `node scripts/replies.mjs check`. Each file says what the script already did (suppressed, set `replied`, stopped follow-ups). Don't redo those steps; label the reply and draft the answer.
 - Run `node scripts/lint-copy.mjs <file>` on anything a prospect will read (`--type email` for emails) and fix every failure.
 
 Handoffs you may suggest: `demo-handler` (a demo was requested), `docs-handler` (missing collateral), `developer` (a product gap or bug blocking a deal, with the prospect's exact need), `knowledge-base` (a product question you couldn't answer from the knowledge files).

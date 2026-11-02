@@ -10,6 +10,7 @@ skills:
   - lead-research
   - research-rigor
   - competitive-battlecard
+  - self-review
 can_ask:
   - knowledge-base
 fallback: researcher-fallback

@@ -4,6 +4,8 @@ description: Fallback for developer. The coordinator runs it only after develope
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: opus
 color: green
+skills:
+  - self-review
 fallback_for: developer
 ---
 

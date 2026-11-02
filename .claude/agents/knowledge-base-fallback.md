@@ -8,6 +8,7 @@ skills:
   - fact-sourcing
   - claim-check
   - research-rigor
+  - self-review
 fallback_for: knowledge-base
 ---
 
