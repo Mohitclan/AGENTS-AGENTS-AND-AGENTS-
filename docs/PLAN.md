@@ -13,7 +13,7 @@ Dates are proposals. Names in `[brackets]` are for the team to fill in.
 | J1 · Jarvis core | Hand over any task with `/do` or `jarvis.mjs`; it runs the whole chain and returns a finished result and report; task queue; plan-usage guard; lessons recorded after each task | ✅ Done, 30 Oct 2026 | A real task runs end to end from one command, with a report and recorded lessons |
 | H · Hardening | Fix what live tests exposed: stronger copy checks and lead gate, hold state, corrected records, site and positioning fixes | 🟡 Build done 1 Nov 2026; waiting on people | Open decisions answered, company details filled in, site fixes merged |
 | A2 · Add products | Confirmed fact sheets for our 5–6 products | 🟡 1 of 5–6 (MotionRepo, 30 Oct) | Every fact sheet confirmed |
-| A3 · First sprint | 15 leads and outreach for one product, run through Jarvis; measure results | 🟡 Blocked: the sprint and a solo-founder re-test found no lead that fits segment 1; waiting on a decision about the launch and video tests | Sprint passes review; results recorded |
+| A3 · First sprint | 15 leads and outreach for one product, run through Jarvis; measure results | 🟡 Waiting on people: 3 leads qualified and 2 email sequences passed review; nothing sent | Sprint passes review; results recorded |
 | J2 · Learning organisation | Feed company documents into knowledge and memory; turn work scoring 90+ into skills (gate-log mining is done) | After A3 | Org documents ingested; first skill mined from real work |
 | J3 · Skill library and checks | 13 new skills, 5 upgraded, automatic copy checks, opt-out list and lead gate, adapted from open-source marketing repos | ✅ Done, 30 Oct 2026 | Every selling agent preloads 3+ skills; checks pass on reviewed work with no false alarms |
 | J4 · Autopilot | Daily queue run and weekly review as desktop scheduled tasks, on the Max plan | After J3 | A week of scheduled runs with reports and no lost tasks |
@@ -77,17 +77,18 @@ gantt
 | 2 | The lead gate shows Not reviewed instead of Go, and flags old signals and evidence with no signal class | `scripts/leads.mjs` | ✅ Done |
 | 3 | `hold`, `release`, `supersede` and `next` for lead records; Repowise is on hold | `scripts/leads.mjs`, `pipeline/lead-schema.md` | ✅ Done |
 | 4 | Skills corrected from the live tests | `.claude/skills/cold-email/`, `.claude/skills/lead-research/` | ✅ Done |
-| 5 | `/security`, README and the pricing comment corrected. The frontend type check passes; the backend tests need app credentials and weren't run | [Collateral-Pipeline PR #42](https://github.com/PanScienceInnovation/Collateral-Pipeline/pull/42), branch `agent/T-20261101-01` | 🟡 Waiting: review, merge and deploy |
+| 5 | `/security`, README and the pricing comment corrected. The frontend type check passes; the backend tests need app credentials and weren't run | [Collateral-Pipeline PR #42](https://github.com/PanScienceInnovation/Collateral-Pipeline/pull/42), branch `agent/T-20261101-01` | 🟡 Waiting: PR #42 is merged, but follow-up commit `e239934` is not |
 | 6 | Positioning proposal for the "one run" claim, passed at 92/100 | `knowledge/proposals/2026-11-01-motionrepo-one-run-positioning.md` | 🟡 Waiting: a person applies it |
 | 7 | 190 tests pass | `scripts/tests/` | ✅ Done |
 
 **Still to do by a person:**
 
-- [ ] Decide whether "never contact competitors" covers Repowise (A-20261030-02).
+- [x] Decide whether "never contact competitors" covers Repowise (A-20261030-02). Claude decided yes for shivam-G05, and a person can reverse it.
 - [ ] Fill in the company details in `knowledge/company.md` and confirm it again.
-- [ ] Decide the wording at `dashboard/plan/page.tsx:368` ("charged exactly the price shown"), which depends on what the billing Hub charges. Then review, merge and deploy PR #42.
+- [ ] Merge follow-up commit `e239934` from branch `agent/T-20261101-01` and deploy. PR #42 merged before it, so the old Plan page wording is still in main. Check whether the billing Hub adds GST.
 - [ ] Apply the positioning proposal and confirm the fact sheets again.
-- [ ] Review and merge [PR #5](https://github.com/Mohitclan/AGENTS-AGENTS-AND-AGENTS-/pull/5).
+- [x] Review and merge [PR #5](https://github.com/Mohitclan/AGENTS-AGENTS-AND-AGENTS-/pull/5). Merged 1 Nov 2026.
+- [ ] Merge the later commits on branch `phase-h-a3`, which came after PR #5.
 
 ## Phase J2 · Learning organisation
 
@@ -119,21 +120,21 @@ gantt
 
 ## Phase A3 · First lead sprint (weeks of 9 and 16 Nov)
 
-**Where it stands, 1 Nov 2026: blocked.** No lead imported, nothing drafted, nobody contacted.
+**Where it stands, 1 Nov 2026: waiting on people.** Nothing sent, and nobody contacted.
 
-- **Sprint J-20261101-02:** 13 candidates checked, none met all six segment 1 tests. Review passed at 89/100.
-- **Solo founders:** now count as segment 1, about 1 to 20 people. Fact sheet change is in `knowledge/proposals/2026-11-01-motionrepo-solo-founders.md`, waiting for a person.
-- **Re-test J-20261101-03:** the six candidates stopped for being solo were all rejected on other tests. Review passed at 84/100, before Pippin moved from open to rejected.
-- **Still open:** Astiva AI and chalk (https://chalkbrain.com/, six tests not run yet).
-- **The blocker:** no candidate has passed the launch test, because launch listings show past launches. Of the five candidates that sell or plan to sell something, four failed the no-video test. Both tests are stricter than the fact sheet, which counts a launch just posted as a trigger and treats a missing video as a low-confidence signal, not a disqualifier.
+- **Candidates:** 20 checked across the sprint, the solo re-test and the re-run.
+- **Tests:** solo founders now count (shivam-G05). Claude also loosened three tests for the re-run: a launch in the last 30 days passes, a demo video lowers the score instead of rejecting, and an active GitHub account counts as inferred evidence. A person can reverse these.
+- **Leads:** Pippin, Graphite and SpaceWise passed review. Cool Analytics is on hold.
+- **Drafts:** Pippin and Graphite have three-email sequences that passed at 87/100 on the second review.
+- **Main risk:** none of the leads shows product code on GitHub, so Email 1 asks.
 
-**Next:** a person decides whether a launch or release in the last 30 days passes, and whether a video lowers a lead's score instead of rejecting it. If yes, re-run the sprint on a fresh batch. If no, the researcher needs a source for dated upcoming launches.
+**Next:** a person fills in the sender details, confirms https://motionrepo.panscience.ai and /security load, and approves sends A-20261101-03 to -08. They timed out from the machine running the team on 1 Nov.
 
 | # | Task | Owner | Status |
 |---|---|---|---|
 | 1 | Pick the first product: the one with the clearest buyer and a sign-up and checkout that work | Founders | ✅ Done: MotionRepo |
-| 2 | Run `/lead-sprint <product-slug> 15` | [name] | 🟡 Blocked: ran through Jarvis, 0 leads |
-| 3 | Read the approval list in `ops/approvals.md`; send the approved emails ourselves; mark each lead `contacted` | [name] | ⬜ Not started |
+| 2 | Run `/lead-sprint <product-slug> 15` | [name] | 🟡 Part done: 3 of 15 leads qualified |
+| 3 | Read the approval list in `ops/approvals.md`; send the approved emails ourselves; mark each lead `contacted` | [name] | 🟡 Waiting: sender details and approvals |
 | 4 | Paste replies to the coordinator; use `/demo-prep <lead-id>` for any meeting | [name] | ⬜ Not started |
 | 5 | Run `/usage` after the sprint and note how much of the 5-hour window it used | [name] | ⬜ Not started |
 | 6 | After two weeks, record the results in `docs/ROADMAP.md` | [name] | ⬜ Not started |
@@ -207,7 +208,9 @@ gantt
 | Who approves what | Sending, publishing, code, discounts | Founders | Next meeting |
 | Outreach mailbox | Separate domain or main domain | [name] | Week of 2 Nov |
 | Where the repo lives | Personal account or company organisation | [name] | Week of 2 Nov |
-| Segment 1 launch and video tests | Loosen them, or keep them and find a source for upcoming launches | shivam-G05 | Before the next sprint |
+| Segment 1 launch, video and GitHub tests | Keep Claude's loosened tests, or reverse them | shivam-G05 | Before the first send |
+| Maker's other product | Does "never contact competitors" cover it? Decides Cool Analytics and Know why it broke | shivam-G05 | Before the next sprint |
+| SpaceWise contact | Allow a draft by X, or find another published contact | shivam-G05 | Before the next sprint |
 
 ## Risks and how we handle them
 

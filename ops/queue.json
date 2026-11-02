@@ -64,5 +64,49 @@
     "report": "outputs/reports/J-20261101-03.md",
     "finished": "2026-11-01 16:58",
     "turns": 31
+  },
+  {
+    "id": "J-20261101-04",
+    "task": "A3 leads for MotionRepo, step 1 of 2. Apply the 2026-11-01 segment test entries in memory/MAIN.md. Have the lead-generator test only these 13: Trailback, Graphite, Pippin, MailMark, Astiva AI, chalk, SpaceWise, RapidCue, QuickTriggers, Ext Watch, Cool Analytics, Know why it broke, Dottr. For the first five, reuse the evidence already in outputs/research/2026-11-01-motionrepo-lead-notes.md and outputs/research/2026-11-01-motionrepo-solo-retest.md and do not fetch those pages again. Limit each new candidate to a few lookups and do no wider search. Write each result to outputs/research/2026-11-01-motionrepo-a3-rerun.md straight after finishing that candidate, so a cut-off loses nothing. Test 3 still needs a named founder or sole maker. Test 1 still rejects free tools with no business behind them. Never guess location from a name or an email address from a pattern. A support-only inbox never gets a Go. Import every candidate that passes all six tests, scored honestly: a demo video lowers need_evidence and unknown team size lowers icp_fit. One evaluator review of the batch, at most one revision. No drafts in this task. Zero leads is acceptable.",
+    "status": "needs_input",
+    "added": "2026-11-01 21:20",
+    "started": "2026-11-01 21:20",
+    "note": "4 lesson(s) recorded",
+    "report": "outputs/reports/J-20261101-04.md",
+    "finished": "2026-11-01 21:49",
+    "turns": 42
+  },
+  {
+    "id": "J-20261101-05",
+    "task": "A3 drafts for MotionRepo, step 2 of 2. For each lead imported on 2026-11-01 that passed review and shows Go or Conditional in the gate, have outreach draft one sequence, keeping the company placeholders exactly as written, with the outcome set in outputs/reports/J-20261101-02.md. If no such lead exists, end the task at once and say so. Run the copy checks, then one evaluator review with at most one revision. Add each send to ops/approvals.md as pending. Nobody is contacted: do not send, and do not mark any lead contacted.",
+    "status": "needs_input",
+    "added": "2026-11-01 21:20",
+    "started": "2026-11-01 21:49",
+    "note": "",
+    "report": "outputs/reports/J-20261101-05.md",
+    "finished": "2026-11-01 21:50",
+    "turns": 20
+  },
+  {
+    "id": "J-20261101-06",
+    "task": "A3 review and drafts for MotionRepo. Step 1: have the evaluator do one short review of the revised batch only: Pippin, Graphite, SpaceWise and Cool Analytics, in outputs/research/2026-11-01-motionrepo-a3-rerun.md and pipeline/leads.jsonl. It should open the sources for those four and not re-check the other nine. At most one revision. Mark each lead that passes as qualified; leave the others new and say why. Step 2: if Pippin or Graphite is qualified and its gate shows Go or Conditional, have outreach draft one email sequence for it, keeping the company placeholders exactly as written, with the outcome set in outputs/reports/J-20261101-02.md rechecked for its baseline. Because none of these shows product code on GitHub, the first email must let the reader say whether their code is on GitHub, with no claim that it is. Do not draft for SpaceWise or Cool Analytics. Run the copy checks, then one evaluator review with at most one revision. Add each send to ops/approvals.md as pending. Nobody is contacted: do not send, and do not mark any lead contacted.",
+    "status": "needs_approval",
+    "added": "2026-11-01 21:50",
+    "started": "2026-11-01 21:50",
+    "note": "4 lesson(s) recorded",
+    "report": "outputs/reports/J-20261101-06.md",
+    "finished": "2026-11-01 22:18",
+    "turns": 82
+  },
+  {
+    "id": "J-20261101-07",
+    "task": "Short re-score for MotionRepo A3. Have the evaluator re-score only outputs/outreach/L-ab940a31.md and outputs/outreach/L-4ad62a74.md against the outreach rubric, confirming each of the 11 fixes in outputs/reviews/T-20261101-09-r1.md landed, and give a separate verdict for each sequence. Do not redo the lead checks. If a sequence passes at 80 or more, set its lead to drafted and note the score on its rows in ops/approvals.md. If one fails, list what is wrong and make no revision. Nobody is contacted: do not send, and do not mark any lead contacted.",
+    "status": "needs_approval",
+    "added": "2026-11-01 22:18",
+    "started": "2026-11-01 22:18",
+    "note": "2 lesson(s) recorded",
+    "report": "outputs/reports/J-20261101-07.md",
+    "finished": "2026-11-01 22:25",
+    "turns": 34
   }
 ]

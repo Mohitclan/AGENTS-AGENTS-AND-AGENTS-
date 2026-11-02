@@ -13,7 +13,7 @@ description: How to write honest, short cold emails, LinkedIn notes and follow-u
 4. **One outcome** our product delivers, from confirmed facts only. One, not a feature list.
 5. **One small ask:** "Worth trying on one repo?" or "Should I send a sample?" Check the product's fact sheet first: use only offers it allows, and only assets that exist. Not "book a demo on my calendar".
 6. **Signature:** a real person's name and role, the company and website.
-7. **Opt-out:** "If this isn't relevant, reply 'no' and I won't write again."
+7. **Opt-out:** "To opt out, reply 'stop' and I won't write again." Never use "no" as the opt-out word: a plain no to a question must not become a permanent block.
 
 Under 120 words. Read it aloud; if a sentence sounds like an ad, cut it.
 
