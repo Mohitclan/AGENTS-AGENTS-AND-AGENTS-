@@ -66,3 +66,5 @@ Every time one agent started another. Written by `scripts/team-hooks.mjs`.
 | 2026-11-01 22:19 | coordinator | evaluator | T-20261101-09 | Re-score two outreach sequences |
 | 2026-11-02 11:19 | coordinator | developer | T-20261102-01 | Redesign team page as agent system |
 | 2026-11-02 11:41 | coordinator | evaluator | T-20261102-01 | Review team page redesign |
+| 2026-11-02 11:49 | coordinator | developer | T-20261102-01 | Apply review fixes to team page |
+| 2026-11-02 11:56 | coordinator | evaluator | T-20261102-01 | Re-review team page fixes (r2) |

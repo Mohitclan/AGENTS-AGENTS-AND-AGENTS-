@@ -4,4 +4,5 @@
 - [Outreach checks](feedback_outreach_checks.md) — test pitch vs repo, lead vs competitor types, count emails; every markdown gets a fix; PASS + Go isn't clearance
 - [Code change checks](feedback_code_change_checks.md) — open scripts before listing commands; state score ceiling; ask human before last revision
 - [Revision round checks](feedback_revision_round_checks.md) — r2: check repo branch drift, every hook behind "no X" claims, uneven markers, row refs
+- [UI review checks](feedback_ui_review_checks.md) — probe real refresh() in headless Chrome; walk every hover descendant for contrast; inner width = window-22; pending anims
 - [Lead batch checks](feedback_lead_batch_checks.md) — test gaps, "not found" and rejections past the homepage; recompute tiers; read board lines literally
