@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
+import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { act, collect, escapeHtml, handle, parseApprovals, recentSteps, renderMarkdown } from '../dashboard.mjs';
+import { act, checkPassword, collect, createAuth, escapeHtml, handle, hashPassword, parseApprovals, recentSteps, renderMarkdown, renderSignIn, sameSite } from '../dashboard.mjs';
 import { makeCopy } from './_helpers.mjs';
 
 let copy;
@@ -131,6 +132,105 @@ test('a full plan window keeps a task queued, and it can be cancelled', () => {
     assert.equal(act(repo.dir, `/tasks/${added.id}/cancel`, { ...page, body: '' }).status, 409);
   } finally {
     rmSync(repo.dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+  }
+});
+
+test('a password is stored as a hash and checked against it', () => {
+  const stored = hashPassword('correct horse battery');
+  assert.ok(!stored.includes('correct'));
+  assert.ok(checkPassword('correct horse battery', stored));
+  assert.ok(!checkPassword('wrong password here', stored));
+  assert.ok(!checkPassword('anything', 'not-a-hash'));
+});
+
+test('wrong passwords lock an address, and it recovers after the wait', () => {
+  let time = 1_000_000;
+  const auth = createAuth(hashPassword('correct horse battery'), () => time);
+  for (let i = 0; i < 5; i += 1) assert.equal(auth.signIn('nope', '1.1.1.1').token, undefined);
+  assert.equal(auth.signIn('correct horse battery', '1.1.1.1').locked, true, 'the right password is refused while locked');
+  assert.ok(auth.signIn('correct horse battery', '2.2.2.2').token, 'another address still gets in');
+  time += 16 * 60_000;
+  assert.ok(auth.signIn('correct horse battery', '1.1.1.1').token);
+});
+
+test('guessing from many addresses locks every address', () => {
+  const auth = createAuth(hashPassword('correct horse battery'), () => 1_000_000);
+  for (let i = 0; i < 30; i += 1) auth.signIn('nope', `10.0.0.${i}`);
+  assert.equal(auth.signIn('correct horse battery', '9.9.9.9').locked, true);
+});
+
+test('a session ends when it expires or on sign-out', () => {
+  let time = 1_000_000;
+  const auth = createAuth(hashPassword('correct horse battery'), () => time);
+  const { token } = auth.signIn('correct horse battery', 'a');
+  assert.ok(auth.valid(token));
+  assert.ok(!auth.valid('made-up'));
+  assert.ok(!auth.valid(undefined));
+  time += 13 * 3_600_000;
+  assert.ok(!auth.valid(token));
+  const next = auth.signIn('correct horse battery', 'a').token;
+  auth.signOut(next);
+  assert.ok(!auth.valid(next));
+});
+
+test('online, only the public HTTPS address counts', () => {
+  const site = 'team.example.com';
+  assert.ok(sameSite({ host: site, origin: `https://${site}`, marker: '1', site }));
+  assert.ok(!sameSite({ host: site, origin: `http://${site}`, marker: '1', site }));
+  assert.ok(!sameSite({ host: '127.0.0.1:4317', origin: 'http://127.0.0.1:4317', marker: '1', site }));
+  assert.equal(handle(copy.dir, 'GET', '/', HOST, { site }).status, 403);
+  assert.equal(handle(copy.dir, 'GET', '/', site, { site }).status, 200);
+});
+
+test('the sign-in page says nothing about the team', () => {
+  const html = renderSignIn();
+  for (const word of ['Pippin', 'leads', 'approvals', 'jarvis']) assert.ok(!html.toLowerCase().includes(word.toLowerCase()), word);
+});
+
+test('the page will not start online without a sign-in', () => {
+  const r = spawnSync(process.execPath, [copy.path('scripts', 'dashboard.mjs'), '--port', '0'], { env: { ...process.env, TEAM_PAGE_HOST: 'team.example.com', TEAM_PAGE_PASSWORD_HASH: '' }, encoding: 'utf8' });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /must not go online without a sign-in/);
+});
+
+test('--hash refuses a short password', () => {
+  const run = (input) => spawnSync(process.execPath, [copy.path('scripts', 'dashboard.mjs'), '--hash'], { input, encoding: 'utf8' });
+  assert.equal(run('short').status, 1);
+  assert.match(run('a long enough password\n').stdout, /^scrypt:[a-f0-9]+:[a-f0-9]+\n$/);
+});
+
+test('with a sign-in, nothing works until the password is right', async () => {
+  const server = spawn(process.execPath, [copy.path('scripts', 'dashboard.mjs'), '--port', '0'], {
+    env: { ...process.env, TEAM_PAGE_HOST: '', TEAM_PAGE_PASSWORD_HASH: hashPassword('correct horse battery') },
+    stdio: ['ignore', 'pipe', 'inherit'],
+  });
+  try {
+    const base = await new Promise((done) => server.stdout.once('data', (chunk) => done(/http:\S+/.exec(String(chunk))[0])));
+    const headers = { Origin: base, 'X-Team-Page': '1', 'Content-Type': 'application/json' };
+    const post = (path, body, extra = {}) => fetch(`${base}${path}`, { method: 'POST', headers: { ...headers, ...extra }, body: JSON.stringify(body) });
+
+    const home = await (await fetch(`${base}/`)).text();
+    assert.ok(home.includes('id="signin"'));
+    assert.ok(!home.includes('Held'), 'no lead data before sign-in');
+    assert.equal((await fetch(`${base}/live`)).status, 401);
+    assert.ok((await (await fetch(`${base}/view?file=outputs/outreach/L-11111111.md`)).text()).includes('id="signin"'));
+    assert.equal((await post('/tasks', { task: 'x' })).status, 401);
+    assert.equal((await post('/login', { password: 'wrong' })).status, 401);
+    assert.equal((await post('/login', { password: 'correct horse battery' }, { Origin: 'https://evil.example' })).status, 403);
+
+    const signedIn = await post('/login', { password: 'correct horse battery' });
+    assert.equal(signedIn.status, 200);
+    const setCookie = signedIn.headers.get('set-cookie');
+    assert.match(setCookie, /HttpOnly; SameSite=Strict/);
+    const Cookie = setCookie.split(';')[0];
+    assert.equal((await fetch(`${base}/live`, { headers: { Cookie } })).status, 200);
+    assert.ok((await (await fetch(`${base}/`, { headers: { Cookie } })).text()).includes('Sign out'));
+    assert.equal((await fetch(`${base}/view?file=.env`, { headers: { Cookie } })).status, 404);
+
+    assert.equal((await post('/logout', {}, { Cookie })).status, 200);
+    assert.equal((await fetch(`${base}/live`, { headers: { Cookie } })).status, 401);
+  } finally {
+    server.kill();
   }
 });
 
