@@ -6,7 +6,8 @@ import { createDock } from './gems/dock.js';
 import { createGallery } from './gems/gallery.js';
 import { identityFor } from './gems/identities.js';
 import { createOffice } from './gems/office.js';
-import { createSimulator } from './gems/simulator.js';
+import { playIntro } from './gems/intro.js';
+import { createDemo } from './gems/simulator.js';
 import { normalizeState, STATE_LABEL } from './gems/status.js';
 
 // The agents' names and jobs as people read them. Their characters live in gems/identities.js.
@@ -92,6 +93,7 @@ function shell() {
   <aside class="side" id="side">
     <a class="brand" href="#/"><span class="brand-mark" aria-hidden="true"></span><span>SubE Gems</span></a>
     <nav class="nav" aria-label="Pages">
+      <a href="#/" data-nav="home">Home</a>
       <a href="#/working" data-nav="working">Working</a>
       <a href="#/overview" data-nav="overview">Overview</a>
       <a href="#/logs" data-nav="logs">Logs</a>
@@ -118,10 +120,19 @@ function shell() {
     <article class="doc" id="drawer-body"></article>
   </aside>
   <div class="scrim" id="scrim"></div>
+  <button type="button" class="nav-dot" id="nav-dot" aria-label="Show the menu" aria-expanded="false" title="Menu"></button>
+  <div class="nav-scrim" id="nav-scrim"></div>
   <div class="toasts" id="toasts" role="status"></div>
   <div class="tokens" id="tokens" aria-hidden="true"></div>`;
 
   $('#menu').addEventListener('click', () => document.body.classList.toggle('side-open'));
+  const setNav = (open) => {
+    document.documentElement.classList.toggle('nav-open', open);
+    $('#nav-dot').setAttribute('aria-expanded', String(open));
+    $('#nav-dot').setAttribute('aria-label', open ? 'Hide the menu' : 'Show the menu');
+  };
+  $('#nav-dot').addEventListener('click', () => setNav(!document.documentElement.classList.contains('nav-open')));
+  $('#nav-scrim').addEventListener('click', () => setNav(false));
   $('#scrim').addEventListener('click', closeAll);
   $('#drawer-close').addEventListener('click', closeAll);
   document.addEventListener('keydown', (e) => e.key === 'Escape' && closeAll());
@@ -142,6 +153,7 @@ function shell() {
 
 function closeAll() {
   document.body.classList.remove('side-open', 'drawer-open');
+  document.documentElement.classList.remove('nav-open');
   $('#drawer').setAttribute('aria-hidden', 'true');
 }
 
@@ -190,7 +202,7 @@ function updateShell(snap) {
 }
 
 function markNav() {
-  const key = location.hash.replace(/^#\/?/, '') || 'working';
+  const key = location.hash.replace(/^#\/?/, '') || 'home';
   for (const a of $$('[data-nav]')) a.classList.toggle('active', a.dataset.nav === key);
 }
 
@@ -567,22 +579,138 @@ const flagsView = {
   },
 };
 
-// ---- working: the office ------------------------------------------------------------------------
+// ---- the demo, shared by the home and the Working page ------------------------------------------
+
+// Plays the narrated demo task in an office. While it plays the office says "Simulation" and real
+// updates wait; ending it puts the office back on real data.
+function attachDemo({ office, controls, onFrame, onEnd }) {
+  let active = false;
+  const demo = createDemo((f) => {
+    if (!active) return;
+    if (f.reset) office.reset();
+    office.setSpeed(f.speed);
+    const agents = roster().map((a) => ({ name: a.name, status: f.states[a.name]?.status || 'idle', doing: f.states[a.name]?.doing || '', backup: !!f.states[a.name]?.backup }));
+    office.update({ agents, events: f.events, caption: f.caption, board: f.board, simulated: true });
+    onFrame?.(agents, f);
+    paint(f);
+  });
+  function paint(f = {}) {
+    if (!active) {
+      controls.innerHTML = '<div class="demo-ctl"><button type="button" class="go" data-d="start">▶ Watch the demo</button></div>';
+      return;
+    }
+    if (!controls.querySelector('.demo-bar')) {
+      controls.innerHTML = '<div class="demo-ctl"><button type="button" data-d="toggle"></button><button type="button" data-d="s1">1×</button><button type="button" data-d="s2">2×</button><button type="button" data-d="restart" title="Start again" aria-label="Start again">↺</button><div class="demo-bar" title="Progress"><i></i></div><button type="button" data-d="exit" title="End the demo" aria-label="End the demo">✕</button></div>';
+    }
+    const toggle = controls.querySelector('[data-d="toggle"]');
+    toggle.textContent = demo.playing ? '❚❚' : '▶';
+    toggle.setAttribute('aria-label', demo.playing ? 'Pause' : 'Play');
+    controls.querySelector('[data-d="s1"]').setAttribute('aria-pressed', String(demo.speed === 1));
+    controls.querySelector('[data-d="s2"]').setAttribute('aria-pressed', String(demo.speed === 2));
+    if (f.progress !== undefined) controls.querySelector('.demo-bar i').style.width = `${Math.round(f.progress * 100)}%`;
+  }
+  controls.addEventListener('click', (e) => {
+    const d = e.target.closest('[data-d]')?.dataset.d;
+    if (!d) return;
+    if (d === 'start') {
+      active = true;
+      office.reset();
+      demo.restart();
+    } else if (d === 'exit') {
+      active = false;
+      demo.stop();
+      office.reset();
+      office.setSpeed(1);
+      onEnd?.();
+    } else if (d === 'toggle') demo.toggle();
+    else if (d === 's1' || d === 's2') demo.setSpeed(d === 's1' ? 1 : 2);
+    else if (d === 'restart') demo.restart();
+    paint();
+  });
+  paint();
+  return {
+    get active() {
+      return active;
+    },
+    stop() {
+      active = false;
+      demo.stop();
+    },
+  };
+}
+
+const freshEvents = (snap, first) => (first ? [] : snap.feed.filter((e) => !store.seen.has(e.id) && Date.now() - Date.parse(e.at) < 3 * 60_000).reverse());
+
+// ---- home: the office, full screen ---------------------------------------------------------------
+
+const home = {
+  office: null,
+  demo: null,
+  simAgents: null,
+  first: true,
+  build() {
+    document.documentElement.classList.add('immersive');
+    dock.setVisible(false);
+    $('#view').innerHTML = `<div class="home" id="home"><div id="home-office"></div>
+      <div class="hud hud-status" id="hud-status"><i class="live-dot"></i><span></span></div>
+      <div class="hud hud-demo" id="hud-demo"></div></div>`;
+    home.office = createOffice($('#home-office'), { roster: roster(), immersive: true, onOpen: (name) => home.card(name) });
+    home.demo = attachDemo({
+      office: home.office,
+      controls: $('#hud-demo'),
+      onFrame: (agents) => {
+        home.simAgents = agents;
+        $('#hud-status').classList.remove('on');
+        $('#hud-status span').textContent = 'Demo · a simulated task, no agent is running';
+      },
+      onEnd: () => {
+        home.first = true;
+        home.update(store.snap);
+      },
+    });
+    $('#home').addEventListener('click', (e) => {
+      if (e.target.closest('[data-close]') || !e.target.closest('.o-actor, .o-pop, .hud')) home.office?.hideCard();
+    });
+    const h = $('#home');
+    h.scrollLeft = (h.scrollWidth - h.clientWidth) / 2; // portrait phones start at the middle of the room
+    home.first = true;
+  },
+  card(name) {
+    const list = home.demo.active ? home.simAgents : store.snap?.agents;
+    const a = list?.find((x) => x.name === name) || { status: 'idle' };
+    const st = normalizeState(a.status);
+    home.office.showCard(name, `<h3>${esc(identityFor(name).name)}</h3><p>${esc(agentName(name))} · <b>${esc(STATUS[st])}</b>${home.demo.active ? ' (simulation)' : ''}</p>${a.doing ? `<p>${esc(a.doing)}</p>` : `<p>${esc(identityFor(name).personality)}</p>`}<div class="pop-row"><a href="#/agent/${esc(name)}">Open its page</a><button type="button" data-close>Close</button></div>`);
+  },
+  update(snap) {
+    if (!home.office || home.demo.active) return;
+    $('#hud-status').classList.toggle('on', !!snap.live);
+    $('#hud-status span').textContent = snap.live ? `Live · ${snap.running?.title || snap.running?.id || 'a task is running'}` : `All quiet · ${snap.agents.length} gems at their desks`;
+    home.office.update({ agents: snap.agents, events: freshEvents(snap, home.first), kpis: snap.kpis, running: snap.running });
+    home.first = false;
+  },
+  leave() {
+    document.documentElement.classList.remove('immersive', 'nav-open');
+    dock.setVisible(true);
+    home.demo?.stop();
+    home.office?.destroy();
+    home.office = null;
+  },
+};
+
+// ---- working: the office with its lists ----------------------------------------------------------
 
 const working = {
   office: null,
-  sim: null,
-  simOn: false,
+  demo: null,
   first: true,
   build() {
     $('#view').innerHTML = `
     <div class="office-bar">
       <div><h1>Working</h1><p class="muted" id="w-sub"></p></div>
       <span class="spacer"></span>
-      <label class="check"><input type="checkbox" id="w-sim"> Demo: simulate a task</label>
+      <div id="w-demo"></div>
       <a class="chip-btn" href="#/gems">Gem gallery</a>
     </div>
-    <p class="sim-note" id="w-sim-note" hidden>Simulation: a scripted demo task is driving the office. No agent is running and nothing is saved.</p>
     <div id="office-host"></div>
     <div class="office-side">
       <section class="card"><div class="sec-h"><h2>Who's doing what</h2><span class="muted tiny" id="w-count"></span></div><ul class="who" id="who"></ul></section>
@@ -598,23 +726,19 @@ const working = {
       const b = e.target.closest('[data-agent]');
       if (b) open(b.dataset.agent);
     });
-    working.sim = createSimulator(({ states, events, reset }) => {
-      if (reset) working.office.reset();
-      const agents = roster().map((a) => ({ name: a.name, status: states[a.name]?.status || 'idle', doing: states[a.name]?.doing || '' }));
-      working.office.update({ agents, events, kpis: store.snap?.kpis, simulated: true });
-      working.paintWho(agents, true);
-      if (events.length) $('#w-feed').insertAdjacentHTML('afterbegin', events.map((e) => feedItem({ ...e, text: `[Simulation] ${e.text}` }, true)).join(''));
-    });
-    $('#w-sim').addEventListener('change', (e) => {
-      working.simOn = e.target.checked;
-      $('#w-sim-note').hidden = !working.simOn;
-      working.office.reset();
-      if (working.simOn) working.sim.start();
-      else {
-        working.sim.stop();
+    working.demo = attachDemo({
+      office: working.office,
+      controls: $('#w-demo'),
+      onFrame: (agents, f) => {
+        working.paintWho(agents, true);
+        $('#w-sub').textContent = 'Demo: a simulated task. No agent is running and nothing is saved.';
+        if (f.reset) $('#w-feed').innerHTML = '';
+        if (f.events.length) $('#w-feed').insertAdjacentHTML('afterbegin', f.events.map((e) => feedItem({ ...e, text: `[Simulation] ${e.text}` }, true)).join(''));
+      },
+      onEnd: () => {
         working.first = true;
         working.update(store.snap);
-      }
+      },
     });
     working.first = true;
   },
@@ -632,19 +756,17 @@ const working = {
     $('#w-count').textContent = `${busy} working${simulated ? ' (simulated)' : ''}`;
   },
   update(snap) {
-    if (working.simOn || !working.office) return;
-    const fresh = working.first ? [] : snap.feed.filter((e) => !store.seen.has(e.id) && Date.now() - Date.parse(e.at) < 3 * 60_000).reverse();
+    if (!working.office || working.demo.active) return;
+    working.office.update({ agents: snap.agents, events: freshEvents(snap, working.first), kpis: snap.kpis, running: snap.running });
     working.first = false;
-    working.office.update({ agents: snap.agents, events: fresh, kpis: snap.kpis, running: snap.running });
     working.paintWho(snap.agents);
     $('#w-sub').textContent = snap.live ? `${snap.running?.id}: ${snap.running?.title}` : 'No task is running. The gems rest at their desks until you give the team one.';
     $('#w-feed').innerHTML = snap.feed.slice(0, 20).map((e) => feedItem(e, !store.seen.has(e.id) && store.primed)).join('');
   },
   leave() {
-    working.sim?.stop();
+    working.demo?.stop();
     working.office?.destroy();
     working.office = null;
-    working.simOn = false;
   },
 };
 
@@ -685,12 +807,12 @@ const floatView = {
 
 // ---- routing and the stream ----------------------------------------------------------------------
 
-const VIEWS = { working, overview, logs, leads: leadsView, reports: reportsView, flags: flagsView, agent: agentView, gems: gemsView, float: floatView };
+const VIEWS = { home, working, overview, logs, leads: leadsView, reports: reportsView, flags: flagsView, agent: agentView, gems: gemsView, float: floatView };
 let current = '';
 
 function route() {
   const [page, arg] = location.hash.replace(/^#\/?/, '').split('/');
-  return { page: VIEWS[page] ? page : 'working', arg: decodeURIComponent(arg || '') };
+  return { page: VIEWS[page] ? page : 'home', arg: decodeURIComponent(arg || '') };
 }
 
 function render() {
@@ -735,6 +857,7 @@ function connect() {
   setInterval(() => store.snap && render(), 30_000);
 }
 
+if (!location.hash.startsWith('#/float')) playIntro();
 shell();
 const dock = createDock({ onOpen: (name) => { location.hash = `#/agent/${name}`; } });
 window.addEventListener('hashchange', render);

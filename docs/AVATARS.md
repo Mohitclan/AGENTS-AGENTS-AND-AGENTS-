@@ -2,7 +2,9 @@
 
 Every agent has a small animated character, a "gem", that shows what the agent is really doing. You see them in mission control (`node scripts/control.mjs`):
 
-- **Working:** the landing page. An office where each gem sits at its own desk, and walks when real events happen.
+- **The opening:** a black intro. The SubE Gems crystal draws itself in light, the gems pop into orbit, and the view flies through the crystal into the office. About three seconds; a click, a tap or any key skips it.
+- **Home** (`#/`): the office full screen, with no chrome. The glowing dot at the top opens the navigation, and clicking a gem shows a card with its state and a link to its page. "Watch the demo" plays the narrated demo task. On a phone, the room keeps its height and you swipe sideways.
+- **Working** (`#/working`): the same office with the "Who's doing what" list and the live feed beside it.
 - **Overview, the sidebar, the agent pages:** live gems beside each agent.
 - **Gem gallery** (`#/gems`): every gem in every state, at any size, with a simulator.
 - **The dock:** a floating companion in the corner. It can be hidden, resized, muted, or popped out on top of other windows.
@@ -46,9 +48,28 @@ In the office, real events also make gems walk:
 - **A review:** the Owl walks to the table and stamps PASS.
 - **An ask:** when one agent asks another, the one asked walks over to the asker's desk.
 
+The room shows the rest of the real activity as it happens:
+- **Monitors:** each one shows what its agent is doing: code while working, a browser while researching, a check when done, a warning on a problem, a sleep screen when paused.
+- **Chips:** small labels float up from the desk for web lookups (the site or search), files written, copy checks, leads found and failures.
+- **Desks:** papers pile up on a desk as its agent writes files.
+- **Mail:** emails sent leave through the window, and replies fly in to the Penguin's desk.
+- **Approvals:** the "Waiting for you" tray shows how many sends wait for your approval.
+- **Room:** the window, sky, skyline and lights follow the time of day.
+- **Idle gems:** they do a small stretch or glance now and then. This happens only while they really are idle.
+
 Only events from the last three minutes animate. Opening the page never replays old ones.
 
-**Simulation.** The gallery and the office have a simulator that plays a scripted task (`gems/simulator.js`). While it runs, both pages show a "Simulation" label, and the dock keeps showing real status.
+**The demo.** "Watch the demo" on the home and Working pages plays a narrated, 90-second task (`gems/simulator.js`). It has play/pause, 1× and 2× speed, restart and a progress bar. It shows:
+- the task arriving and the plan going up on the board;
+- web research, including a blocked site;
+- agents asking each other for facts;
+- leads being imported;
+- a review that says REVISE, then PASS;
+- copy checks and drafts;
+- an agent failing over to its backup;
+- the sends landing in the approval tray.
+
+Captions explain each step. While it plays, the room says "Simulation", real updates wait, and the dock keeps showing real status. Ending the demo puts the room back on real data. The gallery uses the same script, looped, for its simulator.
 
 ## How it's built
 
@@ -61,11 +82,13 @@ Plain ES modules and CSS, with no build step and no new dependency. That matches
 | `scripts/control/gems/avatar.js` | Rendering and animation control: `avatarHTML`, `mountAvatars`, `setAvatarStatus`, `badgeImg` |
 | `scripts/control/gems/status.js` | The state vocabulary and labels; the server sets the states |
 | `scripts/control/gems/gems.css` | Expressions and motion for every state, walking, moments, tooltip, pausing |
-| `scripts/control/gems/office.js` | The Working office and its event-driven movement |
+| `scripts/control/gems/office.js` | The office and its event-driven movement, screens, chips, tray and captions |
+| `scripts/control/gems/office.css` | The room: wall, window, skyline, lamps, light, desks, gems, chips, captions |
+| `scripts/control/gems/intro.js`, `home.css` | The opening animation, the full-screen home, the nav dot and the floating controls |
 | `scripts/control/gems/dock.js` | The floating companion: hide, resize, mute, pop-out |
 | `scripts/control/gems/gallery.js` | The gallery and its controls |
-| `scripts/control/gems/simulator.js` | The scripted demo states |
-| `scripts/control/gems/ui.css` | Styles for the office, dock, gallery and pop-out |
+| `scripts/control/gems/simulator.js` | The narrated demo script and its player (`createDemo`) |
+| `scripts/control/gems/ui.css` | Styles for the Working page's lists, the dock, the gallery and the pop-out |
 
 ### Using an avatar
 

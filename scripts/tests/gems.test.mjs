@@ -72,3 +72,35 @@ describe('gems: rendering', () => {
     assert.equal(normalizeState('working'), 'working');
   });
 });
+
+describe('gems: the demo script', async () => {
+  const { DEMO_MS, STEPS } = await import('../control/gems/simulator.js');
+  const KINDS = new Set(['task', 'plan', 'handoff', 'web', 'error', 'file', 'result', 'lead', 'review', 'check', 'fallback', 'approval']);
+
+  it('runs in time order and ends before the loop restarts', () => {
+    for (let i = 1; i < STEPS.length; i++) assert.ok(STEPS[i].at > STEPS[i - 1].at, `step ${i} is out of order`);
+    assert.ok(STEPS.at(-1).at < DEMO_MS);
+  });
+
+  it('only uses real agents, known states and known event kinds', () => {
+    for (const s of STEPS) {
+      for (const [agent, [state]] of Object.entries(s.set || {})) {
+        assert.ok(agents.includes(agent), `unknown agent ${agent}`);
+        assert.ok(STATES.includes(state), `unknown state ${state}`);
+      }
+      for (const e of s.events || []) {
+        assert.ok(KINDS.has(e.kind), `unknown event ${e.kind}`);
+        assert.ok(agents.includes(e.agent), `unknown agent ${e.agent}`);
+        if (e.to) assert.ok(agents.includes(e.to), `unknown agent ${e.to}`);
+      }
+    }
+  });
+
+  it('tells the whole story and ends with sends waiting for a person', () => {
+    const kinds = new Set(STEPS.flatMap((s) => (s.events || []).map((e) => e.kind)));
+    for (const k of ['task', 'handoff', 'web', 'error', 'lead', 'review', 'fallback', 'approval']) assert.ok(kinds.has(k), `the demo never shows ${k}`);
+    assert.ok(STEPS.some((s) => s.events?.some((e) => e.kind === 'review' && e.verdict === 'REVISE')), 'shows a REVISE');
+    assert.equal(STEPS.filter((s) => s.board?.approvals).at(-1).board.approvals, 3);
+    assert.ok(STEPS.every((s, i) => i === 0 || !s.events?.some((e) => e.kind === 'send')), 'the demo never sends');
+  });
+});
