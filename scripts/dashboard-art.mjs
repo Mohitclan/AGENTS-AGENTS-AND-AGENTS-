@@ -99,7 +99,7 @@ const PASSED = '<rect x="-8" y="-10" width="16" height="20" class="t-good"/><pat
 function node({ key, label, x, y, st, bk, backup, count, demo = [], note = '', tags = [] }) {
   const tag = tags
     .map(([k, text], i) => {
-      const w = Math.round(text.replace(/^\d+/, '000').length * 6.3 + 12);
+      const w = Math.round(text.replace(/^\d+/, '000').length * 6.9 + 12);
       return `<g transform="translate(0 ${-20 - i * 19})"><rect class="plate" width="${w}" height="17"/><text class="tg" x="6" y="12.5" data-k="${k}">${esc(text)}</text></g>`;
     })
     .join('');
@@ -109,7 +109,7 @@ ${backup ? `<path class="shadow" d="${TICKET}" transform="translate(8 8)"/>` : '
 <path class="bd" d="${TICKET}"/>${note ? `<rect class="dbl" x="-5" y="-5" width="${NW + 10}" height="${NH + 10}"/>` : ''}
 <path class="perf" d="M42 9V${NH - 9}"/>
 <g class="gl" transform="translate(5 17) scale(.9)">${GLYPH[key]}</g>
-<text class="nm" x="49" y="27">${esc(label.toUpperCase())}</text>
+<text class="nm${label.length > 12 ? ' long' : ''}" x="49" y="27">${esc(label.toUpperCase())}</text>
 <text class="ct" x="49" y="47" data-k="c-${key}">${esc(count)}</text>
 ${backup ? `<text class="bkt" x="${NW}" y="${NH + 21}" text-anchor="end">BACKUP IN</text>` : ''}
 <g class="tags">${tag}</g>
@@ -271,7 +271,7 @@ export function renderMap(model) {
     ? `Working now: the coordinator is running a task${working.focus ? `, and its latest hand-off was to ${working.focus}` : ''}.${working.backup.length ? ` ${working.backup.join(', ')} is on its backup.` : ''}`
     : 'Nothing is running, so this plays the usual trip of one task: you, the coordinator, a specialist, the evaluator, then a person\'s yes.';
 
-  const svg = `<svg class="mapsvg" viewBox="0 0 ${W} ${H}" role="img" aria-labelledby="map-t map-d" xmlns="http://www.w3.org/2000/svg" focusable="false">
+  const svg = `<svg class="mapsvg" viewBox="0 0 ${W} ${H}" role="img" aria-labelledby="map-t" aria-describedby="map-d" xmlns="http://www.w3.org/2000/svg" focusable="false">
 <title id="map-t">The team as a system of agents</title><desc id="map-d">${esc(desc)}</desc>
 ${defs}
 <g class="tracks"><path class="belt" d="${tracks[0]}"/><path class="belt" d="${tracks[1]}"/><path class="beltc" d="${tracks[0]}"/><path class="beltc" d="${tracks[1]}"/><g class="stubs">${stubs}</g></g>
@@ -290,7 +290,7 @@ ${flow}
 ${you}
 ${nodes}
 ${hubG}
-<text class="kick" x="${evalPos[0] + 22}" y="${CY - NH / 2 - 22}">CHECKPOINT</text>
+<text class="kick" x="${evalPos[0] - 15}" y="${CY - NH / 2 - 10}" text-anchor="end">CHECKPOINT</text>
 ${evaluator}
 ${verdict}
 ${gate}
@@ -410,13 +410,14 @@ export const ART_STYLE = `
 .mapsvg{display:block;width:100%;height:auto;overflow:visible}
 .mapsvg text{font-family:var(--mono);fill:var(--ink)}
 .mapsvg .nm{font-weight:600;font-size:11.5px;letter-spacing:.01em}
+.mapsvg .nm.long{font-size:11px;letter-spacing:0}
 .mapsvg .ct{font-weight:500;font-size:11px;fill:var(--muted)}
-.mapsvg .kick{font-weight:600;font-size:10.5px;letter-spacing:.14em;fill:var(--verm-ink)}
+.mapsvg .kick{font-weight:600;font-size:11px;letter-spacing:.14em;fill:var(--verm-ink)}
 .mapsvg .lbl{font-weight:600;font-size:11px;letter-spacing:.06em;fill:var(--muted)}
 .mapsvg .lbl.bad{fill:var(--verm-ink)}.mapsvg .lbl.good{fill:var(--green)}
 .mapsvg .chain-lbl{fill:var(--ink);letter-spacing:.2em}
 .mapsvg .bigx{font:900 52px var(--head);fill:var(--ink)}
-.mapsvg .tg{font-weight:600;font-size:10.5px;fill:var(--paper);letter-spacing:.03em}
+.mapsvg .tg{font-weight:600;font-size:11px;fill:var(--paper);letter-spacing:.03em}
 .mapsvg .yes{font:900 24px var(--head);fill:var(--verm-ink);letter-spacing:.06em}
 .mapsvg .plate{fill:var(--ink)}.mapsvg .plate.bad{fill:var(--verm-ink)}.mapsvg .plate.good{fill:var(--green)}
 .mapsvg .bd{fill:var(--card);stroke:var(--ink);stroke-width:2.2}
@@ -430,7 +431,7 @@ export const ART_STYLE = `
 .mapsvg .perf{stroke:var(--ink);stroke-width:1.2;stroke-dasharray:2 4}
 .mapsvg .gl{fill:none;stroke:var(--ink);stroke-width:2.1;stroke-linecap:square;stroke-linejoin:miter}
 .mapsvg .gl .fa{fill:var(--mustard)}.mapsvg .gl .fi{fill:var(--ink)}
-.mapsvg .bkt{display:none;font-weight:600;font-size:10px;letter-spacing:.12em;fill:var(--ink)}
+.mapsvg .bkt{display:none;font-weight:600;font-size:11px;letter-spacing:.12em;fill:var(--ink)}
 .mapsvg .node[data-bk=on] .bkt{display:block}
 .mapsvg .node[data-bk=on] .shadow{fill:var(--mustard)}
 .mapsvg .node[data-st=seen] .bd{fill:#f2dfa8}
@@ -494,7 +495,7 @@ export const ART_STYLE = `
 @keyframes halo{50%{opacity:.25}}
 @keyframes flow{to{stroke-dashoffset:-15}}
 @keyframes blip{50%{opacity:.25}}
-@media (max-width:1079px){.mapsvg,[data-pause]{display:none!important}.route{display:block}}
+@media (max-width:1279px){.mapsvg,[data-pause]{display:none!important}.route{display:block}}
 .map.still *{animation-play-state:paused!important}
 
 .how{max-width:1500px;margin:0 auto;padding:1.5rem var(--gut) 1rem}
@@ -576,8 +577,12 @@ const sync=(x,y)=>{for(const at of y.attributes)if(at.name.startsWith('data-')&&
 if(!y.children.length&&x.textContent!==y.textContent)x.textContent=y.textContent};
 sync(a,b);const mine=new Map([...a.querySelectorAll('[data-k]')].map((e)=>[e.dataset.k,e]));
 for(const e of b.querySelectorAll('[data-k]')){const m=mine.get(e.dataset.k);if(m)sync(m,e)}}
-function setTop(html){const old=document.getElementById('map');if(old)old.remove();hero.innerHTML=html;const fresh=document.getElementById('map');
-if(old&&fresh){patchMap(old,fresh);fresh.replaceWith(old)}}
+// The old map stays in the page, so its CSS animations and SVG clock carry on. Only the nodes round it are swapped.
+function setTop(html){const old=document.getElementById('map');const t=document.createElement('template');t.innerHTML=html;const fresh=t.content.getElementById('map');
+if(!old||!fresh||old.parentNode!==hero||fresh.parentNode!==t.content){hero.innerHTML=html;return}
+patchMap(old,fresh);const kids=[...t.content.childNodes],i=kids.indexOf(fresh);
+while(hero.firstChild!==old)hero.firstChild.remove();while(old.nextSibling)old.nextSibling.remove();
+old.before(...kids.slice(0,i));old.after(...kids.slice(i+1))}
 const steps=document.querySelectorAll('.step');
 if('IntersectionObserver' in window){const io=new IntersectionObserver((list)=>{for(const e of list)if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}},{threshold:.2});steps.forEach((s)=>io.observe(s))}else steps.forEach((s)=>s.classList.add('in'));
 const pauser=document.querySelector('[data-pause]');

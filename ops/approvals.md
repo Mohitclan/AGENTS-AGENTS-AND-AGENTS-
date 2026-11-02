@@ -26,6 +26,8 @@ Actions that change something outside this folder: sending, posting, publishing,
 | A-20261101-07 | T-20261101-09 | Send Graphite Email 2 to graphite@aroice.in (working day 4, only if no reply at all) | outputs/outreach/L-4ad62a74.md | Review PASS 87/100 (r2). Conditions A-D below | pending | | |
 | A-20261101-08 | T-20261101-09 | Send Graphite Email 3 to graphite@aroice.in (working day 8, only if no reply at all) | outputs/outreach/L-4ad62a74.md | Review PASS 87/100 (r2). Links to /security. Conditions A-E below | pending | | |
 | A-20261102-01 | T-20261102-01 | Commit and push branch `agent/T-20261102-01` (team page redesign, commit ea84700 plus board/log update) to origin of Mohitclan/AGENTS-AGENTS-AND-AGENTS-. Push only: no PR, merge or deploy | outputs/dev/T-20261102-01.md | Tests 213/213 pass. Evaluator review r1 was still running when approved, so the branch is pushed unreviewed. Animation not yet watched by a person | Approved: "push and commit" | suryanshu | 2026-11-02 |
+| A-20261102-02 | T-20261102-01 | Open a PR from `agent/T-20261102-01` into `main` of Mohitclan/AGENTS-AGENTS-AND-AGENTS-. Opens only: no merge | outputs/dev/T-20261102-01.md | Evaluator review r1 still running when opened | Approved: "open the PR" | suryanshu | 2026-11-02 |
+| A-20261102-03 | T-20261102-01 | Push revision 1 (commit 9963480) and the review and tracking files to `agent/T-20261102-01`, updating PR #10. Push only: no merge | outputs/reviews/T-20261102-01-r2.md | Review PASS 83/100. Chip hover contrast (3.74:1) not fixed; write-up's "not pushed" lines stale | Approved: "push it" | suryanshu | 2026-11-02 |
 
 **Conditions on A-20261030-03 to A-20261030-13.** A yes on a row approves that one send only, and only once its conditions are met:
 
