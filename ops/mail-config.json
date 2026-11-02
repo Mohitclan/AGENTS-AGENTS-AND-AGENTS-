@@ -1,0 +1,12 @@
+{
+  "_note": "Non-secret mail settings for scripts/send-email.mjs. The SMTP password lives only in the SMTP_PASS environment variable or the git-ignored .env file, never here.",
+  "smtp": { "host": "smtp.gmail.com", "port": 587, "user": "sushant.789.mishra@gmail.com" },
+  "sender": {
+    "name": "Sushant Mishra",
+    "role": "Intern",
+    "company": "PanScience Innovations",
+    "email": "sushant.789.mishra@gmail.com"
+  },
+  "report_to": { "name": "Raj", "role": "Founder", "email": "rajgupta.connects@gmail.com" },
+  "daily_limit": 20
+}
