@@ -108,5 +108,16 @@
     "report": "outputs/reports/J-20261101-07.md",
     "finished": "2026-11-01 22:25",
     "turns": 34
+  },
+  {
+    "id": "J-20261102-01",
+    "task": "Count the leads in pipeline/leads.jsonl by status and put the counts in the report. This is a UI check: do it yourself, with no other agents, no review, no lessons and no other files.",
+    "status": "done",
+    "added": "2026-11-02 10:45",
+    "started": "2026-11-02 10:45",
+    "note": "",
+    "report": "outputs/reports/J-20261102-01.md",
+    "finished": "2026-11-02 10:45",
+    "turns": 6
   }
 ]

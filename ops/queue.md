@@ -14,3 +14,4 @@ Written by `scripts/jarvis.mjs`; don't edit by hand. Add a task with `node scrip
 | J-20261101-05 | A3 drafts for MotionRepo, step 2 of 2. For each lead imported on 2026-11-01 that passed... | needs you | [report](../outputs/reports/J-20261101-05.md) | 2026-11-01 21:20 | 2026-11-01 21:50 |  |
 | J-20261101-06 | A3 review and drafts for MotionRepo. Step 1: have the evaluator do one short review of ... | needs you | [report](../outputs/reports/J-20261101-06.md) | 2026-11-01 21:50 | 2026-11-01 22:18 | 4 lesson(s) recorded |
 | J-20261101-07 | Short re-score for MotionRepo A3. Have the evaluator re-score only outputs/outreach/L-a... | needs you | [report](../outputs/reports/J-20261101-07.md) | 2026-11-01 22:18 | 2026-11-01 22:25 | 2 lesson(s) recorded |
+| J-20261102-01 | Count the leads in pipeline/leads.jsonl by status and put the counts in the report. Thi... | done | [report](../outputs/reports/J-20261102-01.md) | 2026-11-02 10:45 | 2026-11-02 10:45 |  |
