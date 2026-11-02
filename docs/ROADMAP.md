@@ -62,6 +62,8 @@ What's done, what's decided, what's blocked, and how each sprint went. The full 
 - **1 Nov 2026.** shivam-G05 approved pushing and opening PRs. `phase-h-a3` is PR #5, and the MotionRepo site fix is Collateral-Pipeline PR #42. shivam-G05 merged both later that day, before the follow-up commits were pushed.
 - **1 Nov 2026.** Claude settled what it could for shivam-G05 ("do h and a3"): Repowise disqualified, and the launch, video and GitHub tests loosened. All are reversible. PR #42 now has neutral Plan page wording, and its auth, users, billing, hub and docs tests pass.
 - **1 Nov 2026.** A3 re-run, J-20261101-04 to -07: 13 candidates tested. Pippin, Graphite and SpaceWise qualified, Cool Analytics is on hold, 1 was rejected and 8 stay open. Pippin and Graphite sequences went from REVISE 65 to PASS 87/100. An earlier broad attempt used the whole 5-hour window and saved nothing, so tasks now save after each candidate. The cold-email skill's opt-out word is now "stop".
+- **2 Nov 2026.** shivam-G05 merged PR #6 and Collateral-Pipeline PR #43. The site and /security loaded from this machine; a person still needs to confirm the deployed text.
+- **2 Nov 2026.** Added `scripts/dashboard.mjs`, a local page built from the team's own files. Give it a task, watch the steps, and read the report. It shows the lead line, tasks, leads, agents and pending approvals, and it opens reports and drafts. It listens only on this computer, and its only actions are adding, starting and cancelling Jarvis tasks. Approvals stay in chat.
 
 ## Decisions
 
@@ -90,8 +92,7 @@ What's done, what's decided, what's blocked, and how each sprint went. The full 
 - **Company details** in `knowledge/company.md` are placeholders: name, website, sender, markets, approvers.
 - **Approval A-20261030-01:** use the MotionRepo battlecard answers with prospects?
 - **Knowledge proposals:** the solo-founders, one-run positioning and company details changes wait for a person to apply them and confirm the files again.
-- **MotionRepo site fix:** [Collateral-Pipeline PR #42](https://github.com/PanScienceInnovation/Collateral-Pipeline/pull/42) is merged, but follow-up commit `e239934` on `agent/T-20261101-01` is not, so main still has the old Plan page wording. It needs a follow-up PR, a merge and a deploy.
-- **Phases H and A3:** [PR #5](https://github.com/Mohitclan/AGENTS-AGENTS-AND-AGENTS-/pull/5) is merged. The later commits on `phase-h-a3`, including the A3 re-run, need a follow-up PR and merge.
+- **MotionRepo site fix:** [Collateral-Pipeline PR #42](https://github.com/PanScienceInnovation/Collateral-Pipeline/pull/42) and [PR #43](https://github.com/PanScienceInnovation/Collateral-Pipeline/pull/43) are merged. A person needs to confirm they're deployed and check whether the billing Hub adds GST.
 
 ## Sprint results
 
