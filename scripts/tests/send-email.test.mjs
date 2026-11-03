@@ -62,6 +62,15 @@ describe('send-email', () => {
     assert.equal(isSuppressed('ceo@other.com', list), null);
   });
 
+  it('covers subdomains and a profile URL, and never matches a shared host', () => {
+    const list = [{ value: 'acme.com' }, { value: 'https://linkedin.com/in/asha' }, { value: 'linkedin.com' }];
+    assert.ok(isSuppressed('ceo@mail.acme.com', list));
+    assert.equal(isSuppressed('ceo@notacme.com', list), null);
+    assert.ok(isSuppressed('https://www.linkedin.com/in/Asha/', list));
+    assert.equal(isSuppressed('https://www.linkedin.com/in/lee', list), null); // the bare linkedin.com entry matches nothing
+    assert.equal(isSuppressed('lee@linkedin.com', list), null);
+  });
+
   it('allows a send only on a yes that names the recipient', () => {
     const table = [
       '| A-1 | T-1 | Send Email 1 to a@b.com | f | r | Yes, approved | Raj | 2026-11-02 |',

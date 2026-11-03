@@ -8,7 +8,7 @@
 //   node scripts/leads.mjs show <id>
 //   node scripts/leads.mjs set-status <id[,id...]> <status> [note] [--force]
 //   node scripts/leads.mjs export-csv                           rewrite pipeline/leads.csv
-//   node scripts/leads.mjs suppress <domain|email> "<reason>"   never contact them again, across every product
+//   node scripts/leads.mjs suppress <domain|email|profile URL> "<reason>"   never contact them again, across every product
 //   node scripts/leads.mjs gate [--product p] [--status s]      Go, Conditional or Stop for each lead before outreach
 //   node scripts/leads.mjs hold <id> "<reason>" --owner <who>   stop all outreach to a lead until a person releases it
 //   node scripts/leads.mjs release <id> "<note>"                lift a hold
@@ -19,7 +19,7 @@ import {
   appendFileSync, closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync, writeSync,
 } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
-import { ROOT, daysSince, fail, printTable, today } from './_shared.mjs';
+import { ROOT, classifySuppression, daysSince, fail, isBareSharedHostEntry, printTable, suppressionMatch, today } from './_shared.mjs';
 
 const PIPELINE = join(ROOT, 'pipeline');
 const DB = join(PIPELINE, 'leads.jsonl');
@@ -253,16 +253,18 @@ function suppressions() {
   return readFileSync(SUPPRESSION, 'utf8').split('\n').filter((l) => l.trim()).map((l) => JSON.parse(l));
 }
 
-// A company domain covers everyone there; an email address covers that person.
+// The one opt-out match, in _shared.mjs so scripts/send-email.mjs uses the same rules: an email address
+// covers that person, a profile URL covers that page, a company domain covers it, its subdomains and
+// addresses on it, and a shared host (linkedin.com, x.com...) covers nobody.
 function suppressedBy(lead, list) {
-  const contact = String(lead.contact?.value || '').toLowerCase();
-  const domain = lead.domain || (isUrl(lead.website) ? domainOf(lead.website) : '');
-  return list.find((s) => s.value === domain || s.value === contact);
+  return suppressionMatch(list, { contact: lead.contact?.value, website: lead.website, domain: lead.domain });
 }
 
 function suppress(value, reason) {
-  value = (value || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '');
-  if (!value || !value.includes('.') || !reason?.trim()) fail('Usage: node scripts/leads.mjs suppress <domain|email> "<reason>"');
+  if (!value?.trim() || !reason?.trim()) fail('Usage: node scripts/leads.mjs suppress <domain|email|profile URL> "<reason>"');
+  const entry = classifySuppression(value);
+  if (entry.error) fail(entry.error);
+  value = entry.value;
   lock();
   if (suppressions().some((s) => s.value === value)) {
     console.log(`${value} is already suppressed.`);
@@ -282,18 +284,6 @@ function suppress(value, reason) {
   console.log(`Suppressed ${value}.${hit.length ? ` ${hit.length} open lead(s) disqualified.` : ''}`);
 }
 
-// A domain covers its subdomains. The gate also reads the contact's own host, so an opt-out for
-// optout.example covers asha@optout.example even when the lead's website is on another domain.
-const underDomain = (host, base) => host === base || host.endsWith(`.${base}`);
-function suppressionHit(lead, list) {
-  const direct = suppressedBy(lead, list);
-  if (direct) return direct;
-  const site = lead.domain || (isUrl(lead.website) ? domainOf(lead.website) : '');
-  const value = String(lead.contact?.value || '').toLowerCase();
-  const contactHost = isUrl(value) ? domainOf(value) : value.includes('@') ? value.split('@').pop() : '';
-  return list.find((s) => !s.value.includes('@') && ((site && underDomain(site, s.value)) || (contactHost && underDomain(contactHost, s.value))));
-}
-
 // Critical signals. Any one forces a Stop, whatever the lead's score or tier: a high score can't hide a
 // disqualifier. Each comes from a rule we already wrote down, and returns the reason to print, or nothing.
 // The list only adds Stop reasons, so it can turn a Go or Conditional into a Stop and never the reverse.
@@ -301,7 +291,7 @@ function suppressionHit(lead, list) {
 const CRITICAL_SIGNALS = [
   // Opt-outs are final (CLAUDE.md hard rule 7).
   (lead, list) => {
-    const hit = suppressionHit(lead, list);
+    const hit = suppressedBy(lead, list);
     return hit && `suppressed (${hit.value})`;
   },
   // Disqualified or lost (pipeline/lead-schema.md, statuses).
@@ -497,6 +487,10 @@ function check() {
     }
     if (!Array.isArray(lead.history) || !lead.history.length) problems.push(`${label}: missing history`);
   }
+  // Not a pipeline problem, so it doesn't fail the check: an old entry that blocks nothing and needs a person.
+  for (const s of suppressions().filter(isBareSharedHostEntry)) {
+    console.error(`WARNING: pipeline/suppression.jsonl has "${s.value}" (${s.reason || 'no reason'}). It is a shared site, so it matches nothing and that opt-out is not enforced. Re-enter the person as a profile URL: node scripts/leads.mjs suppress <profile URL> "<reason>".`);
+  }
   if (problems.length) fail(`${problems.length} problem(s) in pipeline/leads.jsonl:\n- ${problems.join('\n- ')}`);
   console.log(`OK: ${leads.length} lead(s), no problems found.`);
 }
@@ -682,5 +676,5 @@ switch (command) {
     console.log(`Wrote ${toRel(CSV)}`);
     break;
   default:
-    fail('Usage: node scripts/leads.mjs import <file> | check | list [--product p] [--status s] [--tier A] | show <id> | set-status <ids> <status> [note] [--force] | export-csv | suppress <domain|email> "<reason>" | gate [--product p] [--status s] | hold <id> "<reason>" --owner <who> | release <id> "<note>" | supersede <id> <n> "<why>" | next <id> "<action>"');
+    fail('Usage: node scripts/leads.mjs import <file> | check | list [--product p] [--status s] [--tier A] | show <id> | set-status <ids> <status> [note] [--force] | export-csv | suppress <domain|email|profile URL> "<reason>" | gate [--product p] [--status s] | hold <id> "<reason>" --owner <who> | release <id> "<note>" | supersede <id> <n> "<why>" | next <id> "<action>"');
 }

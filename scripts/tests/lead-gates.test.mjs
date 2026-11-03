@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { after, before, describe, it } from 'node:test';
+import { isSuppressed } from '../send-email.mjs';
 import { makeCopy } from './_helpers.mjs';
 
 const repo = makeCopy();
@@ -262,21 +263,137 @@ describe('critical signals', () => {
     assert.match(line('Subsite'), /\bGo\b/);
     assert.equal(repo.run('leads.mjs', 'suppress', 'optmail.example', 'opted out').code, 0);
     assert.equal(repo.run('leads.mjs', 'suppress', 'optsub.example', 'opted out').code, 0);
-    assert.equal(byCompany('Brandsite').status, 'qualified'); // the import-time match is unchanged; the gate is what catches it
+    // One matcher everywhere: suppress disqualifies these leads at once, as it does for an exact-domain match.
+    assert.equal(byCompany('Brandsite').status, 'disqualified');
+    assert.equal(byCompany('Subsite').status, 'disqualified');
     assert.match(line('Brandsite'), /Stop.*suppressed \(optmail\.example\)/);
     assert.match(line('Subsite'), /Stop.*suppressed \(optsub\.example\)/);
+    const again = importLeads('again-subdomain', [strong('Brandsite', { contact: { channel: 'email', value: 'lee@mail.optmail.example', source_url: 'https://brandsite.example/contact' } })]);
+    assert.equal(again.code, 1);
+    assert.match(again.stderr, /suppression list/);
   });
-  it('a suppressed profile URL is stored as its bare host, so every LinkedIn-contact lead is a Stop (pins the current behaviour)', () => {
+  it('set-status refuses drafted for a lead that only a parent domain covers', () => {
+    const l = qualified(strong('Parentcover', { contact: { channel: 'email', value: 'asha@mail.parentcover-opt.example', source_url: 'https://parentcover.example/contact' } }));
+    assert.match(line('Parentcover'), /\bGo\b/);
+    // A person hand-writes the entry so the lead stays open; the matcher, not the disqualify step, must stop it.
+    appendFileSync(repo.path('pipeline', 'suppression.jsonl'), `${JSON.stringify({ value: 'parentcover-opt.example', reason: 'opted out', at: today })}\n`);
+    const r = repo.run('leads.mjs', 'set-status', l.id, 'drafted', 'seq');
+    assert.equal(r.code, 1);
+    assert.match(r.stderr, /Suppressed, never contact/);
+    assert.match(line('Parentcover'), /Stop.*suppressed \(parentcover-opt\.example\)/);
+  });
+
+  describe('profile URLs on shared hosts', () => {
     const li = (name, slug) => strong(name, { contact: { channel: 'linkedin', value: `https://www.linkedin.com/in/${slug}`, source_url: `https://${name.toLowerCase()}.example/team` } });
-    qualified(li('Linkeda', 'asha-a'));
-    qualified(li('Linkedb', 'lee-b'));
-    assert.doesNotMatch(line('Linkeda'), /suppressed/);
-    const r = repo.run('leads.mjs', 'suppress', 'https://www.linkedin.com/in/asha-a', 'asked not to be contacted');
+    const entries = () => readFileSync(repo.path('pipeline', 'suppression.jsonl'), 'utf8').trim().split('\n').map((x) => JSON.parse(x));
+    it('stores the exact profile and stops only that lead', () => {
+      qualified(li('Linkeda', 'asha-a'));
+      qualified(li('Linkedb', 'lee-b'));
+      qualified(li('Linkedc', 'asha-ab')); // starts with the same text, but is another person
+      assert.doesNotMatch(line('Linkeda'), /suppressed/);
+      const r = repo.run('leads.mjs', 'suppress', 'HTTPS://www.LinkedIn.com/in/Asha-A/?utm_source=x#top', 'asked not to be contacted');
+      assert.equal(r.code, 0, r.stderr);
+      assert.match(r.stdout, /Suppressed https:\/\/linkedin\.com\/in\/asha-a\./);
+      assert.equal(entries().at(-1).value, 'https://linkedin.com/in/asha-a');
+      assert.equal(byCompany('Linkeda').status, 'disqualified');
+      assert.match(line('Linkeda'), /Stop.*suppressed \(https:\/\/linkedin\.com\/in\/asha-a\)/);
+      assert.equal(byCompany('Linkedb').status, 'qualified');
+      assert.match(line('Linkedb'), /\bGo\b/);
+      assert.equal(byCompany('Linkedc').status, 'qualified');
+      assert.match(line('Linkedc'), /\bGo\b/);
+    });
+    it('covers the same profile written another way, and refuses it on import', () => {
+      const r = importLeads('li-again', [li('Linkeda', 'ASHA-A/')]);
+      assert.equal(r.code, 1);
+      assert.match(r.stderr, /suppression list/);
+    });
+    it('stores an X profile and a github.io page the same way, and twitter.com means x.com', () => {
+      qualified(strong('Xperson', { contact: { channel: 'other', value: 'https://twitter.com/lee_x', source_url: 'https://xperson.example/team' } }));
+      qualified(strong('Xother', { contact: { channel: 'other', value: 'https://x.com/lee_y', source_url: 'https://xother.example/team' } }));
+      const x = repo.run('leads.mjs', 'suppress', 'https://x.com/Lee_X', 'asked not to be contacted');
+      assert.match(x.stdout, /Suppressed https:\/\/x\.com\/lee_x\./);
+      assert.equal(byCompany('Xperson').status, 'disqualified');
+      assert.equal(byCompany('Xother').status, 'qualified');
+      qualified(lead('Ghpage', 'https://asha-page.github.io', { score_breakdown: top }));
+      qualified(lead('Ghother', 'https://other-page.github.io', { score_breakdown: top }));
+      const g = repo.run('leads.mjs', 'suppress', 'https://asha-page.github.io/', 'asked not to be contacted');
+      assert.match(g.stdout, /Suppressed https:\/\/asha-page\.github\.io\./);
+      assert.match(line('Ghpage'), /Stop.*suppressed/);
+      assert.match(line('Ghother'), /\bGo\b/);
+    });
+    it('refuses a bare shared host and says to give the profile URL', () => {
+      const before = entries().length;
+      for (const bare of ['linkedin.com', 'https://www.linkedin.com/', 'x.com', 'twitter.com', 'github.com', 'github.io', 'https://github.io/', 'medium.com', 'substack.com', 'https://linkedin.com/in']) {
+        const r = repo.run('leads.mjs', 'suppress', bare, 'asked not to be contacted');
+        assert.equal(r.code, 1, `${bare} should be refused`);
+        assert.match(r.stderr, /profile URL/, bare);
+      }
+      assert.equal(entries().length, before);
+      assert.equal(byCompany('Linkedb').status, 'qualified');
+    });
+  });
+
+  it('a company domain still covers its subdomains and the addresses on them, and not a lookalike', () => {
+    const at = (name, value, site = `https://${name.toLowerCase()}.example`) => qualified(lead(name, site, { score_breakdown: top, contact: { channel: 'email', value, source_url: `${site}/contact` } }));
+    at('Domsub', 'asha@domcover.example');
+    at('Domsubsite', 'asha@domsubsite.example', 'https://app.domcover.example');
+    at('Domhost', 'asha@mail.domcover.example');
+    at('Domlook', 'asha@notdomcover.example');
+    assert.equal(repo.run('leads.mjs', 'suppress', 'domcover.example', 'opted out').code, 0);
+    for (const name of ['Domsub', 'Domsubsite', 'Domhost']) {
+      assert.equal(byCompany(name).status, 'disqualified', name);
+      assert.match(line(name), /Stop.*suppressed \(domcover\.example\)/, name);
+    }
+    assert.equal(byCompany('Domlook').status, 'qualified');
+    assert.match(line('Domlook'), /\bGo\b/);
+  });
+
+  it('the gate and send-email isSuppressed agree on every case', () => {
+    const cases = [
+      ['agree-addr@agree-opt.example', true], // exact address
+      ['AGREE-ADDR@AGREE-OPT.EXAMPLE', true], // case
+      ['other@agree-opt.example', false], // another person at the domain of an address entry
+      ['asha@agree-dom.example', true], // company domain
+      ['asha@mail.agree-dom.example', true], // an address on a subdomain
+      ['asha@a.b.agree-dom.example', true],
+      ['https://app.agree-dom.example/contact', true], // a contact page on a subdomain
+      ['asha@notagree-dom.example', false], // lookalike
+      ['asha@agree-dom.example.evil.example', false],
+      ['https://www.linkedin.com/in/agree-p', true], // exact profile
+      ['https://linkedin.com/in/agree-p/?x=1', true], // same profile, written differently
+      ['https://linkedin.com/in/agree-pq', false], // another person
+      ['asha@linkedin.com', false], // a shared host is never a company domain
+      ['https://x.com/agree-p', false],
+    ];
+    // Import every case first: once an entry exists, an import of a covered contact is refused.
+    cases.forEach(([contact], i) => {
+      const email = contact.includes('@') && !contact.includes('/');
+      const site = `https://agree${i}.example`;
+      qualified(lead(`Agree${i}`, site, { score_breakdown: top, contact: { channel: email ? 'email' : 'linkedin', value: contact, source_url: `${site}/contact` } }));
+    });
+    for (const v of ['agree-addr@agree-opt.example', 'agree-dom.example', 'https://linkedin.com/in/agree-p']) {
+      assert.equal(repo.run('leads.mjs', 'suppress', v, 'opted out').code, 0, v);
+    }
+    const list = readFileSync(repo.path('pipeline', 'suppression.jsonl'), 'utf8').trim().split('\n').map((x) => JSON.parse(x));
+    cases.forEach(([contact, stop], i) => {
+      assert.equal(/Stop.*suppressed/.test(line(`Agree${i}`)), stop, `gate: ${contact}`);
+      assert.equal(Boolean(isSuppressed(contact, list)), stop, `isSuppressed: ${contact}`);
+      assert.equal(byCompany(`Agree${i}`).status === 'disqualified', stop, `suppress disqualified: ${contact}`);
+    });
+  });
+
+  it('an old bare shared-host entry matches nothing, and check warns that it must be re-entered', () => {
+    appendFileSync(repo.path('pipeline', 'suppression.jsonl'), `${JSON.stringify({ value: 'linkedin.com', reason: 'old entry', at: today })}\n${JSON.stringify({ value: 'x.com', reason: 'old entry', at: today })}\n`);
+    qualified(strong('Legacyli', { contact: { channel: 'linkedin', value: 'https://www.linkedin.com/in/legacy-person', source_url: 'https://legacyli.example/team' } }));
+    assert.match(line('Legacyli'), /\bGo\b/);
+    const list = readFileSync(repo.path('pipeline', 'suppression.jsonl'), 'utf8').trim().split('\n').map((x) => JSON.parse(x));
+    assert.equal(isSuppressed('https://www.linkedin.com/in/legacy-person', list), null);
+    assert.equal(isSuppressed('someone@x.com', list), null);
+    const r = repo.run('leads.mjs', 'check');
     assert.equal(r.code, 0);
-    assert.match(r.stdout, /Suppressed linkedin\.com\./); // the profile path is dropped; the entry is the whole site
-    assert.match(line('Linkeda'), /Stop.*suppressed \(linkedin\.com\)/);
-    assert.match(line('Linkedb'), /Stop.*suppressed \(linkedin\.com\)/); // over-blocks other people: kept on purpose; T-20261103-11 fixes suppress
-    assert.equal(byCompany('Linkeda').status, 'qualified'); // set-status and import still use the narrow match
+    assert.match(r.stderr, /WARNING.*"linkedin\.com".*profile URL/);
+    assert.match(r.stderr, /WARNING.*"x\.com"/);
+    assert.match(r.stdout, /^OK:/);
   });
   it('a personal mail domain is matched whatever its case', () => {
     qualified(strong('Uppermail', { contact: { channel: 'email', value: 'Asha@GMAIL.COM', source_url: 'https://uppermail.example/contact' } }));

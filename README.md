@@ -164,7 +164,7 @@ node scripts/replies.mjs check [--dry-run]           # read the inbox for answer
 node scripts/replies.mjs watch --every 15            # the same check every 15 minutes; keep the terminal open
 node scripts/replies.mjs list                        # answers recorded so far (saved in outputs/replies/)
 node scripts/leads.mjs gate --product <slug>         # Go, Conditional or Stop before outreach
-node scripts/leads.mjs suppress <domain|email> "<reason>"   # an opt-out, for good
+node scripts/leads.mjs suppress <domain|email|profile URL> "<reason>"   # an opt-out, for good
 node scripts/memory.mjs list                  # every memory file; add a name for its entries
 node scripts/memory.mjs add main "<entry>" --source "<where from>" --by <you> --section lessons
 node scripts/memory.mjs check

@@ -83,7 +83,7 @@ The script allows only these moves:
 
 | Signal | Reason shown | Where it comes from |
 |---|---|---|
-| Suppressed | `suppressed (<entry>)` | The contact address, the lead's domain or a parent domain, or the domain of the contact's address or page, is in `pipeline/suppression.jsonl` (CLAUDE.md hard rule 7) |
+| Suppressed | `suppressed (<entry>)` | The contact, the lead's website or its domain matches an entry in `pipeline/suppression.jsonl` by the one matcher described under Suppression (CLAUDE.md hard rule 7) |
 | Disqualified or lost | `status is disqualified` / `status is lost` | The lead's `status` |
 | On hold | `on hold (<owner>): <reason>` | `leads.mjs hold` |
 | Competitor | `competitor: <who>` | The optional `competitor` field; `knowledge/company.md`, never contact competitors |
@@ -114,9 +114,21 @@ The import refuses a score above the cap.
 
 ## Suppression
 
-`node scripts/leads.mjs suppress <domain|email> "<reason>"` adds an opt-out to `pipeline/suppression.jsonl`. It applies across every product: open leads are disqualified at once, imports are refused, and a suppressed lead can't move to `drafted`, `approved` or `contacted`. A domain covers the whole company; an email address covers that person. Removing an entry is a person's decision, made by editing the file.
+`node scripts/leads.mjs suppress <domain|email|profile URL> "<reason>"` adds an opt-out to `pipeline/suppression.jsonl`. It applies across every product: open leads are disqualified at once, imports are refused, and a suppressed lead can't move to `drafted`, `approved` or `contacted`. Removing an entry is a person's decision, made by editing the file.
 
-Two match rules exist. The **narrow** match is the lead's exact domain or the contact's exact address. It is what disqualifies open leads at once, refuses imports and stops `set-status` moving a lead to `drafted`, `approved` or `contacted`. `node scripts/send-email.mjs` uses its own check, the exact address or that address's exact domain. The **wider** match is used by the gate only: it also covers a parent domain of the lead's website, and the contact's own host (the domain of an email address, or the host of a URL contact). So a lead caught only by the wider match shows Stop in the gate but keeps its status and can still be moved by `set-status`. A profile URL such as a LinkedIn page is stored as its bare host (`linkedin.com`), so with the wider match every lead with a LinkedIn contact shows Stop. Until that is fixed, record a person's opt-out by email address where one exists.
+An entry is one of three kinds:
+
+| Kind | Example | Covers |
+|---|---|---|
+| Email address | `asha@example.com` | That address only |
+| Company domain | `example.com` | The domain, its subdomains, and any address on them. `notexample.com` is not covered |
+| Profile URL | `https://linkedin.com/in/asha` | That page and the pages below it. Stored with a lower-case host and path, no `www.`, query, fragment or trailing slash; `twitter.com` is stored as `x.com` |
+
+**Shared hosts never count as a company domain.** Opting out one person on a site many people share must not opt out everyone else, so `suppress` refuses a bare shared host (`linkedin.com`, `x.com`, `twitter.com`, `github.com`, `github.io`, `medium.com`, `substack.com` and the others in `SHARED_HOSTS` in `scripts/_shared.mjs`) and tells you to give the profile URL. A page on a shared host, such as `https://linkedin.com/in/asha` or `https://asha.github.io`, is stored as that URL. A LinkedIn entry needs two path segments (`in/asha`).
+
+**There is one matcher, `suppressionMatch` in `scripts/_shared.mjs`.** The gate, the at-once disqualify in `suppress`, import, `set-status` and `scripts/send-email.mjs` all call it, so they cannot disagree. It checks the contact (an email address or a URL), the lead's website and the lead's stored domain. A profile-URL entry matches a contact or website URL that is that page or below it; it cannot match an email address, so a person who opts out by LinkedIn and also has an email contact needs both recorded.
+
+An old entry that is a bare shared host (written before this rule, when `suppress` dropped the profile path) matches nothing. `node scripts/leads.mjs check` prints a warning for each one: re-enter the person as a profile URL.
 
 ## Other commands
 
