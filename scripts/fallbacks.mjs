@@ -14,6 +14,12 @@ import { fail, isMain } from './_shared.mjs';
 
 const MODEL_SWAP = { opus: 'sonnet', sonnet: 'opus', haiku: 'sonnet', fable: 'opus' };
 
+// Fallbacks with HubSpot tools repeat the read-only rule, so it stays in force whatever the main agent's file says.
+const HUBSPOT_RULE =
+  '7. HubSpot is read-only for you. Never create, update, delete, send or publish anything in HubSpot. ' +
+  'If a record should change, list it as a handoff or an approval item for the coordinator. Before proposing any CRM change, ' +
+  "fetch the record, confirm its ID belongs to the named company or contact, and quote both the ID and the name in the proposal.\n";
+
 function expected(primary) {
   const p = readAgent(primary);
   const name = p.fields.fallback;
@@ -39,7 +45,7 @@ You stand in for \`${primary}\`, which failed three times on this task. Do the s
 4. Work in small steps and save files as you go, so a partial result isn't lost.
 5. Don't call other agents. If you need another agent's help, list it as a handoff.
 6. If you can't finish, stop and report what's done and what's missing with status \`blocked\`.
-
+${/mcp__hubspot__/.test(p.fields.tools || '') ? HUBSPOT_RULE : ''}
 Always end with the RESULT block from CLAUDE.md, plus a last line \`fallback_for: ${primary}\`.
 `;
   return { name, file: join(AGENTS_DIR, `${name}.md`), fields, order: Object.keys(fields), body };

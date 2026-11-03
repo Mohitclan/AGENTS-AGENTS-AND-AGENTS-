@@ -93,10 +93,11 @@ describe('contact quality', () => {
     assert.equal(repo.run('leads.mjs', 'set-status', byCompany('generalok').id, 'qualified').code, 0);
     assert.match(gate().stdout.split('\n').find((l) => l.includes('generalok')), /\bGo\s+general\b/);
   });
+  // Changed by T-20261103-09a: a support-only inbox is a critical signal, so it is a Stop, not a Conditional.
   it('never gives a support-only inbox a Go', () => {
     assert.equal(importLeads('ok-support', [inbox('supportok', 'support', 3)]).code, 0);
     assert.equal(repo.run('leads.mjs', 'set-status', byCompany('supportok').id, 'qualified').code, 0);
-    assert.match(gate().stdout.split('\n').find((l) => l.includes('supportok')), /Conditional\s+support.*support-only inbox/);
+    assert.match(gate().stdout.split('\n').find((l) => l.includes('supportok')), /Stop\s+support.*support-only inbox/);
   });
   it('treats a named address as direct', () => assert.match(gate('--status', 'all').stdout.split('\n').find((l) => l.includes('Go Co')), /\bGo\s+direct\b/));
 });
@@ -192,6 +193,119 @@ describe('hardened gate', () => {
     assert.equal(repo.run('leads.mjs', 'next', id, 'Recheck', 'the', 'launch').code, 0);
     assert.equal(byCompany('Fresh').next_action, 'Recheck the launch');
     assert.equal(byCompany('Fresh').history.at(-1).event, 'next');
+  });
+  it('still passes the full check', () => assert.equal(repo.run('leads.mjs', 'check').code, 0));
+});
+
+// A critical signal forces a Stop whatever the score; with none present the gate gives the verdicts it always did.
+describe('critical signals', () => {
+  const top = { icp_fit: 40, need_evidence: 30, timing: 20, reachability: 10 }; // score 100, tier A
+  const line = (name, ...args) => gate('--status', 'all', ...args).stdout.split('\n').find((l) => l.includes(name));
+  const qualified = (l) => {
+    assert.equal(importLeads(l.company, [l]).code, 0);
+    assert.equal(repo.run('leads.mjs', 'set-status', byCompany(l.company).id, 'qualified').code, 0);
+    return byCompany(l.company);
+  };
+  const strong = (name, extra = {}) => lead(name, `https://${name.toLowerCase()}.example`, { score_breakdown: top, ...extra });
+
+  it('a clean top-scoring lead is still a Go (no override when no signal is present)', () => {
+    const l = qualified(strong('Cleango'));
+    assert.deepEqual([l.score, l.tier], [100, 'A']);
+    assert.match(line('Cleango'), /\bGo\b/);
+    assert.doesNotMatch(line('Cleango'), /competitor|personal email|support-only|suppressed|hold/);
+  });
+  it('leaves a Conditional and a Not reviewed lead as they were when no signal is present', () => {
+    const stale = qualified(strong('Cleanstale', { researched_at: '2025-01-01' }));
+    assert.equal(stale.tier, 'A');
+    assert.match(line('Cleanstale'), /Conditional.*recheck the evidence/);
+    assert.equal(importLeads('Cleannew', [strong('Cleannew')]).code, 0);
+    assert.match(line('Cleannew'), /Not reviewed/);
+  });
+  it('does not treat a general inbox, a lookalike mail domain or a lookalike suppressed domain as critical', () => {
+    qualified(strong('Cleangeneral', { contact: { channel: 'email', value: 'hello@cleangeneral.example', source_url: 'https://cleangeneral.example/contact' }, score_breakdown: { ...top, reachability: 5 } }));
+    assert.match(line('Cleangeneral'), /\bGo\s+general\b/);
+    qualified(strong('Cleanlookalike', { contact: { channel: 'email', value: 'asha@gmail.com.cleanlookalike.example', source_url: 'https://cleanlookalike.example/contact' } }));
+    assert.match(line('Cleanlookalike'), /\bGo\b/);
+    assert.equal(repo.run('leads.mjs', 'suppress', 'lookalike.example', 'opted out').code, 0);
+    qualified(strong('Cleansuffix', { contact: { channel: 'email', value: 'asha@notlookalike.example', source_url: 'https://cleansuffix.example/contact' } }));
+    assert.match(line('Cleansuffix'), /\bGo\b/);
+  });
+
+  it('a competitor is a Stop despite a score of 100, qualified or new, and says who', () => {
+    const l = qualified(strong('Rivalco', { competitor: 'RepoClip, a direct competitor' }));
+    assert.deepEqual([l.score, l.tier, l.status], [100, 'A', 'qualified']);
+    assert.match(line('Rivalco'), /Stop.*competitor: RepoClip, a direct competitor/);
+    assert.equal(importLeads('Rivalnew', [strong('Rivalnew', { competitor: 'Remotion' })]).code, 0);
+    assert.match(line('Rivalnew'), /Stop.*competitor: Remotion/);
+    assert.equal(gate('--status', 'qualified').code, 1);
+  });
+  it('a personal email address is a Stop despite a score of 100', () => {
+    const l = qualified(strong('Personalmail', { contact: { channel: 'email', value: 'asha@gmail.com', source_url: 'https://personalmail.example/contact' } }));
+    assert.equal(l.score, 100);
+    assert.match(line('Personalmail'), /Stop.*personal email address \(gmail\.com\)/);
+  });
+  it('a support-only inbox is a Stop despite the highest score its cap allows', () => {
+    const l = qualified(strong('Supportstrong', { contact: { channel: 'email', value: 'support@supportstrong.example', source_url: 'https://supportstrong.example/contact' }, score_breakdown: { ...top, reachability: 3 } }));
+    assert.equal(l.tier, 'A');
+    assert.match(line('Supportstrong'), /Stop\s+support.*support-only inbox/);
+  });
+  it('a suppressed contact address is a Stop even if the lead was never disqualified', () => {
+    qualified(strong('Optaddr', { contact: { channel: 'email', value: 'lee@optaddr.example', source_url: 'https://optaddr.example/contact' } }));
+    assert.match(line('Optaddr'), /\bGo\b/);
+    assert.equal(repo.run('leads.mjs', 'suppress', 'lee@optaddr.example', 'asked not to be contacted').code, 0);
+    assert.match(line('Optaddr'), /Stop.*suppressed/);
+  });
+  it('a suppressed domain covers a contact on that domain when the website is elsewhere, and a subdomain site', () => {
+    qualified(strong('Brandsite', { contact: { channel: 'email', value: 'asha@optmail.example', source_url: 'https://brandsite.example/contact' } }));
+    qualified(lead('Subsite', 'https://app.optsub.example', { score_breakdown: top }));
+    assert.match(line('Brandsite'), /\bGo\b/);
+    assert.match(line('Subsite'), /\bGo\b/);
+    assert.equal(repo.run('leads.mjs', 'suppress', 'optmail.example', 'opted out').code, 0);
+    assert.equal(repo.run('leads.mjs', 'suppress', 'optsub.example', 'opted out').code, 0);
+    assert.equal(byCompany('Brandsite').status, 'qualified'); // the import-time match is unchanged; the gate is what catches it
+    assert.match(line('Brandsite'), /Stop.*suppressed \(optmail\.example\)/);
+    assert.match(line('Subsite'), /Stop.*suppressed \(optsub\.example\)/);
+  });
+  it('a suppressed profile URL is stored as its bare host, so every LinkedIn-contact lead is a Stop (pins the current behaviour)', () => {
+    const li = (name, slug) => strong(name, { contact: { channel: 'linkedin', value: `https://www.linkedin.com/in/${slug}`, source_url: `https://${name.toLowerCase()}.example/team` } });
+    qualified(li('Linkeda', 'asha-a'));
+    qualified(li('Linkedb', 'lee-b'));
+    assert.doesNotMatch(line('Linkeda'), /suppressed/);
+    const r = repo.run('leads.mjs', 'suppress', 'https://www.linkedin.com/in/asha-a', 'asked not to be contacted');
+    assert.equal(r.code, 0);
+    assert.match(r.stdout, /Suppressed linkedin\.com\./); // the profile path is dropped; the entry is the whole site
+    assert.match(line('Linkeda'), /Stop.*suppressed \(linkedin\.com\)/);
+    assert.match(line('Linkedb'), /Stop.*suppressed \(linkedin\.com\)/); // over-blocks other people: kept on purpose; T-20261103-11 fixes suppress
+    assert.equal(byCompany('Linkeda').status, 'qualified'); // set-status and import still use the narrow match
+  });
+  it('a personal mail domain is matched whatever its case', () => {
+    qualified(strong('Uppermail', { contact: { channel: 'email', value: 'Asha@GMAIL.COM', source_url: 'https://uppermail.example/contact' } }));
+    assert.match(line('Uppermail'), /Stop.*personal email address \(gmail\.com\)/);
+  });
+  it('a disqualified, lost or held lead is a Stop despite a score of 100', () => {
+    const dq = qualified(strong('Dqstrong'));
+    assert.equal(repo.run('leads.mjs', 'set-status', dq.id, 'disqualified', 'sells', 'a', 'competing', 'product').code, 0);
+    assert.match(line('Dqstrong'), /Stop.*status is disqualified/);
+    const lost = qualified(strong('Loststrong'));
+    assert.equal(repo.run('leads.mjs', 'set-status', lost.id, 'lost', 'chose', 'another', 'tool', '--force').code, 0);
+    assert.match(line('Loststrong'), /Stop.*status is lost/);
+    const held = qualified(strong('Heldstrong'));
+    assert.equal(repo.run('leads.mjs', 'hold', held.id, 'is', 'this', 'a', 'competitor?', '--owner', 'founders').code, 0);
+    assert.match(line('Heldstrong'), /Stop.*on hold \(founders\)/);
+  });
+  it('lists every reason when several signals apply', () => {
+    qualified(strong('Manyflags', { competitor: 'Remotion', score_breakdown: { ...top, reachability: 3 }, contact: { channel: 'email', value: 'help@gmail.com', source_url: 'https://manyflags.example/contact' } }));
+    assert.match(line('Manyflags'), /Stop.*competitor: Remotion; personal email address \(gmail\.com\); support-only inbox/);
+  });
+
+  it('refuses an empty competitor on import and keeps the field through a re-import without it', () => {
+    const r = importLeads('empty-competitor', [strong('Emptyrival', { competitor: '  ' })]);
+    assert.equal(r.code, 1);
+    assert.match(r.stderr, /competitor must say who the competitor is/);
+    assert.equal(importLeads('keep-competitor-1', [strong('Keeprival', { competitor: 'RepoClip' })]).code, 0);
+    assert.equal(importLeads('keep-competitor-2', [strong('Keeprival')]).code, 0);
+    assert.equal(byCompany('Keeprival').competitor, 'RepoClip');
+    assert.match(line('Keeprival'), /Stop.*competitor: RepoClip/);
   });
   it('still passes the full check', () => assert.equal(repo.run('leads.mjs', 'check').code, 0));
 });

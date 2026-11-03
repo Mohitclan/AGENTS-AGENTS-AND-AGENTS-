@@ -119,5 +119,16 @@
     "report": "outputs/reports/J-20261102-01.md",
     "finished": "2026-11-02 10:45",
     "turns": 6
+  },
+  {
+    "id": "J-20261103-01",
+    "task": "Have the researcher list 3 Indian launch directories for MotionRepo from the channel map, then have the evaluator review the list. No sending, no other agents.",
+    "status": "done",
+    "added": "2026-11-03 13:38",
+    "started": "2026-11-03 13:38",
+    "note": "3 lesson(s) recorded",
+    "report": "outputs/reports/J-20261103-01.md",
+    "finished": "2026-11-03 13:48",
+    "turns": 36
   }
 ]

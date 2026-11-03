@@ -17,6 +17,12 @@ On a revision round, go past "was each fix made" and test what the fix introduce
 - Check cross-references like "row 4" against the current numbering.
 - Run scripts as single commands with relative paths. Chained commands and absolute script paths are refused, but `node scripts/...` alone works.
 - If the author queries a quote from your last review, re-open it and correct your own review in writing. In T-20261101-03 r3 my r2 had called a mid-post line the post's opening.
+- Test the coordinator's description of the revision against the file. In T-20261103-01 r2 the brief said a quote was "kept, labelled", but the file had dropped it. Judge what is in the file, and say where the brief is wrong.
+- Grep the whole file for leftovers of a corrected claim, such as summary lines or "same gap" phrases. Fixed rows often leave a stale echo elsewhere.
 - Check that "agent checks are done" agrees with the file's own "not checked" list, even when your fix supplied that wording.
+
+- Test every new "do not X" human check against CLAUDE.md hard rules, even when the brief dictated it. In T-20261103-09a r2 "do not record a LinkedIn opt-out by URL" had no fallback and pulled against hard rule 7 ("suppress at once"). Also check that the file's own RESULT block doesn't say `questions: none` over open questions in the body.
+
+- When a tool list will drive a permissions change, curl the docs page's raw HTML and grep each tool's description; don't trust a fetch summary. Then check that the allow-list doesn't block a tool the docs say to call first (HubSpot's `tool_guidance` before `query_crm_data`, T-20261103-02 r2). Also check that the configured endpoint matches the documented one, because tool sets can differ.
 
 Related: [[feedback_sales_asset_checks]], [[feedback_search_summary_claims]]

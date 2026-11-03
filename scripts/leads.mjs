@@ -55,6 +55,11 @@ const OUTREACH_STATUSES = new Set(['drafted', 'approved', 'contacted']);
 // Contact quality: a named person beats a shared inbox, and a support desk isn't a sales route.
 const SUPPORT_INBOX = /^(support|help|helpdesk|care|customercare|customerservice|service|billing|abuse|security|legal|privacy|no-?reply|donotreply)@/i;
 const GENERAL_INBOX = /^(hello|hi|hey|info|contact|team|founders?|sales|marketing|admin|office|mail|enquir(y|ies)|inquir(y|ies))@/i;
+// Free consumer mailboxes: knowledge/company.md says never contact personal (non-work) addresses.
+const PERSONAL_MAIL = new Set([
+  'gmail.com', 'googlemail.com', 'yahoo.com', 'yahoo.in', 'yahoo.co.in', 'ymail.com', 'outlook.com', 'hotmail.com', 'live.com', 'msn.com',
+  'icloud.com', 'me.com', 'aol.com', 'proton.me', 'protonmail.com', 'rediffmail.com', 'gmx.com', 'mail.com', 'yandex.com',
+]);
 const REACHABILITY_CAP = { general: 5, support: 3 };
 const SCORE_PARTS = { icp_fit: 40, need_evidence: 30, timing: 20, reachability: 10 };
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -127,6 +132,10 @@ function validate(lead, products) {
     if (typeof c.value !== 'string' || !c.value.trim()) errors.push('contact.value is required when a contact is given');
     if (!isUrl(c.source_url)) errors.push('contact.source_url must link to where the contact was published');
     if (c.channel === 'email' && !EMAIL.test(c.value || '')) errors.push('contact.value is not a valid email address');
+  }
+
+  if (lead.competitor != null && !(typeof lead.competitor === 'string' && lead.competitor.trim())) {
+    errors.push('competitor must say who the competitor is, e.g. "RepoClip, a direct competitor"');
   }
 
   if (lead.status != null && !STATUSES.includes(lead.status)) errors.push(`status must be one of: ${STATUSES.join(', ')}`);
@@ -273,16 +282,49 @@ function suppress(value, reason) {
   console.log(`Suppressed ${value}.${hit.length ? ` ${hit.length} open lead(s) disqualified.` : ''}`);
 }
 
+// A domain covers its subdomains. The gate also reads the contact's own host, so an opt-out for
+// optout.example covers asha@optout.example even when the lead's website is on another domain.
+const underDomain = (host, base) => host === base || host.endsWith(`.${base}`);
+function suppressionHit(lead, list) {
+  const direct = suppressedBy(lead, list);
+  if (direct) return direct;
+  const site = lead.domain || (isUrl(lead.website) ? domainOf(lead.website) : '');
+  const value = String(lead.contact?.value || '').toLowerCase();
+  const contactHost = isUrl(value) ? domainOf(value) : value.includes('@') ? value.split('@').pop() : '';
+  return list.find((s) => !s.value.includes('@') && ((site && underDomain(site, s.value)) || (contactHost && underDomain(contactHost, s.value))));
+}
+
+// Critical signals. Any one forces a Stop, whatever the lead's score or tier: a high score can't hide a
+// disqualifier. Each comes from a rule we already wrote down, and returns the reason to print, or nothing.
+// The list only adds Stop reasons, so it can turn a Go or Conditional into a Stop and never the reverse.
+// Missing data (no contact, no evidence) is checked separately in gateOf.
+const CRITICAL_SIGNALS = [
+  // Opt-outs are final (CLAUDE.md hard rule 7).
+  (lead, list) => {
+    const hit = suppressionHit(lead, list);
+    return hit && `suppressed (${hit.value})`;
+  },
+  // Disqualified or lost (pipeline/lead-schema.md, statuses).
+  (lead) => ['disqualified', 'lost'].includes(lead.status) && `status is ${lead.status}`,
+  // A person put the lead on hold (leads.mjs hold).
+  (lead) => lead.hold && `on hold (${lead.hold.owner}): ${lead.hold.reason}`,
+  // knowledge/company.md, outreach policy: never contact competitors.
+  (lead) => lead.competitor && `competitor${typeof lead.competitor === 'string' && lead.competitor.trim() ? `: ${lead.competitor.trim()}` : ''}`,
+  // knowledge/company.md, outreach policy: never contact personal (non-work) email addresses.
+  (lead) => {
+    const host = lead.contact?.channel === 'email' ? String(lead.contact.value || '').toLowerCase().split('@').pop() : '';
+    return PERSONAL_MAIL.has(host) && `personal email address (${host})`;
+  },
+  // memory/MAIN.md, 2026-10-30: a support-only inbox never gets a Go. A support desk isn't a sales route.
+  (lead) => contactQuality(lead.contact) === 'support' && 'support-only inbox',
+];
+
 // The last check before outreach is drafted or sent. Conditional means a person decides.
 function gateOf(lead, list) {
-  const stop = [];
+  const stop = CRITICAL_SIGNALS.map((signal) => signal(lead, list)).filter(Boolean);
   const conditional = [];
-  if (suppressedBy(lead, list)) stop.push('suppressed');
-  if (['disqualified', 'lost'].includes(lead.status)) stop.push(`status is ${lead.status}`);
   if (!lead.contact?.value) stop.push('no published contact');
   else if (!GATE_CHANNELS.has(lead.contact.channel)) conditional.push(`contact is ${lead.contact.channel}; policy allows email and LinkedIn`);
-  if (contactQuality(lead.contact) === 'support') conditional.push('support-only inbox');
-  if (lead.hold) stop.push(`on hold (${lead.hold.owner}): ${lead.hold.reason}`);
   const evidence = (lead.evidence || []).filter((e) => !e.superseded);
   if (!evidence.length) stop.push('no evidence');
   const age = daysSince(lead.researched_at);
@@ -403,6 +445,8 @@ function importBatch(file) {
       const { name = '', role = '', channel, value, source_url } = lead.contact;
       fields.contact = { name, role, channel, value: value.trim(), source_url };
     }
+    // A critical signal in the gate. Re-importing a lead without it never clears it.
+    if (lead.competitor) fields.competitor = lead.competitor.trim();
 
     const existing = byId.get(id);
     if (existing) {
