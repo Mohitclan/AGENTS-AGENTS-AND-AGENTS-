@@ -107,3 +107,6 @@ html.immersive.nav-open .voice-fab { top: 70px; }
 @keyframes vp-bar { 0%, 100% { height: 6px; } 50% { height: 28px; } }
 @keyframes vp-in { from { opacity: 0; transform: translateY(-6px) scale(.97); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .voice *, .voice-panel { animation: none !important; } }
+.vp-tip { margin: 2px 0 6px; font-size: 11.5px; color: #6b6a85; }
+.vp-tip b { color: #4c3d8a; }
+.vp-row.small .check + .check { margin-left: 12px; }
