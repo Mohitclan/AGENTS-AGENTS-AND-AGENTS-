@@ -178,8 +178,27 @@ textarea { width: 100%; resize: vertical; min-height: 76px; }
 /* ---- tables, logs, lanes ---- */
 .wide { overflow-x: auto; }
 .tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
-.tbl th { text-align: left; font-weight: 600; color: var(--muted); font-size: 12px; padding: 8px; border-bottom: 1px solid var(--line2); position: sticky; top: 0; background: var(--panel); }
-.tbl td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.tbl th { text-align: left; font-weight: 600; color: var(--muted); font-size: 11px; letter-spacing: .04em; text-transform: uppercase; padding: 9px 8px; border-bottom: 1px solid var(--line2); position: sticky; top: 0; z-index: 1; background: color-mix(in srgb, var(--panel) 82%, transparent); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.tbl td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; transition: background .2s; }
+.tbl tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--line) 35%, transparent); }
+.tbl tbody tr { transition: box-shadow .2s; }
+.tbl tbody tr:hover td { background: color-mix(in srgb, var(--accent, #8b6cff) 9%, transparent); }
+.tbl tbody tr:hover { box-shadow: inset 3px 0 0 var(--accent, #8b6cff); }
+.entering .tbl tbody tr { animation: row-in .45s cubic-bezier(.2, .8, .3, 1) both; }
+.entering .tbl tbody tr:nth-child(1) { animation-delay: 40ms; } .entering .tbl tbody tr:nth-child(2) { animation-delay: 80ms; }
+.entering .tbl tbody tr:nth-child(3) { animation-delay: 120ms; } .entering .tbl tbody tr:nth-child(4) { animation-delay: 160ms; }
+.entering .tbl tbody tr:nth-child(5) { animation-delay: 200ms; } .entering .tbl tbody tr:nth-child(6) { animation-delay: 240ms; }
+.entering .tbl tbody tr:nth-child(7) { animation-delay: 280ms; } .entering .tbl tbody tr:nth-child(n+8) { animation-delay: 320ms; }
+.entering .kpi, .entering .card { animation: card-in .5s cubic-bezier(.2, .8, .3, 1) both; }
+.entering .kpi:nth-child(2) { animation-delay: 50ms; } .entering .kpi:nth-child(3) { animation-delay: 100ms; } .entering .kpi:nth-child(4) { animation-delay: 150ms; }
+.entering .kpi:nth-child(5) { animation-delay: 200ms; } .entering .kpi:nth-child(6) { animation-delay: 250ms; } .entering .kpi:nth-child(n+7) { animation-delay: 300ms; }
+.kpi { transition: transform .2s, border-color .2s, box-shadow .2s; }
+.kpi:hover { transform: translateY(-2px); border-color: var(--line2); box-shadow: 0 6px 18px rgba(0, 0, 0, .12); }
+.kpi-bump .kpi-v { animation: kpi-bump .6s ease-out; }
+@keyframes row-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes card-in { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes kpi-bump { 40% { transform: scale(1.12); color: var(--accent, #8b6cff); } }
+@media (prefers-reduced-motion: reduce) { .entering .tbl tbody tr, .entering .kpi, .entering .card, .kpi-bump .kpi-v { animation: none; } }
 .tbl tr.s-failed td { background: rgba(255, 77, 94, .05); }
 .filters { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
 .filters label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }

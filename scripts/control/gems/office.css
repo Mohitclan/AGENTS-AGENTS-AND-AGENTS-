@@ -190,3 +190,22 @@
   #office-host { overflow-x: auto; margin: 0 -16px; padding: 0 16px 6px; -webkit-overflow-scrolling: touch; }
   #office-host .o-room { min-width: 780px; }
 }
+
+/* ---- arrival, steam, fairy lights ---- */
+.o-actor.o-enter { animation: o-enter-pop .7s cubic-bezier(.3, 1.6, .5, 1) both; }
+.o-desk.o-enter { animation: o-enter-rise .6s cubic-bezier(.2, .9, .3, 1) both; }
+.o-steam { opacity: 0; }
+.o-desk.busy .o-steam { opacity: .85; }
+.o-desk.busy .o-steam path { animation: o-steam 2.2s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 100%; }
+.o-desk.busy .o-steam path:nth-child(2) { animation-delay: -1.1s; }
+.o-fairy { position: absolute; left: 1%; right: 1%; top: 1.2%; height: 4%; z-index: 520; pointer-events: none; display: flex; justify-content: space-between; align-items: flex-start;
+  background: radial-gradient(ellipse 52% 120% at 50% -60%, transparent 96%, rgba(150, 120, 200, .55) 97%, transparent 99%); }
+.o-fairy i { width: 0.55cqw; height: 0.55cqw; border-radius: 50%; margin-top: calc(var(--sag, 0) * 1cqw); background: #ffe7a8; box-shadow: 0 0 0.6cqw rgba(255, 220, 140, .9); opacity: .5; animation: o-twinkle 3s ease-in-out infinite; }
+.o-fairy i:nth-child(3n) { background: #ffc2d8; box-shadow: 0 0 0.6cqw rgba(255, 150, 190, .9); animation-delay: -1s; }
+.o-fairy i:nth-child(3n+1) { background: #c9e9ff; box-shadow: 0 0 0.6cqw rgba(150, 210, 255, .9); animation-delay: -2s; }
+.night .o-fairy i, .dusk .o-fairy i { opacity: 1; }
+.o-desk:hover { filter: brightness(1.03); }
+@keyframes o-enter-pop { 0% { opacity: 0; transform: translate(-50%, -100%) translateY(3cqw) scale(.4); } 60% { opacity: 1; } 100% { opacity: 1; transform: translate(-50%, -100%); } }
+@keyframes o-enter-rise { from { opacity: 0; transform: translate(-50%, -100%) translateY(2cqw); } to { opacity: 1; transform: translate(-50%, -100%); } }
+@keyframes o-steam { 0% { transform: translateY(0) scaleY(.6); opacity: 0; } 40% { opacity: .9; } 100% { transform: translateY(-40%) scaleY(1.1); opacity: 0; } }
+@keyframes o-twinkle { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
