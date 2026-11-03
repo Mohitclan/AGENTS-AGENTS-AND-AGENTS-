@@ -1,4 +1,4 @@
-// The opening: a black screen where the SubE Gems crystal draws itself in light, the name appears,
+// The opening: a black screen where the panscience crystal draws itself in light, the name appears,
 // the gems pop into orbit, and the view flies through the crystal into the office. About three
 // seconds; a click, a tap or any key skips it, and reduced motion turns it into a short fade.
 import { badgeImg } from './avatar.js';
@@ -34,7 +34,7 @@ export function playIntro() {
           <path class="ig-line" d="M60 10l44 30-12 68H28L16 40z"/>
           <path class="ig-line ig-inner" d="M16 40h88M60 10L44 40l16 68 16-68L60 10"/>
         </svg>
-        <h1 class="intro-title">SubE <span>Gems</span></h1>
+        <h1 class="intro-title">pan<span>science</span></h1>
         <p class="intro-sub">Your AI sales team is getting to work</p>
       </div>
       <button type="button" class="intro-skip">Skip</button>`;

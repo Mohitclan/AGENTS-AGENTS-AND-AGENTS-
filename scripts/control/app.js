@@ -5,11 +5,11 @@ import { avatarHTML, badgeImg, mountAvatars, setAvatarStatus } from './gems/avat
 import { createDock } from './gems/dock.js';
 import { createGallery } from './gems/gallery.js';
 import { identityFor } from './gems/identities.js';
-import { createOffice } from './gems/office.js';
 import { playIntro } from './gems/intro.js';
 import { createDemo } from './gems/simulator.js';
 import { normalizeState, STATE_LABEL } from './gems/status.js';
 import { createVoice } from './gems/voice.js';
+import { mountOffice } from './office3d/mount.js';
 
 // The agents' names and jobs as people read them. Their characters live in gems/identities.js.
 const AGENTS = {
@@ -92,7 +92,7 @@ function setMeters(root = document) {
 function shell() {
   $('#app').innerHTML = `
   <aside class="side" id="side">
-    <a class="brand" href="#/"><span class="brand-mark" aria-hidden="true"></span><span>SubE Gems</span></a>
+    <a class="brand" href="#/"><span class="brand-mark" aria-hidden="true"></span><span>panscience</span></a>
     <nav class="nav" aria-label="Pages">
       <a href="#/" data-nav="home">Home</a>
       <a href="#/working" data-nav="working">Working</a>
@@ -655,7 +655,7 @@ const home = {
     $('#view').innerHTML = `<div class="home" id="home"><div id="home-office"></div>
       <div class="hud hud-status" id="hud-status"><i class="live-dot"></i><span></span></div>
       <div class="hud hud-demo" id="hud-demo"></div></div>`;
-    home.office = createOffice($('#home-office'), { roster: roster(), immersive: true, onOpen: (name) => home.card(name) });
+    home.office = mountOffice($('#home-office'), { roster: roster(), immersive: true, onOpen: (name) => home.card(name) });
     home.demo = attachDemo({
       office: home.office,
       controls: $('#hud-demo'),
@@ -720,7 +720,7 @@ const working = {
     const open = (name) => {
       location.hash = `#/agent/${name}`;
     };
-    working.office = createOffice($('#office-host'), { roster: roster(), onOpen: open });
+    working.office = mountOffice($('#office-host'), { roster: roster(), onOpen: open });
     $('#who').innerHTML = roster().map((a) => `<li><button type="button" data-agent="${esc(a.name)}">${avatarHTML(a.name, { mode: 'badge', size: 'sm', status: a.status })}<span class="who-t"><span class="who-n">${esc(identityFor(a.name).name)}</span> <span class="muted tiny">${esc(agentName(a.name))}</span><span class="who-d"></span></span><span class="st-pill"></span></button></li>`).join('');
     mountAvatars($('#who'));
     $('#who').addEventListener('click', (e) => {
