@@ -7,6 +7,8 @@
 //
 // Types: general (reports, proposals, plans), email (outreach sequences), social, seo (web pages, posts).
 // Exit 1 if anything fails. Warnings are for the author and the evaluator to judge.
+// Style signals (superlatives, unsourced quotes, vocabulary, rhythm, em dashes, tracking parameters,
+// email sequences) only ever warn; none of them is proof of anything about who wrote the text.
 // Method adapted from kai-cmo-harness scripts/quality_gates (MIT); see docs/CREDITS.md.
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
@@ -128,6 +130,183 @@ function checkMutations(lines, start, report) {
   });
 }
 
+// ---- Style signals (warnings only) ---------------------------------------------------------------
+// Added in T-20261103-04 (A1, A3, A18, B6, B16). None of these can fail a check: a signal means "look
+// at this wording", not "this is wrong". Method ideas adapted from public MIT and Apache-2.0 projects;
+// the wording, lists and thresholds are ours. See docs/CREDITS.md.
+const LEADING_CLAIM = /\b(?:(?:the|a|an|our|its|their)\s+leading\b|leading\s+(?:provider|platform|tool|solution|brand|company|vendor|player|choice|source|name)s?\b|(?:industry|market|category)[- ]leading\b)/i;
+const RANK_ONE = /(?<![\w&])#1(?!\w)/;
+const QUOTED = /"([^"\n]*)"|“([^”\n]*)”/g;
+const QUOTE_MIN_WORDS = 6;
+// Quoted speech: someone is said to have said it. A quoted page excerpt or a line of our own copy is not.
+const SPEECH_CUE = /\b(said|says|told|wrote|writes|tweeted|posted|replied|according to|testimonial|quotes?d?|described|put it)\b|["”]\s*[—–-]\s*[A-Z]/i;
+// "the only" is a claim when it names a product or a way; "the only person named" is not.
+const ONLY_CLAIM = /\bthe only (?:[\w-]+ ){0,2}?(?:tool|platform|product|app|solution|service|way|option|choice|company|provider|vendor|software)\b/i;
+const NEGATED = /\b(do not|don't|never|avoid|must not|can't|cannot|not claim)\b/i;
+const VAGUE_ATTRIBUTION = /\b(experts|researchers|analysts|studies|research|surveys|industry observers|many people|some people|most people|critics)\s+(say|says|suggest|suggests|believe|agree|show|shows|have found|has found|have shown|has shown)\b/i;
+// Wording that reads as filler, a chatbot leftover or inflated importance. One warning per match.
+const STYLE_PATTERNS = [
+  [/\bplays? an? (crucial|pivotal|vital|key|important|significant) role\b/i, 'template phrase "plays a ... role"'],
+  [/\b(serves?|stands?) as an? (testament|reminder|beacon)\b|\ba testament to\b/i, 'template phrase "a testament to"'],
+  [/\bin the (realm|world|landscape) of\b/i, 'template phrase "in the realm/world of"'],
+  [/\bever[- ](evolving|changing|growing)\b/i, 'template phrase "ever-evolving"'],
+  [/\bit(?:'s|’s| is) worth (mentioning|highlighting|emphasi[sz]ing)\b/i, 'template phrase "it is worth mentioning"'],
+  [/\bwhen it comes to\b/i, 'template phrase "when it comes to"'],
+  [/\bnot only\b[^.\n]{1,80}\bbut also\b/i, 'the "not only X but also Y" formula'],
+  [/\bas an ai (language )?model\b|\bas of my (last|latest) (update|training)\b|\bmy knowledge cut-?off\b/i, 'a chatbot disclaimer left in the text'],
+  [/\bi hope this helps\b|\blet me know if you(?:'d|’d| would) like\b|\bgreat question\b/i, 'a chatbot sign-off left in the text'],
+  [/\blet(?:'s|’s) (dive|delve|explore|unpack|break (it|this) down|get started)\b/i, 'a "Let\'s ..." opener'],
+  [/\b(marks?|marked) a (pivotal|turning|significant|new) (moment|point|era|chapter)\b|\bsetting the stage for\b|\bpaves? the way\b/i, 'inflated importance'],
+  [/\bthe future (looks|is) (bright|promising)\b|\bonly time will tell\b|\bexciting (times|things) (lie )?ahead\b/i, 'a future-narrative closer'],
+  [/^\W*(in summary|to sum up|to summari[sz]e|in short|all in all|overall),/i, 'a generic conclusion opener'],
+  [/\b(may|might|could|can) (potentially|possibly|perhaps)\b|\bit could be argued\b/i, 'stacked hedges'],
+];
+// B16: shapes that read as pattern rather than as a person. Customer-facing types only: in a report a
+// list of three "no" items is an honest scope statement (7 hits in 4 of 28 files in the first pass).
+const SHAPE_PATTERNS = [
+  [/\b(no|not|never|without)\b[^,.;:\n]{1,30},\s+(and\s+)?(no|not|never|without)\b[^,.;:\n]{1,30},\s+(and\s+|or\s+)?(no|not|never|without)\b/i, 'a list of three negations'],
+  [/,\s+(and\s+)?(making|ensuring|allowing|enabling|helping|providing|giving|creating|driving|delivering|reducing|improving|streamlining)\b[^.;\n]*,\s+(and\s+)?(making|ensuring|allowing|enabling|helping|providing|giving|creating|driving|delivering|reducing|improving|streamlining)\b/i, 'two trailing "-ing" clauses piled onto one sentence'],
+];
+const AI_TRACKING_VALUE = /^(chatgpt(\.com)?|openai(\.com)?|perplexity(\.ai)?|claude(\.ai)?|gemini(\.google\.com)?|copilot(\.microsoft\.com)?|grok(\.com)?|deepseek(\.com)?|poe(\.com)?|bard)$/i;
+const URL_RE = /https?:\/\/[^\s<>)\]"'`]+/g;
+
+const hasSourceNear = (lines, i) => {
+  const near = lines.slice(Math.max(0, i - 2), i + 3).join(' ').toLowerCase();
+  return RULES.sourceMarkers.some((m) => near.includes(m));
+};
+
+// Units for the cluster and rhythm checks: a paragraph, a list item or a table row each stand alone.
+function units(lines, start) {
+  const out = [];
+  let cur = null;
+  lines.forEach((line, i) => {
+    if (i < start) return;
+    const t = line.trim();
+    if (!t || /^#{1,6}\s/.test(t) || /^[-=]{3,}$/.test(t)) {
+      cur = null;
+      return;
+    }
+    if (/^\|/.test(t) || /^([-*+]|\d+[.)])\s/.test(t)) {
+      out.push({ line: i + 1, text: t, prose: false });
+      cur = null;
+      return;
+    }
+    if (cur) cur.text += ` ${t}`;
+    else {
+      cur = { line: i + 1, text: t, prose: true };
+      out.push(cur);
+    }
+  });
+  return out;
+}
+
+const plain = (s) => s.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(URL_RE, ' ').replace(/[*_`]/g, '');
+const sentencesOf = (s) => plain(s).split(/(?<=[.!?])\s+(?=["“'(\[]?[A-Z])/).map((x) => x.trim()).filter((x) => countWords(x) > 0);
+
+// A1: claims of being the only, the fastest, the leader or better than someone, and quotes with no source.
+function checkSuperlatives(lines, start, report) {
+  lines.forEach((line, i) => {
+    if (i < start || !line.trim() || /^\s*#/.test(line)) return;
+    const sourced = hasSourceNear(lines, i);
+    const hits = RULES.superlatives.filter((w) => wordRe(w).test(line));
+    if (ONLY_CLAIM.test(line)) hits.push('the only');
+    if (LEADING_CLAIM.test(line)) hits.push('leading');
+    if (RANK_ONE.test(line)) hits.push('#1');
+    if (hits.length && !sourced && !NEGATED.test(line)) report.warn('superlative', i + 1, `${hits.map((h) => `"${h}"`).join(', ')}: a claim that needs a source within two lines, or plainer wording`);
+    if (VAGUE_ATTRIBUTION.test(line) && !sourced) report.warn('vague-attribution', i + 1, `"${line.match(VAGUE_ATTRIBUTION)[0]}": name who, and cite it`);
+    if (!sourced && !OPT_OUT.test(line) && SPEECH_CUE.test(line)) {
+      for (const m of line.matchAll(QUOTED)) {
+        const q = m[1] ?? m[2];
+        if (countWords(q) >= QUOTE_MIN_WORDS && !/\{\{/.test(q)) {
+          report.warn('unsourced-quote', i + 1, `a quotation with no source within two lines: "${q.slice(0, 50)}"`);
+          break;
+        }
+      }
+    }
+  });
+}
+
+// A3: tiered vocabulary, clusters, density and rhythm. Our own lists, in evaluation/voice-rules.json.
+function checkVocabulary(lines, start, words, report, type) {
+  lines.forEach((line, i) => {
+    if (i < start) return;
+    const found = Object.entries(RULES.tier1).filter(([w]) => wordRe(w).test(line));
+    if (found.length) report.warn('vocab-tier1', i + 1, found.map(([w, better]) => `"${w}" (try: ${better})`).join('; '));
+    for (const [re, name] of type === 'general' ? STYLE_PATTERNS : [...STYLE_PATTERNS, ...SHAPE_PATTERNS]) if (re.test(line)) report.warn('template-phrase', i + 1, name);
+  });
+  const all = units(lines, start);
+  for (const u of all) {
+    const hit = RULES.tier2.filter((w) => wordRe(w).test(u.text));
+    if (hit.length >= RULES.tierClusterMin) report.warn('vocab-cluster', u.line, `${hit.length} mild filler words in one paragraph: ${hit.map((w) => `"${w}"`).join(', ')}`);
+  }
+  const text = lines.slice(start).join('\n');
+  let t3 = 0;
+  for (const w of RULES.tier3) t3 += (text.match(new RegExp(wordRe(w).source, 'gi')) || []).length;
+  if (words >= 100 && t3 >= 3 && (t3 / words) * 100 > RULES.tier3LimitPercent) {
+    report.warn('vocab-density', 0, `${t3} common padding words in ${words} words (${((t3 / words) * 100).toFixed(1)}%); keep under ${RULES.tier3LimitPercent}%`);
+  }
+  checkRhythm(all.filter((u) => u.prose), report);
+}
+
+// Rhythm: sentences all about the same length, or three in a row that start with the same word.
+const RHYTHM_MIN_SENTENCES = 10;
+const RHYTHM_SKIP = new Set(['the', 'a', 'an', 'it']); // repeated openers that read fine: all 4 first-pass hits were these
+const RHYTHM_MIN_SPREAD = 0.4;
+function checkRhythm(prose, report) {
+  const lengths = [];
+  for (const u of prose) {
+    const s = sentencesOf(u.text);
+    s.forEach((x) => lengths.push(countWords(x)));
+    for (let k = 0; k + 2 < s.length; k++) {
+      const first = s.slice(k, k + 3).map((x) => (x.match(/[\p{L}']+/u) || [''])[0].toLowerCase());
+      if (first[0] && !RHYTHM_SKIP.has(first[0]) && first[0] === first[1] && first[1] === first[2]) {
+        report.warn('rhythm', u.line, `three sentences in a row start with "${first[0]}"`);
+        break;
+      }
+    }
+  }
+  if (lengths.length >= RHYTHM_MIN_SENTENCES) {
+    const mean = lengths.reduce((a, b) => a + b, 0) / lengths.length;
+    const sd = Math.sqrt(lengths.reduce((a, b) => a + (b - mean) ** 2, 0) / lengths.length);
+    if (mean >= 8 && sd / mean < RHYTHM_MIN_SPREAD) report.warn('rhythm', 0, `${lengths.length} sentences all close to ${Math.round(mean)} words (spread ${(sd / mean).toFixed(2)}, under ${RHYTHM_MIN_SPREAD}); vary the length`);
+  }
+}
+
+// Em dashes are never banned. Warn above about one per 1,000 words; a single one is always fine.
+function checkEmDashes(lines, start, words, report) {
+  let count = 0;
+  let first = 0;
+  lines.forEach((line, i) => {
+    if (i < start) return;
+    const n = (line.replace(/\|\s*—\s*(?=\|)/g, '|').match(/—/g) || []).length;
+    if (n && !first) first = i + 1;
+    count += n;
+  });
+  const allowed = Math.max(1, (words / 1000) * RULES.emDashPer1000Words);
+  if (count > allowed) report.warn('em-dash', first, `${count} em dashes in ${words} words, above about ${RULES.emDashPer1000Words} per 1,000. A style signal, not a ban: a person decides`);
+}
+
+// A18, all types: a tracking parameter naming an AI assistant means the link was copied from an
+// assistant's answer, not opened. It lives here, not in check-links.mjs, which strips trailing
+// punctuation before testing a link. (Punctuation stuck to a URL is an email check: see checkSequence.)
+function checkUrls(lines, start, report) {
+  lines.forEach((line, i) => {
+    if (i < start) return;
+    for (const m of line.matchAll(URL_RE)) {
+      const raw = m[0];
+      const url = raw.replace(/[.,;:!?*_]+$/, '');
+      let params = [];
+      try {
+        params = [...new URL(url).searchParams];
+      } catch {
+        continue;
+      }
+      const bad = params.filter(([, v]) => AI_TRACKING_VALUE.test(v));
+      if (bad.length) report.warn('ai-url-param', i + 1, `${bad.map(([k, v]) => `${k}=${v}`).join(', ')} in ${url.slice(0, 60)}: copied from an assistant's answer? Open the page and cite the clean URL`);
+    }
+  });
+}
+
 // One entry per email: a heading such as "## Email 2", ending at the next heading of the same or a
 // higher level, so a "## LinkedIn" section isn't counted as part of the last email.
 function splitEmails(lines, start) {
@@ -168,6 +347,46 @@ function checkEmails(lines, start, report) {
   }
 }
 
+// B6, sequence level: what checkEmails can't see because it reads each email alone. Warnings only.
+const MEETING_ASK = /\b(book|schedule|set up|grab|hop on|jump on|get on)\b[^.?!\n]{0,25}\b(call|demo|meeting|chat)\b|\bcalendly\b|\b(quick|short|15[- ]minute|20[- ]minute|30[- ]minute|\d+[- ]min(ute)?)\s+(call|chat|demo)\b|\bcan we (talk|chat|speak|jump)\b/i;
+const EXISTING_BOOKING_ASK = /\bbook (a|your) (call|demo|meeting)\b|\bcalendly\b/i;
+
+// The one ask an email ends on: the last question, else the last sentence with a link in it.
+function ctaOf(part, subjectAt) {
+  const body = part.filter((l, k) => k !== subjectAt && !/^#/.test(l) && l.trim() && !/^\W*(best|thanks|regards|cheers)\b/i.test(l) && !/^\{\{/.test(l.trim()));
+  const sentences = plain(body.join(' ')).split(/(?<=[.!?])\s+/).filter((s) => s.trim() && !OPT_OUT.test(s));
+  const q = [...sentences].reverse().find((s) => s.includes('?'));
+  const sentence = q || [...sentences].reverse().find((s) => /https?:\/\//.test(s)) || '';
+  const raw = body.join(' ');
+  if (!sentence) return 'none';
+  if (MEETING_ASK.test(sentence) || /\b(call|chat|meeting|calendar|zoom)\b/i.test(sentence)) return 'meeting';
+  if (/\b(send|share|forward|want me to|should i|shall i)\b/i.test(sentence)) return 'send';
+  if (/\b(try|sign up|trial|start|see (it|the|a))\b/i.test(sentence) || (!q && /https?:\/\//.test(raw))) return 'link';
+  return q ? 'question' : 'none';
+}
+
+function checkSequence(lines, start, report) {
+  const emails = splitEmails(lines, start);
+  const subjects = new Map();
+  let previous = null;
+  for (const email of emails) {
+    const part = lines.slice(email.from, email.to);
+    const subjectAt = part.findIndex((l) => /^\W*subject\W*:/i.test(l));
+    const subject = subjectAt >= 0 ? part[subjectAt].replace(/^\W*subject\W*:\W*/i, '').replace(/^(re|fwd?)\s*:\s*/i, '').trim().toLowerCase() : '';
+    if (subject) {
+      if (subjects.has(subject)) report.warn('email-sequence', email.from + 1, `email ${email.n} repeats the subject of email ${subjects.get(subject)}; make each subject distinct`);
+      else subjects.set(subject, email.n);
+    }
+    const text = part.filter((l, k) => k !== subjectAt && !/^#/.test(l)).join(' ');
+    if (email.n === 1 && MEETING_ASK.test(text) && !EXISTING_BOOKING_ASK.test(text)) report.warn('email-sequence', email.from + 1, 'email 1 asks for a call or meeting; the first step should be a question or a sample, not a meeting');
+    const stuck = [...text.matchAll(URL_RE)].map((m) => m[0]).find((u) => /[.,;:!?*_]$/.test(u));
+    if (stuck) report.warn('url-punctuation', email.from + 1, `email ${email.n}: "${stuck.slice(-1)}" is stuck to the end of a link (${stuck.slice(0, 50)}) and can break it; leave a space or a line break after the URL`);
+    const cta = ctaOf(part, subjectAt);
+    if (cta !== 'none' && cta === previous?.cta) report.warn('email-sequence', email.from + 1, `email ${email.n} ends on the same kind of ask as email ${previous.n} (${cta}); change the ask from one email to the next`);
+    previous = { n: email.n, cta };
+  }
+}
+
 function checkSocial(lines, start, report) {
   const text = lines.slice(start).join('\n').trim();
   if (/https?:\/\//.test(text.slice(0, 600))) report.warn('social-link', 0, 'a link in the post body cuts reach; put it in the first comment');
@@ -202,11 +421,18 @@ function lint(file, type, keyword) {
   const lines = proseLines(readFileSync(file, 'utf8'));
   const start = bodyStart(lines);
   const report = new Report();
-  checkWords(lines, start, report);
+  const words = checkWords(lines, start, report);
   checkMarkers(lines, start, report);
   checkClaims(lines, start, report, type === 'general' || type === 'seo' ? 'fail' : 'warn');
+  checkSuperlatives(lines, start, report);
+  checkVocabulary(lines, start, words, report, type);
+  checkEmDashes(lines, start, words, report);
+  checkUrls(lines, start, report);
   if (type === 'general') checkMutations(lines, start, report);
-  if (type === 'email') checkEmails(lines, start, report);
+  if (type === 'email') {
+    checkEmails(lines, start, report);
+    checkSequence(lines, start, report);
+  }
   if (type === 'social') checkSocial(lines, start, report);
   if (type === 'seo') checkSeo(lines, start, report, keyword || '');
   return report;

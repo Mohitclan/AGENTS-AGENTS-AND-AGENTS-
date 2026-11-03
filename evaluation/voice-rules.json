@@ -26,6 +26,48 @@
   },
   "weak": ["very", "really", "just", "actually", "basically", "literally", "honestly", "frankly", "clearly", "obviously", "simply", "a lot", "kind of", "sort of"],
   "weakLimitPer100Words": 2,
+  "_styleComment": "Warn-only settings, our own word lists. superlatives: claims that need a source (patterns for 'the only', 'leading' and '#1' are in lint-copy.mjs). tier1: warn on every use, with a plainer word. tier2: warn when tierClusterMin or more different ones sit in one paragraph. tier3: fine now and then, warn when they pass tier3LimitPercent of the words. These are style signals for the author and the evaluator, never proof of anything.",
+  "superlatives": ["fastest", "number one", "number 1", "better than", "cheaper than"],
+  "tier1": {
+    "delve": "dig into, or look at",
+    "delves": "digs into, or looks at",
+    "delving": "digging into, or looking at",
+    "delved": "dug into, or looked at",
+    "tapestry": "mix, or name the parts",
+    "realm": "area, or field",
+    "embark": "start",
+    "pivotal": "key, or say why it matters",
+    "intricate": "detailed, or complex",
+    "meticulous": "careful",
+    "meticulously": "carefully",
+    "vibrant": "say what it looks like",
+    "bustling": "busy",
+    "unleash": "release, or start",
+    "elevate": "improve",
+    "underscore": "show",
+    "underscores": "shows",
+    "garner": "get",
+    "plethora": "many",
+    "myriad": "many",
+    "multifaceted": "complex, or name the sides",
+    "spearhead": "lead",
+    "cornerstone": "base, or main part",
+    "beacon": "name what it does",
+    "treasure trove": "name what is in it"
+  },
+  "tier2": [
+    "robust", "comprehensive", "crucial", "vital", "innovative", "dynamic", "ecosystem", "landscape",
+    "harness", "showcase", "streamline", "streamlined", "enhance", "enhances", "enhancing", "notably", "moreover",
+    "furthermore", "additionally", "ultimately", "essentially", "nuanced", "navigate", "resonate"
+  ],
+  "tierClusterMin": 2,
+  "tier3": [
+    "important", "significant", "significantly", "key", "various", "numerous", "effectively", "overall",
+    "indeed", "particularly", "especially", "ensure", "ensures", "ensuring", "unique", "notable",
+    "valuable", "critical", "essential", "effective"
+  ],
+  "tier3LimitPercent": 3,
+  "emDashPer1000Words": 1,
   "bannedOpeners": [
     "i came across", "i wanted to reach out", "i'm reaching out", "i am reaching out", "i noticed", "i saw",
     "we help companies like yours", "we help companies like", "my name is", "hope you", "hi there, i", "quick question"
