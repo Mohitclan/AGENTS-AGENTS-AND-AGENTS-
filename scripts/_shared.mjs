@@ -130,6 +130,10 @@ const NOT_A_HANDLE = {
   'dev.to': ['t', 'tags', 'listings', 'dashboard', 'new', 'enter', 'videos', 'pod', 'readinglist', 'top', 'latest', 'api'],
   'calendly.com': ['app', 'event_types'],
 };
+// Hosts whose profile URL has no @, though people often type one: x.com/@asha is x.com/asha.
+const AT_DROPPED = new Set(['x.com', 'instagram.com', 'github.com', 'gitlab.com', 'facebook.com', 'peerlist.io', 'dev.to', 'linktr.ee',
+  'calendly.com', 'bento.me', 'about.me', 'read.cv']);
+const dropAt = (host, path) => (AT_DROPPED.has(host) ? path.replace(/^\/@(?=[^/])/, '/') : path);
 // A page that is named by a query parameter, not by its path: facebook.com/profile.php?id=123.
 const QUERY_IDENTIFIED = { 'facebook.com': { 'profile.php': 'id' } };
 
@@ -140,22 +144,28 @@ const MULTI_SUFFIXES = new Set(['co.uk', 'org.uk', 'ac.uk', 'gov.uk', 'me.uk', '
   'com.hk', 'co.kr', 'com.tr', 'com.ar', 'com.my', 'co.id', 'com.ph', 'com.pk', 'com.ng', 'co.ke', 'com.eg', 'com.sa', 'com.vn', 'com.tw',
   'co.il', 'com.co', 'com.ua', 'com.pl']);
 
+// Other names for the same site. Threads moved from threads.net to threads.com on 2025-04-24; both are stored as
+// threads.net, so an entry or a lead written either way meets the other.
+const ALIAS_HOSTS = { 'threads.com': 'threads.net', 'fb.com': 'facebook.com', 'instagr.am': 'instagram.com', 'angel.co': 'wellfound.com' };
+
 const underHost = (host, base) => host === base || host.endsWith(`.${base}`);
 const isEmail = (s) => /^[^\s@/]+@[^\s@/]+\.[^\s@/]+$/.test(s);
 const isPublicSuffix = (host) => !host.includes('.') || MULTI_SUFFIXES.has(host);
 const isSharedHost = (host) => SHARED_HOSTS.some((b) => underHost(host, b));
 
-// The same site under its other names: www., m., mobile., LinkedIn's country sites, twitter.com for x.com.
+// The same site under its other names: www., m., mobile., LinkedIn's country sites, Facebook's web./mbasic./touch.
+// hosts, twitter.com for x.com, and the ALIAS_HOSTS above.
 // Never cuts a host down to a public suffix: mobile.de stays mobile.de, www.com stays www.com.
 function canonicalHost(host) {
   let h = String(host).toLowerCase().replace(/\.$/, '');
   const www = h.replace(/^www\./, '');
   if (www !== h && !isPublicSuffix(www)) h = www;
   const mobile = h.replace(/^(m|mobile)\./, '');
-  if (mobile !== h && isSharedHost(mobile)) h = mobile;
+  if (mobile !== h && (isSharedHost(mobile) || ALIAS_HOSTS[mobile])) h = mobile;
   if (underHost(h, 'linkedin.com')) h = 'linkedin.com';
+  if (/^(web|mbasic|touch)\.facebook\.com$/.test(h)) h = 'facebook.com';
   if (h === 'twitter.com') h = 'x.com';
-  return h;
+  return ALIAS_HOSTS[h] ?? h;
 }
 
 // The path segments that name one person on a path host, or null when the page names no one (a message thread, a post,
@@ -163,7 +173,7 @@ function canonicalHost(host) {
 function profileSegments(host, segs) {
   const s = host === 'linkedin.com' && segs[0] === 'comm' ? segs.slice(1) : segs;
   const [first] = s;
-  if (!first) return null;
+  if (!first || first === '@') return null;
   const only = PROFILE_ONLY[host];
   if (only) {
     if (only.named?.includes(first)) return s.length >= 2 ? s.slice(0, 2) : null;
@@ -202,7 +212,7 @@ export function normalizeProfileUrl(text) {
   const u = parseWebAddress(text);
   if (!u) return null;
   const host = canonicalHost(u.hostname);
-  const path = u.pathname.toLowerCase().replace(/\/+$/, '').replace(host === 'linkedin.com' ? /^\/comm(?=\/)/ : /^$/, '');
+  const path = dropAt(host, u.pathname.toLowerCase()).replace(/\/+$/, '').replace(host === 'linkedin.com' ? /^\/comm(?=\/)/ : /^$/, '');
   const param = QUERY_IDENTIFIED[host]?.[path.split('/')[1]];
   const id = param && u.searchParams.get(param);
   return `https://${host}${path}${id ? `?${param}=${id.toLowerCase()}` : ''}`;
@@ -213,7 +223,13 @@ export function normalizeProfileUrl(text) {
 // a shared-root entry (linkedin.com, https://www.linkedin.com/, https://linkedin.com/in) is read as "this whole
 // host", and a person must replace it; an invalid one covers nobody. leads.mjs check fails on both.
 function readSuppression(input) {
-  const raw = stripMailto(String(input ?? '').trim().toLowerCase());
+  // People paste an address with a wrapper or a stop after it: <asha@acme.com>, "asha@acme.com", (asha@acme.com),
+  // asha@acme.com. A value stored with them would match nobody, so they come off first.
+  const unwrap = (t) => t.replace(/^[<("'\[]+/, '').replace(/[>)"'\],;:.?]+$/, '');
+  const raw = unwrap(stripMailto(unwrap(String(input ?? '').trim().toLowerCase())));
+  if (/[<>()",;]/.test(raw)) {
+    return { kind: 'invalid', value: raw, error: `"${input}" has brackets, quotes or commas inside it. Give the bare address or URL` };
+  }
   if (isEmail(raw)) return { kind: 'email', value: raw };
   const hostText = raw.replace(/^[a-z][a-z0-9+.-]*:\/\//, '').split(/[/?#]/)[0];
   if (hostText.startsWith('.') || hostText.includes('*')) {
@@ -235,7 +251,7 @@ function readSuppression(input) {
   const shape = only?.named ? `${only.named[0]}/<name>` : only?.at ? '@<name>' : '<name>';
   const example = pathHost ? `https://${host}/${shape}` : `https://<name>.${host}`;
   const root = (why) => ({ kind: 'shared-root', value: host, error: `${why} Give the person's profile URL instead, for example ${example}` });
-  const segs = u.pathname.split('/').filter(Boolean).map((x) => x.toLowerCase());
+  const segs = dropAt(host, u.pathname.toLowerCase()).split('/').filter(Boolean);
   if (host === shared && !segs.length) {
     return root(`${host} is a shared site: suppressing it would cover everyone who has a page there.`);
   }
