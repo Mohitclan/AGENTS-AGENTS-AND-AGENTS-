@@ -9,6 +9,7 @@ skills:
   - fact-sourcing
   - claim-check
   - self-review
+  - comparison-page
 can_ask:
   - knowledge-base
   - marketing

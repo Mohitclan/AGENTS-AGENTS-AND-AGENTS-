@@ -16,8 +16,12 @@ Add and remove entries with `/teach` and `/forget`, or with `node scripts/memory
 - 2026-11-02 · Pilot (from 2026-11-02): agents may research, scrape and draft freely, but nothing is sent to a prospect until people have reviewed and approved the draft's wording. Test sends go only to Sushant Mishra (sushant.789.mishra@gmail.com); ops/mail-config.json enforces this with pilot.allow_only. (source: told by suryanshu on 2026-11-02 · by: human)
 - 2026-11-02 · Agent runs on the Max plan are allowed only as limited tests during the pilot; a person is asked before each run that uses plan limits. (source: told by suryanshu on 2026-11-02 · by: human)
 - 2026-11-02 · Send reports from scripts/send-email.mjs go to Sushant Mishra (sushant.789.mishra@gmail.com) during the pilot, until suryanshu changes it; they went to Raj before. (source: told by suryanshu on 2026-11-02 · by: human)
+- 2026-11-03 · Copy checks warn when a text uses more than about one em dash per 1,000 words; em dashes are never banned outright. (source: told by suryanshu on 2026-11-03 ("do recommended") · by: coordinator)
+- 2026-11-03 · Agents may only read from HubSpot: lead-generator, sales and their backups get ten named read-only HubSpot tools, never a wildcard. Any CRM change goes to a person first. (source: told by suryanshu on 2026-11-03 (A-20261103-01) · by: coordinator)
 
 ## Preferences
+
+- 2026-11-03 · The human wants the coordinator to decide and keep going without asking before each step: make the safest reasonable call, record it as an assumption, and list open questions at the end. Sends, posts, pushes and confirming knowledge still need a person's specific yes. (source: told by suryanshu on 2026-11-03 ("you are allowed dont ask me before every command") · by: coordinator)
 
 ## Lessons
 
@@ -25,3 +29,4 @@ Add and remove entries with `/teach` and `/forget`, or with `node scripts/memory
 - 2026-10-30 · The lead gate's Go is arithmetic only: it trusts the score and doesn't read claims, and with --status all it shows Go on a lead that hasn't passed review. A Go needs both a passed review and a qualified status before anyone drafts. (source: outputs/reviews/T-20261030-06-r3.md · by: coordinator)
 - 2026-10-30 · A clean lint-copy says nothing about whether claims are true: it passed drafts holding an auto-fail claim. It checks form only, so only a review clears copy. (source: outputs/reviews/T-20261030-07-r1.md · by: coordinator)
 - 2026-11-01 · Launch listings show launches that already happened, so they cannot show segment 1's launch in the next 60 days. Plan another source for that test, or a person, instead of expecting it from listings. A past launch alone does not pass it. (source: outputs/reviews/T-20261101-03-r3.md · by: coordinator)
+- 2026-11-03 · When a request asks for more items than the allowed source holds (venues, leads, examples), deliver what the source has plus labelled gap rows handed to the owner; never stretch a near-match or add from memory to hit the count. (source: J-20261103-02, outputs/reviews/T-20261103-13-r1.md · by: coordinator)

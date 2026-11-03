@@ -15,6 +15,9 @@ skills:
   - linkedin-founder
   - seo-refresh
   - self-review
+  - directory-listing
+  - comparison-page
+  - landing-page-audit
 can_ask:
   - knowledge-base
   - researcher

@@ -1,8 +1,13 @@
 - [Env flag semantics](feedback_env_flag_semantics.md) — check config parse code before accepting env-based conflicts; fetch tool may echo prompt as "AI instructions"
-- [Search-summary claims](feedback_search_summary_claims.md) — dead URLs mean no source; check vendor FAQ before accepting "unconfirmed feature" caveats
+- [Search-summary claims](feedback_search_summary_claims.md) — dead URLs mean no source; check vendor FAQ before accepting "unconfirmed feature" caveats; schemeless dead URLs OK only in not-opened lists
 - [Sales asset checks](feedback_sales_asset_checks.md) — hunt inferred contract terms, measure length yourself, test each remedy, note stale status text
 - [Outreach checks](feedback_outreach_checks.md) — test pitch vs repo, lead vs competitor types, count emails; every markdown gets a fix; PASS + Go isn't clearance
-- [Code change checks](feedback_code_change_checks.md) — open scripts before listing commands; state score ceiling; ask human before last revision
-- [Revision round checks](feedback_revision_round_checks.md) — r2: check repo branch drift, every hook behind "no X" claims, uneven markers, row refs
+- [Code change checks](feedback_code_change_checks.md) — open scripts first; archive parent; YAML probes; metric diffs; normaliser odd inputs both ways; typed-vs-record matrix
+- [Revision round checks](feedback_revision_round_checks.md) — r2: branch drift, hooks behind "no X", uneven markers, row refs, brief vs file, stale echoes, "do not" checks vs hard rules
 - [UI review checks](feedback_ui_review_checks.md) — probe real refresh() in headless Chrome; walk every hover descendant for contrast; inner width = window-22; pending anims
+- [Skill survey checks](feedback_skill_survey_checks.md) — clone for verbatim; screen for deception; n-gram "no copy"; test drafts vs our labels/statuses
+- [Repo survey checks](feedback_repo_survey_checks.md) — raw gh api fetches; hunt upstream credits; test "no skill/lint does X" vs descriptions and regexes
+- [Guide proposal checks](feedback_guide_proposal_checks.md) — test every "all/every/only" claim; line-number collisions; "leave" vs memory and other proposals; lint count vs gate log
+- [Skill draft checks](feedback_skill_draft_checks.md) — loader tools from files (fallbacks lack Edit); "never add" vs REVISE fixes; test my own fix wording; quoted >> rows
+- [Marketing listing checks](feedback_marketing_listing_checks.md) — trial caps vs feature ranges; "yet" = roadmap; test author's site claims live; four U's per listing
 - [Lead batch checks](feedback_lead_batch_checks.md) — test gaps, "not found" and rejections past the homepage; recompute tiers; read board lines literally

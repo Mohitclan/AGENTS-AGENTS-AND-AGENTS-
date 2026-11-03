@@ -46,6 +46,8 @@ Don't weaken the segment to fill a batch. Fewer real leads beat more weak ones. 
 
 Forum and community posts can reveal buyers, but a keyword hit is only a candidate. Keep one only if the writer is a likely buyer, the intent is clear, and you have their exact words with the URL. Read public pages only, and never post or reply.
 
+Each post you keep becomes one evidence item in the lead record: the exact words (a short quote), the URL of that post or comment, `signal: published`, and `dated` when the page shows a date. Say whether the words come from the post or from a comment, and give the writer's role (post author or commenter, plus any job title the page states), never a name or handle. A comment is never credited to the post's author. A search result you didn't open is not evidence, and neither is an empty search; list the search under data gaps. Record the company and its published professional contact, not a private person's profile, other posts or contact details. For a task that is mostly social research, first read the "Public social and forum research" section of `.claude/skills/research-rigor/SKILL.md` (you don't preload that skill, so open the file).
+
 ## Before handing in
 
 - Record each piece of evidence's `signal` class (see the signal-outreach skill).

@@ -35,6 +35,21 @@ Keep `outputs/sales/<slug>-objections.md` as a running list:
 - Rank by count, with a denominator: "4 of 9 replies".
 - Give each top objection an owner who can fix it upstream, such as docs, the website or the product.
 - Count again later to see whether the fix worked.
+- Log the date a person sent our answer. A draft that wasn't sent is not an answer.
+- Mark auto-replies and bounces as events. Never delete a logged line, so counts don't shift.
+
+## Did the answer work?
+
+A script counts; you label and write. Never work out a rate yourself. Recovery rate: not enough data, no counting script yet (package P4, T-20261103-08). Don't estimate. Log a second objection as its own register line.
+
+**Smokescreen check.** Before answering, mark each yes, no or unknown:
+
+- `pre_information`: it came in their first reply, before they learned anything real.
+- `no_specifics`: it names no figure, tool, date or constraint.
+
+Both yes: skip the full answer. Send one calm question that makes it easy to say "this isn't for us", such as whether the hold-up is timing or the product. If they take it, close politely and mark the lead `lost` with their words.
+
+After 7 days of silence, mark `immediate_drop`: our five-step answer used confirmed facts (sales judges; unknown if in doubt) and they went quiet anyway. It adds no message; the next note is the single one in `stalled-deal`. Never show the flag to a buyer.
 
 ## Never
 

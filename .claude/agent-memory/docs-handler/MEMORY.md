@@ -1,0 +1,2 @@
+- [Skill draft writing traps](feedback_skill_draft_writing.md) — lint and overlap checks fire on prose that mentions markers, placeholders or source figures
+- 2026-11-03 · Before marking a tools check as passing, read the tools: line of every agent that loads the skill, fallbacks included; fallbacks often lack Edit, WebFetch or Agent. (source: outputs/reviews/T-20261103-09b-r1.md · by: coordinator)
