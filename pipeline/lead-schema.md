@@ -27,7 +27,7 @@ The script assigns each lead an ID from its domain and product, so importing the
 | `researched_at` | Yes | `YYYY-MM-DD` |
 | `researched_by` | No | Defaults to `lead-generator` |
 | `status` | No | `new` (default) or `disqualified` with a `disqualify_reason` |
-| `competitor` | No | Who the competitor is, e.g. `"RepoClip, a direct competitor"`, when the lead is one of our competitors (`knowledge/company.md`: never contact competitors). A critical signal: the gate shows a Stop. Re-importing a lead without it does not clear it |
+| `competitor` | No | Who the competitor is, e.g. `"RepoClip, a direct competitor"`, when the lead is one of our competitors (`knowledge/company.md`: never contact competitors). A critical signal: the gate shows a Stop. Re-importing a lead without it does not clear it, and no command clears or corrects it (only a person editing `pipeline/leads.jsonl`). While a competitor question is still open, use `hold` (it has `release`); set `competitor` only once it is settled |
 
 ## Scoring
 
@@ -115,6 +115,8 @@ The import refuses a score above the cap.
 ## Suppression
 
 `node scripts/leads.mjs suppress <domain|email> "<reason>"` adds an opt-out to `pipeline/suppression.jsonl`. It applies across every product: open leads are disqualified at once, imports are refused, and a suppressed lead can't move to `drafted`, `approved` or `contacted`. A domain covers the whole company; an email address covers that person. Removing an entry is a person's decision, made by editing the file.
+
+Two match rules exist. The **narrow** match is the lead's exact domain or the contact's exact address. It is what disqualifies open leads at once, refuses imports and stops `set-status` moving a lead to `drafted`, `approved` or `contacted`. `node scripts/send-email.mjs` uses its own check, the exact address or that address's exact domain. The **wider** match is used by the gate only: it also covers a parent domain of the lead's website, and the contact's own host (the domain of an email address, or the host of a URL contact). So a lead caught only by the wider match shows Stop in the gate but keeps its status and can still be moved by `set-status`. A profile URL such as a LinkedIn page is stored as its bare host (`linkedin.com`), so with the wider match every lead with a LinkedIn contact shows Stop. Until that is fixed, record a person's opt-out by email address where one exists.
 
 ## Other commands
 

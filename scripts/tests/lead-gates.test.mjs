@@ -266,6 +266,22 @@ describe('critical signals', () => {
     assert.match(line('Brandsite'), /Stop.*suppressed \(optmail\.example\)/);
     assert.match(line('Subsite'), /Stop.*suppressed \(optsub\.example\)/);
   });
+  it('a suppressed profile URL is stored as its bare host, so every LinkedIn-contact lead is a Stop (pins the current behaviour)', () => {
+    const li = (name, slug) => strong(name, { contact: { channel: 'linkedin', value: `https://www.linkedin.com/in/${slug}`, source_url: `https://${name.toLowerCase()}.example/team` } });
+    qualified(li('Linkeda', 'asha-a'));
+    qualified(li('Linkedb', 'lee-b'));
+    assert.doesNotMatch(line('Linkeda'), /suppressed/);
+    const r = repo.run('leads.mjs', 'suppress', 'https://www.linkedin.com/in/asha-a', 'asked not to be contacted');
+    assert.equal(r.code, 0);
+    assert.match(r.stdout, /Suppressed linkedin\.com\./); // the profile path is dropped; the entry is the whole site
+    assert.match(line('Linkeda'), /Stop.*suppressed \(linkedin\.com\)/);
+    assert.match(line('Linkedb'), /Stop.*suppressed \(linkedin\.com\)/); // over-blocks other people: kept on purpose; T-20261103-11 fixes suppress
+    assert.equal(byCompany('Linkeda').status, 'qualified'); // set-status and import still use the narrow match
+  });
+  it('a personal mail domain is matched whatever its case', () => {
+    qualified(strong('Uppermail', { contact: { channel: 'email', value: 'Asha@GMAIL.COM', source_url: 'https://uppermail.example/contact' } }));
+    assert.match(line('Uppermail'), /Stop.*personal email address \(gmail\.com\)/);
+  });
   it('a disqualified, lost or held lead is a Stop despite a score of 100', () => {
     const dq = qualified(strong('Dqstrong'));
     assert.equal(repo.run('leads.mjs', 'set-status', dq.id, 'disqualified', 'sells', 'a', 'competing', 'product').code, 0);
