@@ -2,7 +2,7 @@
 - [Search-summary claims](feedback_search_summary_claims.md) — dead URLs mean no source; check vendor FAQ before accepting "unconfirmed feature" caveats; schemeless dead URLs OK only in not-opened lists
 - [Sales asset checks](feedback_sales_asset_checks.md) — hunt inferred contract terms, measure length yourself, test each remedy, note stale status text
 - [Outreach checks](feedback_outreach_checks.md) — test pitch vs repo, lead vs competitor types, count emails; every markdown gets a fix; PASS + Go isn't clearance
-- [Code change checks](feedback_code_change_checks.md) — open scripts first; archive parent; YAML-form probes; metric scripts: diff labels vs cited spec, hash snapshot; normaliser odd inputs; prefix match both ways
+- [Code change checks](feedback_code_change_checks.md) — open scripts first; archive parent; YAML probes; metric diffs; normaliser odd inputs both ways; typed-vs-record matrix
 - [Revision round checks](feedback_revision_round_checks.md) — r2: branch drift, hooks behind "no X", uneven markers, row refs, brief vs file, stale echoes, "do not" checks vs hard rules
 - [UI review checks](feedback_ui_review_checks.md) — probe real refresh() in headless Chrome; walk every hover descendant for contrast; inner width = window-22; pending anims
 - [Skill survey checks](feedback_skill_survey_checks.md) — clone for verbatim; screen for deception; n-gram "no copy"; test drafts vs our labels/statuses
