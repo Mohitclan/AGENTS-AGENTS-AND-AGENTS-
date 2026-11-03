@@ -237,7 +237,7 @@ export function reviewStats(files, min = DEFAULT_MIN) {
     list.sort((a, b) => a.round - b.round);
     const first = list[0];
     const hasFirst = first.round === 1;
-    if (!hasFirst) gaps.push(`${task}: no round 1 review file (earliest is r${first.round}); left out of the first-review pass rate`);
+    if (!hasFirst) gaps.push(`${task}: no round 1 review file (earliest is r${first.round}); left out of the first-review pass rate; its revisions are reviews − 1, so the true count may be higher`);
     revisions += list.length - 1;
     reviewCount += list.length;
     if (hasFirst) {
