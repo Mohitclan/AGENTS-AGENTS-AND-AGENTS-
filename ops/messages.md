@@ -133,3 +133,5 @@ Every time one agent started another. Written by `scripts/team-hooks.mjs`.
 | 2026-11-03 13:44 | coordinator | evaluator | T-20261103-12 | Review T-12 revision 1 |
 | 2026-11-03 13:47 | coordinator | researcher | T-20261103-12 | T-12 post-PASS wording fix |
 | 2026-11-03 13:55 | coordinator | developer | T-20261103-11 | T-11 extra round: sub-page opt-outs |
+| 2026-11-03 14:26 | coordinator | evaluator | T-20261103-11 | Final check of T-11 (round 3) |
+| 2026-11-03 15:07 | coordinator | developer | T-20261103-11 | T-11 follow-up: @handle, email wrappers, aliases |
