@@ -27,6 +27,7 @@ The script assigns each lead an ID from its domain and product, so importing the
 | `researched_at` | Yes | `YYYY-MM-DD` |
 | `researched_by` | No | Defaults to `lead-generator` |
 | `status` | No | `new` (default) or `disqualified` with a `disqualify_reason` |
+| `competitor` | No | Who the competitor is, e.g. `"RepoClip, a direct competitor"`, when the lead is one of our competitors (`knowledge/company.md`: never contact competitors). A critical signal: the gate shows a Stop. Re-importing a lead without it does not clear it |
 
 ## Scoring
 
@@ -75,8 +76,19 @@ The script allows only these moves:
 
 - **Go:** reviewed, and ready for drafts.
 - **Not reviewed:** still `new`, so it can't be a Go yet. Any concerns are listed.
-- **Conditional:** a person decides: non-email or LinkedIn contact, a support-only inbox, research over 90 days old, tier C, evidence with no signal class, only inferred signals, or a newest signal over 60 days old.
-- **Stop:** suppressed, disqualified, on hold, no published contact, or no current evidence. Fix it at the source and run the gate again.
+- **Conditional:** a person decides: non-email or LinkedIn contact, research over 90 days old, tier C, evidence with no signal class, only inferred signals, or a newest signal over 60 days old.
+- **Stop:** any critical signal (below), no published contact, or no current evidence. Fix it at the source and run the gate again.
+
+**Critical signals.** Any one of these forces a Stop, whatever the lead's score or tier, so a high score can't hide a disqualifier. The gate prints each reason. They can only turn a Go or Conditional into a Stop, never the other way.
+
+| Signal | Reason shown | Where it comes from |
+|---|---|---|
+| Suppressed | `suppressed (<entry>)` | The contact address, the lead's domain or a parent domain, or the domain of the contact's address or page, is in `pipeline/suppression.jsonl` (CLAUDE.md hard rule 7) |
+| Disqualified or lost | `status is disqualified` / `status is lost` | The lead's `status` |
+| On hold | `on hold (<owner>): <reason>` | `leads.mjs hold` |
+| Competitor | `competitor: <who>` | The optional `competitor` field; `knowledge/company.md`, never contact competitors |
+| Personal email address | `personal email address (<domain>)` | An email contact on a free consumer mailbox such as gmail.com; `knowledge/company.md`, never contact personal (non-work) addresses |
+| Support-only inbox | `support-only inbox` | Contact quality `support` (support@, help@, billing@); `memory/MAIN.md` 2026-10-30, never a Go |
 
 A Go still doesn't read the claims, so a passed review is what clears them.
 
@@ -96,7 +108,7 @@ The gate shows each lead's contact quality:
 |---|---|---|
 | direct | A named person's published address or LinkedIn profile | 10 |
 | general | hello@, info@, contact@, team@ | 5 |
-| support | support@, help@, billing@ | 3, and never a Go |
+| support | support@, help@, billing@ | 3, and always a Stop in the gate |
 
 The import refuses a score above the cap.
 
