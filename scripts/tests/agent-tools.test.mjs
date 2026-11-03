@@ -18,12 +18,18 @@ const HUBSPOT_READ_ONLY = [
   'tool_guidance',
 ].map((t) => `mcp__hubspot__${t}`);
 
-// Returns what is wrong with a tools line, if anything.
+// Returns what is wrong with a tools line, if anything. `tools` is the raw value from the
+// frontmatter: undefined or empty when the agent has no tools line, which means it inherits every
+// tool, every MCP tool included.
 function hubspotProblems(tools) {
+  const entries = splitTools(Array.isArray(tools) ? tools.join(', ') : tools);
+  if (!entries.length) return ['has no tools line, so it inherits every tool, HubSpot writes included'];
   const problems = [];
-  for (const tool of splitTools(tools).filter((t) => t.startsWith('mcp__hubspot__'))) {
+  for (const tool of entries.filter((t) => t.startsWith('mcp__'))) {
     if (tool.includes('*')) problems.push(`${tool} is a wildcard`);
-    else if (!HUBSPOT_READ_ONLY.includes(tool)) problems.push(`${tool} is not one of the ten read-only tools`);
+    else if (tool.startsWith('mcp__hubspot__') && !HUBSPOT_READ_ONLY.includes(tool)) {
+      problems.push(`${tool} is not one of the ten read-only tools`);
+    }
   }
   return problems;
 }
@@ -44,8 +50,12 @@ describe('HubSpot tools in agent files', () => {
     }
   });
 
-  it('the check itself rejects a wildcard, a write tool and a misspelt name', () => {
+  it('the check itself rejects a wildcard, a write tool, a misspelt name and a missing tools line', () => {
     assert.equal(hubspotProblems('Read, mcp__hubspot__*').length, 1);
+    assert.equal(hubspotProblems('Read, mcp__*').length, 1);
+    assert.equal(hubspotProblems(undefined).length, 1);
+    assert.equal(hubspotProblems('').length, 1);
+    assert.equal(hubspotProblems([]).length, 1);
     assert.equal(hubspotProblems('Read, mcp__hubspot__manage_crm_objects').length, 1);
     assert.equal(hubspotProblems('Read, mcp__hubspot__search_crm_object').length, 1);
     assert.equal(hubspotProblems('Read, mcp__hubspot__search_crm_objects, Agent').length, 0);
@@ -57,6 +67,7 @@ describe('HubSpot tools in agent files', () => {
       if (!/mcp__hubspot__/.test(a.fields.tools || '')) continue;
       assert.match(a.body, /HubSpot is read-only for you/, name);
       assert.match(a.body, /Never create, update, delete, send or publish/i, name);
+      assert.doesNotMatch(a.body, /unless the human approves/i, name);
     }
   });
 });
