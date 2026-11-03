@@ -75,7 +75,8 @@ export function fail(message) {
 // An entry in pipeline/suppression.jsonl is one of:
 //   an email address   asha@example.com               covers that address only
 //   a company domain   example.com                    covers the domain, its subdomains and addresses on them
-//   a profile URL      https://linkedin.com/in/asha   covers that page and the pages below it
+//   a profile URL      https://linkedin.com/in/asha   covers that page and the pages below it; a page below a profile
+//                                                     is stored as the profile, and a page that names no one is refused
 // A shared host (a site many people have a page on) is never a company domain: opting out of one
 // profile on it must not opt out everyone else.
 
@@ -94,13 +95,41 @@ const PROFILE_PATH_HOSTS = ['linkedin.com', 'x.com', 'twitter.com', 'github.com'
 const PROFILE_SUBDOMAIN_HOSTS = ['github.io', 'gitlab.io', 'medium.com', 'substack.com', 'vercel.app', 'netlify.app', 'pages.dev',
   'hashnode.dev', 'notion.site', 'carrd.co', 'webflow.io', 'blogspot.com', 'wordpress.com'];
 export const SHARED_HOSTS = [...new Set([...PROFILE_PATH_HOSTS, ...PROFILE_SUBDOMAIN_HOSTS])];
-// linkedin.com/in alone would cover every member, so a LinkedIn entry needs two path segments (in/asha, company/acme).
-const MIN_PATH_SEGMENTS = { 'linkedin.com': 2 };
-// First path segments that name a kind of page and need a name after them: x.com/i, youtube.com/c, github.com/orgs.
-const NEEDS_NAME = new Set(['i', 'c', 'channel', 'user', 'users', 'orgs', 'in', 'company', 'school', 'showcase', 'pub', 'groups']);
-// First path segments that are never one person's page.
+// How a person's page is named on a path host. An opt-out stores only that part, so a post, a message thread or a
+// contact-info page that someone pastes in still covers the person, and a page that names no one is refused.
+//
+// Hosts where the page has a known shape: the first segment is one of `named` and the name follows it
+// (linkedin.com/in/asha, bsky.app/profile/asha), or, when `at`, it is an @handle (producthunt.com/@asha).
+// Any other page on these hosts is not a person.
+const PROFILE_ONLY = {
+  'linkedin.com': { named: ['in', 'company', 'school', 'showcase', 'pub'] },
+  'wellfound.com': { named: ['u', 'company'] },
+  'bsky.app': { named: ['profile'] },
+  'substack.com': { named: ['profile'], at: true },
+  'producthunt.com': { at: true },
+  'threads.net': { at: true },
+};
+// The other path hosts: the first segment is the handle (x.com/asha, github.com/asha), except these.
+// First path segments that name a kind of page and need a name after them: youtube.com/c/acme, github.com/orgs/acme.
+const NEEDS_NAME = new Set(['c', 'channel', 'user', 'users', 'orgs', 'groups']);
+// facebook.com/people/asha/1000123: the page is the first segment, the name and the id.
+const LONG_PROFILES = { 'facebook.com': { people: 3, pages: 3 } };
+// First path segments that are never one person's page, on any host.
 const NOT_A_PERSON = new Set(['home', 'explore', 'search', 'settings', 'login', 'signup', 'notifications', 'messages', 'feed', 'watch',
   'results', 'playlist', 'hashtag', 'intent', 'share', 'compose', 'topics', 'marketplace', 'features', 'pricing']);
+// ... and on one host: posts, reels, messages and other pages that sit beside the profiles, not under them.
+const NOT_A_HANDLE = {
+  'x.com': ['i', 'tos', 'privacy', 'about', 'account'],
+  'github.com': ['sponsors', 'collections', 'trending', 'enterprise', 'about', 'new'],
+  'gitlab.com': ['explore', 'dashboard', 'users', 'new'],
+  'instagram.com': ['p', 'reel', 'reels', 'tv', 'stories', 'direct', 'accounts'],
+  'youtube.com': ['shorts', 'live', 'embed', 'feed', 'post'],
+  'facebook.com': ['permalink.php', 'story.php', 'photo', 'photo.php', 'photos', 'reel', 'reels', 'stories', 'video', 'videos', 'events', 'sharer', 'sharer.php', 'plugins', 'dialog', 'login.php'],
+  'medium.com': ['tag', 'me', 'plans', 'membership', 'm', 'creators'],
+  'peerlist.io': ['jobs', 'scroll', 'companies', 'events', 'blog'],
+  'dev.to': ['t', 'tags', 'listings', 'dashboard', 'new', 'enter', 'videos', 'pod', 'readinglist', 'top', 'latest', 'api'],
+  'calendly.com': ['app', 'event_types'],
+};
 // A page that is named by a query parameter, not by its path: facebook.com/profile.php?id=123.
 const QUERY_IDENTIFIED = { 'facebook.com': { 'profile.php': 'id' } };
 
@@ -127,6 +156,22 @@ function canonicalHost(host) {
   if (underHost(h, 'linkedin.com')) h = 'linkedin.com';
   if (h === 'twitter.com') h = 'x.com';
   return h;
+}
+
+// The path segments that name one person on a path host, or null when the page names no one (a message thread, a post,
+// a bare section). Pages below the profile are cut off: x.com/asha/status/1 is x.com/asha.
+function profileSegments(host, segs) {
+  const s = host === 'linkedin.com' && segs[0] === 'comm' ? segs.slice(1) : segs;
+  const [first] = s;
+  if (!first) return null;
+  const only = PROFILE_ONLY[host];
+  if (only) {
+    if (only.named?.includes(first)) return s.length >= 2 ? s.slice(0, 2) : null;
+    return only.at && first.length > 1 && first.startsWith('@') ? [first] : null;
+  }
+  if (NOT_A_PERSON.has(first) || NOT_A_HANDLE[host]?.includes(first)) return null;
+  const keep = LONG_PROFILES[host]?.[first] ?? (NEEDS_NAME.has(first) ? 2 : 1);
+  return s.length >= keep ? s.slice(0, keep) : null;
 }
 
 // The shared host a host belongs to, or null. A path host counts only as itself; a subdomain host
@@ -157,7 +202,7 @@ export function normalizeProfileUrl(text) {
   const u = parseWebAddress(text);
   if (!u) return null;
   const host = canonicalHost(u.hostname);
-  const path = u.pathname.toLowerCase().replace(/\/+$/, '');
+  const path = u.pathname.toLowerCase().replace(/\/+$/, '').replace(host === 'linkedin.com' ? /^\/comm(?=\/)/ : /^$/, '');
   const param = QUERY_IDENTIFIED[host]?.[path.split('/')[1]];
   const id = param && u.searchParams.get(param);
   return `https://${host}${path}${id ? `?${param}=${id.toLowerCase()}` : ''}`;
@@ -170,6 +215,10 @@ export function normalizeProfileUrl(text) {
 function readSuppression(input) {
   const raw = stripMailto(String(input ?? '').trim().toLowerCase());
   if (isEmail(raw)) return { kind: 'email', value: raw };
+  const hostText = raw.replace(/^[a-z][a-z0-9+.-]*:\/\//, '').split(/[/?#]/)[0];
+  if (hostText.startsWith('.') || hostText.includes('*')) {
+    return { kind: 'invalid', value: raw, error: `"${input}" has a leading dot or a wildcard, which matches nobody. An opt-out on acme.com already covers its subdomains: give acme.com` };
+  }
   const u = parseWebAddress(raw);
   if (!u) return { kind: 'invalid', value: raw, error: `"${input}" is not a domain, an email address or a profile URL` };
   const host = canonicalHost(u.hostname);
@@ -182,7 +231,9 @@ function readSuppression(input) {
   const shared = sharedHostOf(host);
   if (!shared) return { kind: 'domain', value: host };
   const pathHost = PROFILE_PATH_HOSTS.includes(host);
-  const example = pathHost ? `https://${host}/${host === 'linkedin.com' ? 'in/<name>' : '<name>'}` : `https://<name>.${host}`;
+  const only = PROFILE_ONLY[host];
+  const shape = only?.named ? `${only.named[0]}/<name>` : only?.at ? '@<name>' : '<name>';
+  const example = pathHost ? `https://${host}/${shape}` : `https://<name>.${host}`;
   const root = (why) => ({ kind: 'shared-root', value: host, error: `${why} Give the person's profile URL instead, for example ${example}` });
   const segs = u.pathname.split('/').filter(Boolean).map((x) => x.toLowerCase());
   if (host === shared && !segs.length) {
@@ -191,26 +242,31 @@ function readSuppression(input) {
   if (host === shared && !pathHost) {
     return root(`${host} is a shared site: a page on it is not one person.`);
   }
-  if (pathHost) {
-    const [first] = segs;
-    const idParam = QUERY_IDENTIFIED[host]?.[first];
-    const nameless = NOT_A_PERSON.has(first)
-      || (idParam && !(segs.length === 1 && u.searchParams.get(idParam)))
-      || (!idParam && segs.length < Math.max(MIN_PATH_SEGMENTS[host] || 1, NEEDS_NAME.has(first) ? 2 : 1));
-    if (nameless) return root(`"${input}" does not name one person.`);
+  const full = normalizeProfileUrl(raw);
+  if (!pathHost) {
+    // A subdomain site (asha.github.io) is the person; a page below it is a page on their site.
+    const value = `https://${host}`;
+    return { kind: 'url', value, longer: full !== value };
   }
-  return { kind: 'url', value: normalizeProfileUrl(raw) };
+  const idParam = QUERY_IDENTIFIED[host]?.[segs[0]];
+  const idValue = idParam && segs.length === 1 && u.searchParams.get(idParam);
+  const profile = idParam ? (idValue ? segs : null) : profileSegments(host, segs);
+  if (!profile) return root(`"${input}" does not name one person.`);
+  const value = normalizeProfileUrl(`https://${host}/${profile.join('/')}${idValue ? `?${idParam}=${idValue}` : ''}`);
+  return { kind: 'url', value, longer: full !== value };
 }
 
 // What `suppress` should store for a value, or why it can't: { kind: 'email' | 'url' | 'domain', value } or { error }.
 export function classifySuppression(input) {
-  const { kind, value, error } = readSuppression(input);
-  return error ? { error } : { kind, value };
+  const { kind, value, error, longer } = readSuppression(input);
+  if (error) return { error };
+  return longer ? { kind, value, note: `That page is below the person's profile, so the profile, ${value}, is stored.` } : { kind, value };
 }
 
 // What is wrong with a stored entry, or '' when it is fine. `leads.mjs check` fails on any entry that has one.
 export function suppressionProblem(entry) {
-  const { kind, value, error } = readSuppression(entry?.value);
+  const { kind, value, error, longer } = readSuppression(entry?.value);
+  if (longer) return `it names a page below a profile, so it is read as ${value}`;
   if (!error) return '';
   if (kind === 'shared-root') return `it blocks every lead on ${value}. ${error}`;
   if (kind === 'invalid') return `it covers nobody. ${error}`;

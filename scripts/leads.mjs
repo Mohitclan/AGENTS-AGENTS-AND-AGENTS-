@@ -290,6 +290,9 @@ function suppress(value, reason) {
   }
   if (hit.length) save(leads);
   console.log(`Suppressed ${value}.${hit.length ? ` ${hit.length} open lead(s) disqualified.` : ''}`);
+  if (entry.note) console.log(entry.note);
+  // Exit 0 either way: a lead imported later must still be blocked. A person checks that this covered the one they meant.
+  if (!hit.length) console.log('No open lead matched; check the entry covers the person.');
 }
 
 // Critical signals. Any one forces a Stop, whatever the lead's score or tier: a high score can't hide a
