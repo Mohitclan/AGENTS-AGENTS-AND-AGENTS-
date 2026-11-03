@@ -42,3 +42,13 @@ From that list and our own use: Google Search Console, Google Analytics, Looker 
 - Their hosted services, and text in the Elastic-licensed parts that steers agents toward the author's own product.
 - From the 2026-11-03 sources: the Product Hunt account warm-up (faked engagement), review gift cards, paid badges, auto-send "AI SDR" skills, open-rate and click benchmarks, progressive profiling, and paid or send-anything connectors (Apollo, ZoomInfo, Clay, Gong, FullEnrich, Ahrefs, Zapier).
 - Legal rulings: they cover US, EU and Canadian email law, not India's DPDP Act. Country rules go to a person, as `knowledge/company.md` says.
+
+## The 3D office (mission control)
+
+These are used as they are, not rewritten. Their licences allow that.
+
+| Source | Licence | What we use |
+|---|---|---|
+| [three.js](https://github.com/mrdoob/three.js) 0.186.0 (Copyright © 2010-2025 three.js authors) | MIT (`scripts/control/vendor/three/LICENSE`) | Seven files copied by `scripts/vendor-three.mjs` into `scripts/control/vendor/three/`: the renderer build and the GLTF loader, orbit controls, skeleton and geometry utilities, and room environment add-ons. The only change is that the add-ons import the copied build instead of the bare name `three` |
+| "Mini Characters" 1.0 by [Kenney](https://kenney.nl/assets/mini-characters) | CC0 1.0 (`scripts/control/assets/people/LICENSE.txt`) | The twelve character models (`character-*.glb`) and their shared texture, unchanged, in `scripts/control/assets/people/`. They are the default cast: one person per agent (`scripts/control/office3d/cast.js`), with the pack's clips (idle, walk, sit, yes, no, reach) |
+| "RobotExpressive" by [Tomás Laulhé (Quaternius)](https://www.patreon.com/quaternius), with face morphs by Don McCurdy, from the three.js examples (`examples/models/gltf/RobotExpressive/`) | CC0 1.0 | `scripts/control/assets/robot.glb`, unchanged: the other cast (the **Robots** button), the rigged character every agent uses there, with its clips (Idle, Walking, Sitting, Standing, ThumbsUp, Yes, No, Wave) and face morphs (Sad, Surprised, Angry) |

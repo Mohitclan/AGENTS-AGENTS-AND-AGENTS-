@@ -104,7 +104,7 @@ export function createDock({ onOpen }) {
           l.href = link.href;
           pip.document.head.append(l);
         }
-        pip.document.title = 'SubE Gems';
+        pip.document.title = 'panscience';
         pip.document.body.className = 'pip-body';
         pip.document.documentElement.classList.toggle('gems-muted', settings.muted);
         pip.document.body.addEventListener('click', (e) => {

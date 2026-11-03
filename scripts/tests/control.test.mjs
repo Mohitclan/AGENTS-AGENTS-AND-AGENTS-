@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { get } from 'node:http';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { after, describe, it } from 'node:test';
 import { agentDetail, avatarStatus, loadRoster, ownerOf, parseRun, readFile, snapshot } from '../control.mjs';
@@ -162,6 +163,31 @@ describe('control: the server', () => {
       assert.match(csp, /script-src 'self'/);
       const cross = await fetch(`${base}/api/tasks`, { method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json', Origin: 'https://evil.example' }, body: '{"task":"x"}' });
       assert.equal(cross.status, 403);
+    } finally {
+      child.kill();
+    }
+  });
+
+  it('serves the 3D office: its modules, the copied Three.js files and the model, and nothing else', async () => {
+    const { child, base } = await start({ TEAM_PAGE_HOST: '', TEAM_PAGE_PASSWORD_HASH: '' });
+    try {
+      for (const [path, type] of [['/office3d/office3d.js', 'text/javascript'], ['/office3d/office3d.css', 'text/css'], ['/vendor/three/build/three.module.js', 'text/javascript'], ['/vendor/three/examples/jsm/loaders/GLTFLoader.js', 'text/javascript'], ['/assets/robot.glb', 'model/gltf-binary'], ['/assets/people/character-male-d.glb', 'model/gltf-binary'], ['/assets/people/Textures/colormap.png', 'image/png']]) {
+        const res = await fetch(`${base}${path}`);
+        assert.equal(res.status, 200, path);
+        assert.ok(res.headers.get('content-type').startsWith(type), path);
+      }
+      const loader = await (await fetch(`${base}/vendor/three/examples/jsm/loaders/GLTFLoader.js`)).text();
+      assert.doesNotMatch(loader, /from 'three'/);
+      const glb = Buffer.from(await (await fetch(`${base}/assets/robot.glb`)).arrayBuffer());
+      assert.equal(glb.subarray(0, 4).toString(), 'glTF');
+      // raw paths, so nothing tidies the dots away before the server sees them
+      const raw = (path) => new Promise((resolve) => {
+        get({ host: '127.0.0.1', port: new URL(base).port, path }, (res) => {
+          res.resume();
+          resolve(res.statusCode);
+        });
+      });
+      for (const path of ['/vendor/three/../../../.env', '/vendor/three/LICENSE', '/assets/../control.mjs', '/vendor/three/examples/jsm/../../package.json', '/assets/people/LICENSE.txt', '/assets/people/../../app.js.map']) assert.notEqual(await raw(path), 200, path);
     } finally {
       child.kill();
     }

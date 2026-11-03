@@ -1,4 +1,4 @@
-// Rendering and animation control for SubE Gem avatars.
+// Rendering and animation control for the Gem avatars.
 //
 //   avatarHTML(agent, { status, size, mode, label, tip })  markup for one avatar
 //   mountAvatars(root)                                      give new avatars their colours, timing and

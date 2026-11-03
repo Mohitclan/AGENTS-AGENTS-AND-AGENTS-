@@ -1,4 +1,4 @@
-// Avatar identities: who each SubE Gem is. One entry per agent in .claude/agents/, each with a
+// Avatar identities: who each Gem is. One entry per agent in .claude/agents/, each with a
 // unique id, a name, a colour theme, a character (species + look, drawn by characters.js) and
 // animation settings. The first six are the six concept characters; the other five extend the same
 // family so no two agents share a face. To change an agent's character, edit its entry; to add one,
