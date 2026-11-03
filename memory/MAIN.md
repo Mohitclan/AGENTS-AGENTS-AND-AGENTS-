@@ -16,8 +16,12 @@ Add and remove entries with `/teach` and `/forget`, or with `node scripts/memory
 - 2026-11-02 · Pilot (from 2026-11-02): agents may research, scrape and draft freely, but nothing is sent to a prospect until people have reviewed and approved the draft's wording. Test sends go only to Sushant Mishra (sushant.789.mishra@gmail.com); ops/mail-config.json enforces this with pilot.allow_only. (source: told by suryanshu on 2026-11-02 · by: human)
 - 2026-11-02 · Agent runs on the Max plan are allowed only as limited tests during the pilot; a person is asked before each run that uses plan limits. (source: told by suryanshu on 2026-11-02 · by: human)
 - 2026-11-02 · Send reports from scripts/send-email.mjs go to Sushant Mishra (sushant.789.mishra@gmail.com) during the pilot, until suryanshu changes it; they went to Raj before. (source: told by suryanshu on 2026-11-02 · by: human)
+- 2026-11-03 · Copy checks warn when a text uses more than about one em dash per 1,000 words; em dashes are never banned outright. (source: told by suryanshu on 2026-11-03 ("do recommended") · by: coordinator)
+- 2026-11-03 · Agents may only read from HubSpot: lead-generator, sales and their backups get ten named read-only HubSpot tools, never a wildcard. Any CRM change goes to a person first. (source: told by suryanshu on 2026-11-03 (A-20261103-01) · by: coordinator)
 
 ## Preferences
+
+- 2026-11-03 · The human wants the coordinator to decide and keep going without asking before each step: make the safest reasonable call, record it as an assumption, and list open questions at the end. Sends, posts, pushes and confirming knowledge still need a person's specific yes. (source: told by suryanshu on 2026-11-03 ("you are allowed dont ask me before every command") · by: coordinator)
 
 ## Lessons
 
