@@ -18,7 +18,7 @@ Add a `## Self-review` section at the end of the deliverable: one line per check
 
 ## Anything a prospect or customer will read
 
-5. **Every product claim traces to a confirmed fact-sheet line.** Keep a `## Claims used` table: claim as written, `knowledge/...md` line, the line's own words. If the words differ, the claim is stretched. These have failed review before:
+5. **Every product claim traces to a confirmed fact-sheet line.** Write the `## Claims used` table before you draft: every claim you mean to make, with its `knowledge/...md` line and the line's own words. Draft from the table, and drop any claim that has no line. Don't wait for a person to approve the table. If a fact is missing, cut the claim, or list the missing fact under questions. After drafting, check each claim as written against its row: if the words differ, the claim is stretched. These have failed review before:
    - "the same run" or "one run" for documents plus video (an automatic fail until the positioning proposal is confirmed);
    - prices not in the fact sheet's form (`₹3,199/month + 18% GST`, not "Rs 3,199");
    - "no yearly plan, so you can stop any time": a billing fact turned into a cancellation promise.
@@ -41,3 +41,7 @@ Add a `## Self-review` section at the end of the deliverable: one line per check
 
 17. **The project's own checks ran** (tests, type check, lint) on your branch, with the commands and results. If one couldn't run, say exactly why and what a person needs to run.
 18. **Every place the change touches was searched for**, including customer-facing text that repeats the old wording. List the ones you left alone and why.
+
+## When you revise
+
+19. **A revision may cut and sharpen. It adds only what is on file.** After a review or failed check, shorten, or swap a vague word for the exact one on file. Add a fact (number, name, date, price) only if it is on file or a review fix asked for it, and cite it. "On file" means a fact-sheet line, the lead's evidence, the brief, or a detail a person supplied or corrected. Never add stakes, urgency, quotes, personal details or stories to text a prospect or customer will read. If a fix needs a fact you lack, list the gap under questions. `pass` evidence: "added nothing", or each addition with its source. Then re-run items 2 and 4.

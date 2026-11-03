@@ -14,6 +14,7 @@ skills:
   - competitive-battlecard
   - proof-library
   - self-review
+  - proposal
 fallback_for: sales
 ---
 

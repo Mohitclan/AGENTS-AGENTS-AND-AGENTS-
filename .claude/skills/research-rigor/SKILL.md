@@ -41,6 +41,17 @@ Write the job as: "When ___, I want ___, so I can ___."
 
 Keep the exact phrases buyers use: phrase, where it was found, date, speaker's role. Discount sales calls, which echo our own words back. Keep users' words apart from buyers' words. Mark each phrase adopt, bridge or refuse.
 
+## Public social and forum research
+
+For posts, threads and comments on public sites. Read public pages only: never log in, post, reply, follow or message, and don't get round a login wall or paywall. Whatever you can't open is an access gap. Record only what a business, or a person acting for one, published in a professional capacity. Skip private people's profiles, other posts and contact details.
+
+1. **Plan first.** Before collecting, write the question, the sites, the date range, how you will pick posts, the most you will read and when you stop. Record any change and why.
+2. **Search results are not evidence.** A result, snippet or preview only tells you what to open. It cannot back a claim about a page you haven't read.
+3. **One record per part you read:** the post text, each comment, a linked page. Opening a thread doesn't mean you read its comments, and media you couldn't view is "not inspected". Each record has an `id`, a `source` (one per thread), the `url`, `found via` (the search result that led you there), the `part`, the `writer` (post author, commenter or reposter, plus any professional capacity the page states), the date shown (or unknown) and the date you read it, a `state` (found only, read, or couldn't open and why), the `words` (a short exact quote), a `duplicate group`, and `left out` (no, or why). Write `unknown` rather than leaving a field blank or guessing.
+4. **Keep writers apart.** A comment belongs to its commenter, not to the post's author. A repost's added comment is the reposter's own, and a repost with its original is one voice. "The writer said X" is not "X is true".
+5. **Counts stay inside what you read** ("3 of 12 comments read"). Likes and views don't show how many people feel something. Give one count line: found N, read M parts from K threads, left out and couldn't open (each with reasons). An empty search is a limit of the search, never evidence that nobody talks about it.
+6. **Auditing a report:** name the rule each weak claim breaks and what evidence would support it. Don't supply a source yourself.
+
 ## Free competitor sources
 
 Pricing pages, changelogs, job posts, review sites, and the public ad libraries from LinkedIn, Google and Meta.

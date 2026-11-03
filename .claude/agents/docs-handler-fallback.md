@@ -8,6 +8,7 @@ skills:
   - fact-sourcing
   - claim-check
   - self-review
+  - comparison-page
 fallback_for: docs-handler
 ---
 

@@ -15,6 +15,7 @@ skills:
   - competitive-battlecard
   - proof-library
   - self-review
+  - proposal
 can_ask:
   - knowledge-base
   - researcher

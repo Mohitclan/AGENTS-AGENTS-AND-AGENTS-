@@ -14,6 +14,9 @@ skills:
   - linkedin-founder
   - seo-refresh
   - self-review
+  - directory-listing
+  - comparison-page
+  - landing-page-audit
 fallback_for: marketing
 ---
 
