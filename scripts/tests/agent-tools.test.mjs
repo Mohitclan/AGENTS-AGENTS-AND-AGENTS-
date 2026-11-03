@@ -18,12 +18,22 @@ const HUBSPOT_READ_ONLY = [
   'tool_guidance',
 ].map((t) => `mcp__hubspot__${t}`);
 
+// The team parser keeps a scalar `tools` value raw, so a YAML flow list ([a, b]) or a quoted string
+// ("a, b" or 'a, b') leaves a bracket or quote stuck to the first or last entry. Claude Code reads
+// real YAML, so strip them here or a bad first entry would slip past the mcp__ checks.
+function toolEntries(tools) {
+  return splitTools(Array.isArray(tools) ? tools.join(', ') : tools)
+    .map((t) => t.replace(/^[\s[\]'"]+|[\s[\]'"]+$/g, ''))
+    .filter(Boolean);
+}
+
 // Returns what is wrong with a tools line, if anything. `tools` is the raw value from the
-// frontmatter: undefined or empty when the agent has no tools line, which means it inherits every
-// tool, every MCP tool included.
+// frontmatter: undefined or empty when there is no tools line. An omitted tools field inherits every
+// tool, MCP tools included; an empty list launches the subagent with no tools. Both are rejected
+// here: the first is unsafe and the second is almost certainly a mistake.
 function hubspotProblems(tools) {
-  const entries = splitTools(Array.isArray(tools) ? tools.join(', ') : tools);
-  if (!entries.length) return ['has no tools line, so it inherits every tool, HubSpot writes included'];
+  const entries = toolEntries(tools);
+  if (!entries.length) return ['has no tools listed (an omitted tools line inherits every tool, HubSpot writes included)'];
   const problems = [];
   for (const tool of entries.filter((t) => t.startsWith('mcp__'))) {
     if (tool.includes('*')) problems.push(`${tool} is a wildcard`);
@@ -45,7 +55,7 @@ describe('HubSpot tools in agent files', () => {
 
   it('is still used by the four agents the fix was written for', () => {
     for (const name of ['lead-generator', 'sales', 'lead-generator-fallback', 'sales-fallback']) {
-      const have = splitTools(readAgent(name).fields.tools).filter((t) => t.startsWith('mcp__hubspot__'));
+      const have = toolEntries(readAgent(name).fields.tools).filter((t) => t.startsWith('mcp__hubspot__'));
       assert.deepEqual([...have].sort(), [...HUBSPOT_READ_ONLY].sort(), name);
     }
   });
@@ -58,6 +68,13 @@ describe('HubSpot tools in agent files', () => {
     assert.equal(hubspotProblems([]).length, 1);
     assert.equal(hubspotProblems('Read, mcp__hubspot__manage_crm_objects').length, 1);
     assert.equal(hubspotProblems('Read, mcp__hubspot__search_crm_object').length, 1);
+    // YAML flow list and quoted forms, with the bad entry first
+    assert.equal(hubspotProblems('[mcp__hubspot__manage_crm_objects, Read]').length, 1);
+    assert.equal(hubspotProblems('"mcp__*, Read"').length, 1);
+    assert.equal(hubspotProblems("'mcp__*, Read'").length, 1);
+    assert.equal(hubspotProblems('[Read, mcp__hubspot__*]').length, 1);
+    assert.equal(hubspotProblems('[Read, mcp__hubspot__search_crm_objects]').length, 0);
+    assert.equal(hubspotProblems('"Read, mcp__hubspot__search_crm_objects"').length, 0);
     assert.equal(hubspotProblems('Read, mcp__hubspot__search_crm_objects, Agent').length, 0);
   });
 
