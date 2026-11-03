@@ -135,3 +135,8 @@ Every time one agent started another. Written by `scripts/team-hooks.mjs`.
 | 2026-11-03 13:55 | coordinator | developer | T-20261103-11 | T-11 extra round: sub-page opt-outs |
 | 2026-11-03 14:26 | coordinator | evaluator | T-20261103-11 | Final check of T-11 (round 3) |
 | 2026-11-03 15:07 | coordinator | developer | T-20261103-11 | T-11 follow-up: @handle, email wrappers, aliases |
+| 2026-11-03 15:20 | coordinator | marketing | T-20261103-13 | Plan MotionRepo directory listings |
+| 2026-11-03 15:23 | coordinator | evaluator | T-20261103-13 | Review directory listing plan |
+| 2026-11-03 15:29 | coordinator | marketing | T-20261103-13 | Revise listings per review r1 |
+| 2026-11-03 15:31 | coordinator | evaluator | T-20261103-13 | Re-review revised listings |
+| 2026-11-03 15:36 | coordinator | marketing | T-20261103-13 | Apply post-PASS wording notes |

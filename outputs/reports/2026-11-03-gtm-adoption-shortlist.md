@@ -106,6 +106,7 @@ Each package would be one task, with a review, before it lands. "Who" is the spe
 | 35 | A profile-URL opt-out | Covers that profile and the pages below it | Fails safe |
 | 36 | Suppressing a bare free-mail domain (gmail.com and similar) | Refuse it, as for linkedin.com | It would block every contact on that mail service |
 | 37 | An old bare shared-host opt-out (such as linkedin.com) after T-20261103-11 merges | Keeps blocking every lead on that host, and check fails, until a person re-enters it as a profile URL | Fails safe; assumption 33 creates such entries before the merge |
+| 38 | Stored form for Threads opt-outs | threads.net (threads.com folds into it) | Older stored entries keep matching |
 | 11 | P2 branch sits on P1's first commit | Merge P1 first, then P2, at merge time | The two touch no common file |
 
 ## What I need from you
