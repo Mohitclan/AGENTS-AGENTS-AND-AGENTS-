@@ -206,6 +206,18 @@ describe('A1 testimonial shapes (warnings)', () => {
       assert.ok(!warned(lint(shapes[name]), 'unsourced-quote'), name);
     }
   });
+  it('does not read a markdown list item on the next line as an attribution dash, in any type', () => {
+    for (const type of ['general', 'seo', 'social', 'email']) {
+      for (const text of [
+        'The hero reads "Turn any repository into a short launch video".\n- Pricing, from the same page\n',
+        '> Before you start, connect GitHub.\n- Settings\n',
+      ]) assert.ok(!warned(lint(type === 'email' ? `${GOOD_EMAIL}\n${text}` : text, type), 'unsourced-quote'), `${text} (${type})`);
+    }
+  });
+  it('still reads a double hyphen on the next line as an attribution dash', () => {
+    const r = lint('"We cut onboarding from two weeks to two days."\n-- Asha Rao, Acme\n');
+    assert.ok(warned(r, 'unsourced-quote'), r.out);
+  });
   it('leaves a quote that holds a placeholder alone', () => assert.ok(!warned(lint('"Hi {{SENDER_NAME}}, here is the demo you asked about." — Asha Rao\n', 'seo'), 'unsourced-quote')));
 });
 

@@ -154,9 +154,9 @@ const NAME2_RE = String.raw`[A-Z][\w.'’-]*(?:\s+[A-Z][\w.'’-]*){1,3}`;
 // `Press "Save" Now` is not read as a quote by Now.
 const NAME_AFTER = new RegExp(String.raw`^\s*(?:[,|]?\s*[—–-]{1,2}\s*${NAME_RE}|[,|]?\s*${NAME2_RE})\s*(?:[,|(]|$)`);
 // The next line names the speaker: "— Asha Rao, Acme" (a dash is required), or "> Asha Rao, CEO" in a blockquote.
-// A sentence of prose does not match.
-const NEXT_LINE_NAME = new RegExp(String.raw`^[\s>*_]*[—–-]{0,2}\s*${NAME_RE}\s*(?:,[^.\n]*)?$`);
-const NEXT_LINE_DASH_NAME = new RegExp(String.raw`^[\s>*_]*[—–-]{1,2}\s*${NAME_RE}\s*(?:,[^.\n]*)?$`);
+// A sentence of prose does not match. A lone "-" is a markdown list item, so only —, – or -- count as a dash here.
+const NEXT_LINE_NAME = new RegExp(String.raw`^[\s>*_]*(?:—|–|--)?\s*${NAME_RE}\s*(?:,[^.\n]*)?$`);
+const NEXT_LINE_DASH_NAME = new RegExp(String.raw`^[\s>*_]*(?:—|–|--)\s*${NAME_RE}\s*(?:,[^.\n]*)?$`);
 const DASH_NAME_END = new RegExp(String.raw`^(.+?)\s+[—–-]{1,2}\s*${NAME_RE}\s*(?:,[^.\n]*)?$`);
 const TABLE_NAME_CELL = new RegExp(String.raw`\|\s*${NAME2_RE}\s*(?:,[^|]*)?\|`);
 const FIRST_PERSON = /\b(i|we|my|our|us|me|i['’](?:m|ve|d|ll)|we['’](?:re|ve|d|ll))\b/i;
