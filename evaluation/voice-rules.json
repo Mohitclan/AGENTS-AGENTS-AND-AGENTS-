@@ -26,7 +26,7 @@
   },
   "weak": ["very", "really", "just", "actually", "basically", "literally", "honestly", "frankly", "clearly", "obviously", "simply", "a lot", "kind of", "sort of"],
   "weakLimitPer100Words": 2,
-  "_styleComment": "Warn-only settings, our own word lists. superlatives: claims that need a source (patterns for 'the only', 'leading' and '#1' are in lint-copy.mjs). tier1: warn on every use, with a plainer word. tier2: warn when tierClusterMin or more different ones sit in one paragraph. tier3: fine now and then, warn when they pass tier3LimitPercent of the words. These are style signals for the author and the evaluator, never proof of anything.",
+  "_styleComment": "Warn-only settings, our own word lists. superlatives: claims that need a source (patterns for 'the only', 'leading' and '#1' are in lint-copy.mjs). tier1: warn on every use, with a plainer word. tier2: each entry is a word family written as forms joined by a slash; warn when tierClusterMin or more different families sit in one paragraph (underscore and beacon are here because they have literal technical senses). tier3: fine now and then, warn when they pass tier3LimitPercent of the words. These are style signals for the author and the evaluator, never proof of anything.",
   "superlatives": ["fastest", "number one", "number 1", "better than", "cheaper than"],
   "tier1": {
     "delve": "dig into, or look at",
@@ -44,21 +44,25 @@
     "bustling": "busy",
     "unleash": "release, or start",
     "elevate": "improve",
-    "underscore": "show",
-    "underscores": "shows",
     "garner": "get",
     "plethora": "many",
     "myriad": "many",
     "multifaceted": "complex, or name the sides",
     "spearhead": "lead",
     "cornerstone": "base, or main part",
-    "beacon": "name what it does",
     "treasure trove": "name what is in it"
   },
   "tier2": [
     "robust", "comprehensive", "crucial", "vital", "innovative", "dynamic", "ecosystem", "landscape",
-    "harness", "showcase", "streamline", "streamlined", "enhance", "enhances", "enhancing", "notably", "moreover",
-    "furthermore", "additionally", "ultimately", "essentially", "nuanced", "navigate", "resonate"
+    "notably", "moreover", "furthermore", "additionally", "ultimately", "essentially", "nuanced",
+    "harness/harnesses/harnessing/harnessed",
+    "showcase/showcases/showcasing/showcased",
+    "streamline/streamlines/streamlining/streamlined",
+    "enhance/enhances/enhancing/enhanced",
+    "navigate/navigates/navigating/navigated",
+    "resonate/resonates/resonating/resonated",
+    "underscore/underscores/underscored/underscoring",
+    "beacon/beacons"
   ],
   "tierClusterMin": 2,
   "tier3": [

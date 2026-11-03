@@ -142,10 +142,71 @@ describe('A1 superlatives and quotes (warnings)', () => {
     assert.ok(!warned(lint('The page title reads "This tool saved our whole team hours every single week."\n'), 'unsourced-quote'));
     assert.ok(!warned(lint('Asha said "no" and moved on.\n'), 'unsourced-quote'));
   });
+  it('does not repeat the unsourced-number check: a rank or comparison with a number gets one report', () => {
+    for (const text of ['We are #1 with 500 customers.\n', 'It is 2x cheaper than Synthesia for 10 teams.\n']) {
+      const r = lint(text);
+      assert.ok(failed(r, 'unsourced-number'), text);
+      assert.ok(!warned(r, 'superlative'), text);
+    }
+    const email = lint(`${GOOD_EMAIL}\nWe are #1 with 500 customers.\n`, 'email');
+    assert.ok(warned(email, 'unsourced-number'));
+    assert.ok(!warned(email, 'superlative'));
+    assert.ok(warned(lint('We are #1 for launch videos.\n'), 'superlative'));
+    assert.ok(warned(lint('It is cheaper than the old tool.\n'), 'superlative'));
+  });
   it('warns on a vague attribution, not on a named and sourced one', () => {
     assert.ok(warned(lint('Studies show that launch videos help.\n'), 'vague-attribution'));
     assert.ok(!warned(lint('Studies show that launch videos help.\nSource: https://example.com/study\n'), 'vague-attribution'));
   });
+});
+
+describe('A1 testimonial shapes (warnings)', () => {
+  const QUOTE = '"We cut onboarding from two weeks to two days."';
+  const shapes = {
+    'the name on the next line': `${QUOTE}\n— Asha Rao, Acme\n`,
+    'a blockquote with the name on the next line': `> ${QUOTE}\n> Asha Rao, CEO\n`,
+    'a comma and a name and role after the quote': '"We cut onboarding from two weeks to two days," Asha Rao, CEO\n',
+    'a table row with the name in another cell': `| ${QUOTE} | Asha Rao, CEO |\n`,
+    'a table row with the name before the quote': `| Asha Rao, CEO | ${QUOTE} |\n`,
+    'a quote under 6 words with a named speaker': '"It saved us hours." — Asha Rao\n',
+    'a short quote after a named speaker': 'Asha said "it saved us hours" last week.\n',
+    'an unquoted blockquote with a dash and a name': '> We cut onboarding from two weeks to two days.\n> — Asha Rao, Acme\n',
+    'a quote with no speaker at all': `${QUOTE}\n`,
+    'a first-person quote inside a sentence, no speaker': 'Teams tell us "we ship launches in half the time now." Try it.\n',
+  };
+  for (const type of ['seo', 'social', 'email']) {
+    it(`warns on each testimonial shape in --type ${type}, and never fails on it`, () => {
+      for (const [name, text] of Object.entries(shapes)) {
+        const r = lint(type === 'email' ? `${GOOD_EMAIL}\n${text}` : text, type);
+        assert.ok(warned(r, 'unsourced-quote'), `${name} (${type})\n${r.out}`);
+        assert.ok(!failed(r, 'unsourced-quote'), name);
+        if (type === 'social') clean(r);
+      }
+    });
+    it(`stays quiet on ordinary quoted phrases in --type ${type}`, () => {
+      for (const text of [
+        'Click "Add lead" to continue.\n',
+        'The button says "Start free trial" in green.\n',
+        'Press "Save" Now to continue.\n',
+        'The word "pricing" appears in the heading "Plans and pricing for teams".\n',
+        'Rename the field to "launch_video_title_final".\n',
+        'Page says "It saved us hours" in the footer.\n',
+        'Use the term "launch video" in the title.\n',
+      ]) assert.ok(!warned(lint(text, type), 'unsourced-quote'), `${text} (${type})`);
+    });
+    it(`stays quiet when a source is near a testimonial in --type ${type}`, () => {
+      assert.ok(!warned(lint(`${shapes['the name on the next line']}Source: https://example.com/review\n`, type), 'unsourced-quote'));
+      assert.ok(!warned(lint(`> ${shapes['a quote with no speaker at all']}Retrieved: 2026-11-03\n`, type), 'unsourced-quote'));
+    });
+  }
+  it('keeps the strict check for --type general: the speaker beside the quote still counts, the loose shapes do not', () => {
+    assert.ok(warned(lint(shapes['the name on the next line']), 'unsourced-quote'));
+    assert.ok(warned(lint(shapes['a table row with the name in another cell']), 'unsourced-quote'));
+    for (const name of ['a quote under 6 words with a named speaker', 'a short quote after a named speaker', 'a quote with no speaker at all', 'an unquoted blockquote with a dash and a name']) {
+      assert.ok(!warned(lint(shapes[name]), 'unsourced-quote'), name);
+    }
+  });
+  it('leaves a quote that holds a placeholder alone', () => assert.ok(!warned(lint('"Hi {{SENDER_NAME}}, here is the demo you asked about." — Asha Rao\n', 'seo'), 'unsourced-quote')));
 });
 
 describe('A3 vocabulary, clusters, density and rhythm (warnings)', () => {
@@ -161,6 +222,19 @@ describe('A3 vocabulary, clusters, density and rhythm (warnings)', () => {
     assert.ok(warned(lint('It is a robust and comprehensive tool.\n'), 'vocab-cluster'));
     assert.ok(!warned(lint('It is a robust tool.\n'), 'vocab-cluster'));
     assert.ok(!warned(lint('It is a robust tool.\n\nThe guide is comprehensive.\n'), 'vocab-cluster'));
+  });
+  it('counts inflected forms of a tier 2 word, once per family', () => {
+    assert.ok(warned(lint('We are navigating a robust market.\n'), 'vocab-cluster'));
+    assert.ok(warned(lint('Teams harnessing a nuanced approach.\n'), 'vocab-cluster'));
+    assert.ok(!warned(lint('We navigate, navigating and navigated the market.\n'), 'vocab-cluster'));
+    assert.ok(!warned(lint('It enhances and enhanced the page.\n'), 'vocab-cluster'));
+  });
+  it('does not warn on "underscore" or "beacon" in technical writing', () => {
+    for (const text of ['Rename the file with an underscore.\n', 'The tracking beacon fires on sign-up.\n']) {
+      const r = lint(text);
+      assert.ok(!warned(r, 'vocab-tier1'), text);
+      assert.ok(!warned(r, 'vocab-cluster'), text);
+    }
   });
   it('warns when tier 3 words pass 3% of a text, not when they are spread thin', () => {
     const padded = `${'This is important and significant. '.repeat(20)}`;

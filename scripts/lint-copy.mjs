@@ -138,8 +138,28 @@ const LEADING_CLAIM = /\b(?:(?:the|a|an|our|its|their)\s+leading\b|leading\s+(?:
 const RANK_ONE = /(?<![\w&])#1(?!\w)/;
 const QUOTED = /"([^"\n]*)"|“([^”\n]*)”/g;
 const QUOTE_MIN_WORDS = 6;
+// Customer-facing types (landing pages, posts, emails) are where testimonials live, so the quote check is looser there.
+const LOOSE_QUOTE_TYPES = new Set(['seo', 'social', 'email']);
+const LOOSE_SPOKEN_MIN_WORDS = 3; // a quote this short still warns when a named person is its speaker
+const LOOSE_BARE_MIN_WORDS = 5; // a quote with no speaker at all must be at least this long, and read as a sentence
 // Quoted speech: someone is said to have said it. A quoted page excerpt or a line of our own copy is not.
 const SPEECH_CUE = /\b(said|says|told|wrote|writes|tweeted|posted|replied|according to|testimonial|quotes?d?|described|put it)\b|["”]\s*[—–-]\s*[A-Z]/i;
+// A person named as the speaker of a short quote: "Asha said", "she wrote". "The button says" does not count.
+const NOT_A_PERSON = 'Page|Site|Docs?|Readme|Title|Button|Menu|Footer|Header|Website|Repo|Error|Message|Label|Text|Source|Copy|Email|Subject|Line|Column|Row|Table|Field|Code|Output|Log|It|This|That|Ours|Theirs';
+const PERSON_SAID = new RegExp(String.raw`\b(?:(?!(?:${NOT_A_PERSON})\b)[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?|she|he|they|one (?:customer|user|founder))\s+(?:said|says|told \w+|wrote|writes|replied|put it)\b`);
+const NAME_RE = String.raw`[A-Z][\w.'’-]*(?:\s+[A-Z][\w.'’-]*){0,3}`;
+const NAME2_RE = String.raw`[A-Z][\w.'’-]*(?:\s+[A-Z][\w.'’-]*){1,3}`;
+// After a closing quote mark: a dash and a name, or a full name of two or more words, then a comma, "(", "|" or the
+// end of the line. The caller also requires a comma or full stop inside the quote, or a separator after it, so
+// `Press "Save" Now` is not read as a quote by Now.
+const NAME_AFTER = new RegExp(String.raw`^\s*(?:[,|]?\s*[—–-]{1,2}\s*${NAME_RE}|[,|]?\s*${NAME2_RE})\s*(?:[,|(]|$)`);
+// The next line names the speaker: "— Asha Rao, Acme" (a dash is required), or "> Asha Rao, CEO" in a blockquote.
+// A sentence of prose does not match.
+const NEXT_LINE_NAME = new RegExp(String.raw`^[\s>*_]*[—–-]{0,2}\s*${NAME_RE}\s*(?:,[^.\n]*)?$`);
+const NEXT_LINE_DASH_NAME = new RegExp(String.raw`^[\s>*_]*[—–-]{1,2}\s*${NAME_RE}\s*(?:,[^.\n]*)?$`);
+const DASH_NAME_END = new RegExp(String.raw`^(.+?)\s+[—–-]{1,2}\s*${NAME_RE}\s*(?:,[^.\n]*)?$`);
+const TABLE_NAME_CELL = new RegExp(String.raw`\|\s*${NAME2_RE}\s*(?:,[^|]*)?\|`);
+const FIRST_PERSON = /\b(i|we|my|our|us|me|i['’](?:m|ve|d|ll)|we['’](?:re|ve|d|ll))\b/i;
 // "the only" is a claim when it names a product or a way; "the only person named" is not.
 const ONLY_CLAIM = /\bthe only (?:[\w-]+ ){0,2}?(?:tool|platform|product|app|solution|service|way|option|choice|company|provider|vendor|software)\b/i;
 const NEGATED = /\b(do not|don't|never|avoid|must not|can't|cannot|not claim)\b/i;
@@ -203,25 +223,56 @@ function units(lines, start) {
 const plain = (s) => s.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(URL_RE, ' ').replace(/[*_`]/g, '');
 const sentencesOf = (s) => plain(s).split(/(?<=[.!?])\s+(?=["“'(\[]?[A-Z])/).map((x) => x.trim()).filter((x) => countWords(x) > 0);
 
+// A1: a quote that looks like someone's words, with no source. Returns the quoted text to warn about, or null.
+// All types: a quote of 6+ words with a speech cue on its line, or with the speaker named after the closing quote,
+// in a table cell or on the next line. seo, social and email (where testimonials live) also: a quote of 3+ words
+// with a named speaker, an unquoted blockquote with a dash and a name, and a 5+ word first-person sentence with
+// no speaker at all.
+function unsourcedQuote(lines, i, loose) {
+  const line = lines[i];
+  const next = lines[i + 1] || '';
+  const inBlock = /^\s*>/.test(line);
+  const nextNamed = NEXT_LINE_DASH_NAME.test(next) || ((inBlock || /^\s*>/.test(next)) && NEXT_LINE_NAME.test(next));
+  const speech = SPEECH_CUE.test(line);
+  for (const m of line.matchAll(QUOTED)) {
+    const q = m[1] ?? m[2];
+    if (/\{\{/.test(q)) continue;
+    const n = countWords(q);
+    const after = line.slice(m.index + m[0].length);
+    const separated = /[,.!?]$/.test(q.trim()) || /^\s*[,|—–-]/.test(after);
+    const named = (separated && NAME_AFTER.test(after)) || nextNamed || (/^\s*\|/.test(line) && TABLE_NAME_CELL.test(line.replace(m[0], '')));
+    if ((speech || named) && n >= QUOTE_MIN_WORDS) return q;
+    if (!loose) continue;
+    if ((named || PERSON_SAID.test(line)) && n >= LOOSE_SPOKEN_MIN_WORDS) return q;
+    const alone = line.replace(/^[\s>|*_-]+/, '').startsWith(m[0]) && /^[\s|*_]*$/.test(after);
+    if (!speech && !named && n >= LOOSE_BARE_MIN_WORDS && /[,.!?]$/.test(q.trim()) && (FIRST_PERSON.test(q) || alone)) return q;
+  }
+  if (loose && inBlock && !line.match(QUOTED)) {
+    const text = line.replace(/^\s*>\s*/, '');
+    const same = text.match(DASH_NAME_END);
+    const body = same ? same[1] : NEXT_LINE_DASH_NAME.test(next) ? text : null;
+    if (body && countWords(body) >= LOOSE_SPOKEN_MIN_WORDS) return body;
+  }
+  return null;
+}
+
 // A1: claims of being the only, the fastest, the leader or better than someone, and quotes with no source.
-function checkSuperlatives(lines, start, report) {
+function checkSuperlatives(lines, start, report, type) {
+  const loose = LOOSE_QUOTE_TYPES.has(type);
   lines.forEach((line, i) => {
     if (i < start || !line.trim() || /^\s*#/.test(line)) return;
     const sourced = hasSourceNear(lines, i);
+    // checkClaims already reports a number with a metric word and no source; a second warning would repeat it.
+    const claimsCheckFires = METRICS.test(line) && NUMBERS.test(line);
     const hits = RULES.superlatives.filter((w) => wordRe(w).test(line));
     if (ONLY_CLAIM.test(line)) hits.push('the only');
     if (LEADING_CLAIM.test(line)) hits.push('leading');
     if (RANK_ONE.test(line)) hits.push('#1');
-    if (hits.length && !sourced && !NEGATED.test(line)) report.warn('superlative', i + 1, `${hits.map((h) => `"${h}"`).join(', ')}: a claim that needs a source within two lines, or plainer wording`);
+    if (hits.length && !sourced && !claimsCheckFires && !NEGATED.test(line)) report.warn('superlative', i + 1, `${hits.map((h) => `"${h}"`).join(', ')}: a claim that needs a source within two lines, or plainer wording`);
     if (VAGUE_ATTRIBUTION.test(line) && !sourced) report.warn('vague-attribution', i + 1, `"${line.match(VAGUE_ATTRIBUTION)[0]}": name who, and cite it`);
-    if (!sourced && !OPT_OUT.test(line) && SPEECH_CUE.test(line)) {
-      for (const m of line.matchAll(QUOTED)) {
-        const q = m[1] ?? m[2];
-        if (countWords(q) >= QUOTE_MIN_WORDS && !/\{\{/.test(q)) {
-          report.warn('unsourced-quote', i + 1, `a quotation with no source within two lines: "${q.slice(0, 50)}"`);
-          break;
-        }
-      }
+    if (!sourced && !OPT_OUT.test(line)) {
+      const q = unsourcedQuote(lines, i, loose);
+      if (q !== null) report.warn('unsourced-quote', i + 1, `a quotation with no source within two lines: "${q.slice(0, 50)}"`);
     }
   });
 }
@@ -236,8 +287,9 @@ function checkVocabulary(lines, start, words, report, type) {
   });
   const all = units(lines, start);
   for (const u of all) {
-    const hit = RULES.tier2.filter((w) => wordRe(w).test(u.text));
-    if (hit.length >= RULES.tierClusterMin) report.warn('vocab-cluster', u.line, `${hit.length} mild filler words in one paragraph: ${hit.map((w) => `"${w}"`).join(', ')}`);
+    // A tier 2 entry is a word family: 'navigate/navigates/navigating' counts once, however many forms appear.
+    const hit = RULES.tier2.filter((w) => w.split('/').some((form) => wordRe(form).test(u.text)));
+    if (hit.length >= RULES.tierClusterMin) report.warn('vocab-cluster', u.line, `${hit.length} mild filler words in one paragraph: ${hit.map((w) => `"${w.split('/')[0]}"`).join(', ')}`);
   }
   const text = lines.slice(start).join('\n');
   let t3 = 0;
@@ -424,7 +476,7 @@ function lint(file, type, keyword) {
   const words = checkWords(lines, start, report);
   checkMarkers(lines, start, report);
   checkClaims(lines, start, report, type === 'general' || type === 'seo' ? 'fail' : 'warn');
-  checkSuperlatives(lines, start, report);
+  checkSuperlatives(lines, start, report, type);
   checkVocabulary(lines, start, words, report, type);
   checkEmDashes(lines, start, words, report);
   checkUrls(lines, start, report);
