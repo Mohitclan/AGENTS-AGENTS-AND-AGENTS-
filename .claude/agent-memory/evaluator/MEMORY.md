@@ -9,4 +9,5 @@
 - [Repo survey checks](feedback_repo_survey_checks.md) — raw gh api fetches; hunt upstream credits; test "no skill/lint does X" vs descriptions and regexes
 - [Guide proposal checks](feedback_guide_proposal_checks.md) — test every "all/every/only" claim; line-number collisions; "leave" vs memory and other proposals; lint count vs gate log
 - [Skill draft checks](feedback_skill_draft_checks.md) — loader tools from files (fallbacks lack Edit); "never add" vs REVISE fixes; test my own fix wording; quoted >> rows
+- [Marketing listing checks](feedback_marketing_listing_checks.md) — trial caps vs feature ranges; "yet" = roadmap; test author's site claims live; four U's per listing
 - [Lead batch checks](feedback_lead_batch_checks.md) — test gaps, "not found" and rejections past the homepage; recompute tiers; read board lines literally
