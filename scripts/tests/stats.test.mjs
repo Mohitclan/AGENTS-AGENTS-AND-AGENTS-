@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { OBJECTION_RECOVERED, Z95, objectionStats, parseReview, rateOf, replyRate, reviewName, reviewStats, wilson, windowClosed } from '../stats.mjs';
+import { HELD_FOR_PERSON, MOVED_FORWARD, OBJECTION_LABELS, OBJECTION_RECOVERED, Z95, objectionStats, parseReview, rateOf, replyRate, reviewName, reviewStats, wilson, windowClosed } from '../stats.mjs';
 
 const SCRIPT = join(dirname(fileURLToPath(import.meta.url)), '..', 'stats.mjs');
 const near = (a, b, eps = 0.0006) => assert.ok(Math.abs(a - b) <= eps, `${a} is not within ${eps} of ${b}`);
@@ -96,6 +96,30 @@ test('reply rate: demo sends and their replies are excluded', () => {
   assert.equal(r.demo_sends_excluded, 1);
 });
 
+test('reply rate: a demo-mode reply that carries a live contact\'s lead is not counted', () => {
+  const sends = [send('A', day(0))];
+  const r = replyRate({ sends, replies: [reply('A', 'reply', day(2), { mode: 'demo' })], asOfMs: AS_OF, min: 1 });
+  assert.equal(r.closed, 1);
+  assert.equal(r.replied, 0, 'a demo reply must not turn a live contact into a reply');
+  assert.equal(replyRate({ sends, replies: [reply('A', 'reply', day(2))], asOfMs: AS_OF, min: 1 }).replied, 1, 'the same reply in live mode does count');
+});
+
+test('reply rate: a reply exactly at the end of the window counts, one second later does not', () => {
+  const sends = [send('A', day(0))];
+  const edge = replyRate({ sends, replies: [reply('A', 'reply', day(14))], asOfMs: AS_OF, min: 1 });
+  assert.equal(edge.replied, 1);
+  const after = replyRate({ sends, replies: [reply('A', 'reply', new Date(Date.parse(day(14)) + 1000).toISOString())], asOfMs: AS_OF, min: 1 });
+  assert.equal(after.replied, 0);
+  assert.equal(after.late_replies_not_counted, 1);
+});
+
+test('reply rate: a reply dated before the first send is not counted', () => {
+  const r = replyRate({ sends: [send('A', day(5))], replies: [reply('A', 'reply', day(2))], asOfMs: AS_OF, min: 1 });
+  assert.equal(r.replied, 0);
+  assert.equal(r.replies_dated_before_first_send_not_counted, 1);
+  assert.equal(r.late_replies_not_counted, 0);
+});
+
 test('reply rate: only demo sends means n=0 and no rate', () => {
   const r = replyRate({ sends: [send('B', day(0), { mode: 'demo' })], replies: [], asOfMs: AS_OF });
   assert.equal(r.n, 0);
@@ -127,10 +151,15 @@ test('reply rate: follow-ups to one contact count once, with the window from the
   assert.equal(r.replied, 1);
 });
 
-test('reply rate: --since leaves out older sends', () => {
-  const sends = [send('A', day(0)), send('B', day(5))];
-  const r = replyRate({ sends, replies: [], asOfMs: AS_OF, sinceMs: Date.parse('2026-11-03T00:00:00Z'), min: 1 });
+test('reply rate: --since keeps contacts by their first send, not single sends', () => {
+  const since = Date.parse('2026-11-03T00:00:00Z'); // day(2) is the first day after it
+  const sends = [send('A', day(0)), send('B', day(5)), send('A', day(10))];
+  const r = replyRate({ sends, replies: [reply('A', 'reply', day(17))], asOfMs: AS_OF, sinceMs: since, min: 1 });
+  assert.equal(r.contacts, 1, 'A was first emailed before --since, so A is out even though a follow-up is later');
+  assert.equal(r.contacts_before_since_excluded, 1);
   assert.equal(r.live_sends, 1);
+  assert.equal(r.replied, 0, 'A\'s late reply (day 17 from its first send) must not be counted through the follow-up');
+  assert.equal(r.late_replies_not_counted, 0);
 });
 
 test('reply rate: the rate appears once n reaches the minimum, with an interval', () => {
@@ -173,6 +202,7 @@ test('reviews: a split verdict counts each draft, not only the first', () => {
   const table = '| Lead | Score | Verdict | Why |\n|---|---|---|---|\n| A | 80 | **PASS** | x |\n| B | 60 | **REVISE** | y |\n| C | 50 | **ESCALATE** | z |\n| Overall | 50 | **REVISE** | lowest |\n';
   const parsed = parseReview(review('## Verdict: REVISE overall. A PASS, B REVISE', table));
   assert.equal(parsed.source, 'table');
+  assert.equal(parsed.warning, null, 'the headline verdict REVISE is among the table verdicts');
   assert.deepEqual(parsed.results.map((r) => r.verdict), ['PASS', 'REVISE', 'ESCALATE']);
   const s = reviewStats([{ name: 'T-20261110-03-r1.md', text: review('x', table) }], 1);
   assert.equal(s.first_review_results, 3);
@@ -188,11 +218,33 @@ test('reviews: frontmatter and headline verdicts, and "PASS line" is not a verdi
   assert.equal(parseReview('no verdict here').results.length, 0);
 });
 
-test('reviews: a task whose round 1 file is missing is flagged and left out of the first-review rate', () => {
+test('reviews: a task whose round 1 file is missing is flagged, left out of the first-review rate, and its r2 proves one revision', () => {
   const s = reviewStats([{ name: 'T-20261110-04-r2.md', text: review('**Verdict: PASS, 83/100.**') }], 1);
   assert.equal(s.gaps.length, 1);
   assert.equal(s.first_review_results, 0);
-  assert.equal(s.per_task[0].revisions, 0, 'revisions are still reviews minus one');
+  assert.equal(s.per_task[0].reviews, 1, 'one file');
+  assert.equal(s.per_task[0].revisions, 1, 'the r2 file proves an r1 review took place');
+  assert.equal(s.revisions_total, 1);
+  const gap = reviewStats([{ name: 'T-20261110-06-r1.md', text: review('**Verdict: REVISE.**') }, { name: 'T-20261110-06-r3.md', text: review('**Verdict: PASS.**') }], 1);
+  assert.equal(gap.per_task[0].revisions, 2, 'r1 and r3 files: three rounds happened');
+});
+
+test('reviews: a lettered sub-task review file is read, not skipped', () => {
+  assert.deepEqual(reviewName('T-20261103-09a-r1.md'), { task: 'T-20261103-09a', round: 1 });
+  const s = reviewStats([{ name: 'T-20261103-09a-r1.md', text: review('**Verdict: PASS.**') }, { name: 'T-20261103-09b-r1.md', text: review('**Verdict: REVISE.**') }], 1);
+  assert.equal(s.skipped_files.length, 0);
+  assert.equal(s.tasks, 2);
+});
+
+test('reviews: a check table is not read as drafts, and a table that contradicts the headline raises a warning', () => {
+  const checks = '| Item | Verdict | Evidence |\n|---|---|---|\n| A1 superlatives | PASS | x |\n| A3 tiers | PASS | y |\n| B16 | PASS | z |\n';
+  const p = parseReview('---\nverdict: REVISE\n---\n\n# r\n\n' + checks);
+  assert.equal(p.source, 'frontmatter', 'the Item | Verdict table must not be counted as three PASS drafts');
+  assert.deepEqual(p.results.map((r) => r.verdict), ['REVISE']);
+  const drafts = '| Draft | Score | Verdict |\n|---|---|---|\n| A | 90 | PASS |\n| B | 91 | PASS |\n';
+  const q = parseReview('---\nverdict: REVISE\n---\n\n' + drafts);
+  assert.equal(q.source, 'table');
+  assert.match(q.warning, /table verdicts are PASS but the frontmatter verdict is REVISE/);
 });
 
 test('reviews: under the minimum, no pass rate and no average', () => {
@@ -235,6 +287,84 @@ test('objections: the latest line for an id wins and below the minimum there is 
   assert.equal(s.enough, false);
   assert.equal(s.rate, null);
   assert.ok(OBJECTION_RECOVERED.has('interested') && !OBJECTION_RECOVERED.has('opt_out') && !OBJECTION_RECOVERED.has('auto_reply') && !OBJECTION_RECOVERED.has('declined'));
+});
+
+// Every label has exactly one place: wrote back (k), moved forward, in n only, or out of n.
+// `side` is where one answered, closed objection with a reply inside the wait must land.
+const LABEL_SIDES = {
+  interested: { n: 1, k: 1, moved: 1 },
+  objection: { n: 1, k: 1, moved: 0 },
+  referral: { n: 1, k: 1, moved: 0 },
+  not_now: { n: 1, k: 1, moved: 0 },
+  wrong_person: { n: 1, k: 1, moved: 0 },
+  needs_person: { n: 0, k: 0, moved: 0, held_for_person: 1 },
+  declined: { n: 1, k: 0, moved: 0 },
+  opt_out: { n: 1, k: 0, moved: 0 },
+  complaint: { n: 1, k: 0, moved: 0 },
+  auto_reply: { n: 1, k: 0, moved: 0 },
+  bounce: { n: 0, k: 0, moved: 0, bounced: 1 },
+  unknown: { n: 0, k: 0, moved: 0, unlabelled: 1 },
+};
+
+test('objections: every label is pinned to its side (wrote back, moved forward, in n only, left out)', () => {
+  assert.deepEqual(Object.keys(LABEL_SIDES).sort(), [...OBJECTION_LABELS].sort(), 'a new label needs a line in this table');
+  for (const [label, want] of Object.entries(LABEL_SIDES)) {
+    const s = objectionStats([objection('O1', '2026-11-01', label, '2026-11-02')], { asOfMs: Date.parse('2026-11-20T00:00:00Z'), min: 1 });
+    assert.equal(s.closed, want.n, `${label}: n`);
+    assert.equal(s.recovered, want.k, `${label}: wrote back`);
+    assert.equal(s.moved_forward.k, want.moved, `${label}: moved forward`);
+    assert.equal(s.held_for_person, want.held_for_person ?? 0, `${label}: held for a person`);
+    assert.equal(s.bounced, want.bounced ?? 0, `${label}: bounced`);
+    assert.equal(s.unlabelled, want.unlabelled ?? 0, `${label}: unlabelled`);
+  }
+  assert.deepEqual([...OBJECTION_RECOVERED].sort(), ['interested', 'not_now', 'objection', 'referral', 'wrong_person']);
+  assert.deepEqual([...MOVED_FORWARD], ['interested']);
+  assert.deepEqual([...HELD_FOR_PERSON], ['needs_person']);
+});
+
+test('objections: not_now and wrong_person count as wrote back but not as moved forward; needs_person is held out of both sides', () => {
+  const rows = [
+    objection('O1', '2026-11-01', 'interested', '2026-11-02'),
+    objection('O2', '2026-11-01', 'not_now', '2026-11-02'),
+    objection('O3', '2026-11-01', 'wrong_person', '2026-11-02'),
+    objection('O4', '2026-11-01', 'needs_person', '2026-11-02'),
+    objection('O5', '2026-11-01', 'auto_reply', '2026-11-02'),
+  ];
+  const s = objectionStats(rows, { asOfMs: Date.parse('2026-11-20T00:00:00Z'), min: 1 });
+  assert.equal(s.closed, 4, 'needs_person is in neither side');
+  assert.equal(s.recovered, 3);
+  assert.equal(s.rate, 0.75);
+  assert.equal(s.moved_forward.k, 1);
+  assert.equal(s.moved_forward.n, 4);
+  assert.equal(s.held_for_person, 1);
+});
+
+test('objections: a reply on the last day of the wait counts, the day after does not, and one dated before the answer does not', () => {
+  const asOfMs = Date.parse('2026-11-30T00:00:00Z');
+  const one = (replyAt) => objectionStats([objection('O1', '2026-11-01', 'interested', replyAt)], { asOfMs, min: 1 });
+  assert.equal(one('2026-11-08').recovered, 1, 'exactly 7 days after the answer');
+  assert.equal(one('2026-11-09').recovered, 0);
+  assert.equal(one('2026-11-09').late_replies_not_counted, 1);
+  const before = one('2026-10-30');
+  assert.equal(before.recovered, 0, 'a reply dated before the answer was sent is not a reply to it');
+  assert.equal(before.moved_forward.k, 0);
+  assert.equal(before.closed, 1);
+});
+
+test('objections: the smokescreen share counts only answers whose two markers are both known', () => {
+  const m = (id, pre, none) => ({ ...objection(id, '2026-11-01', 'interested', '2026-11-02'), pre_information: pre, no_specifics: none });
+  const rows = [m('O1', 'yes', 'yes'), m('O2', 'yes', 'no'), m('O3', 'no', 'no'), m('O4', 'unknown', 'yes'), m('O5', undefined, undefined), m('O6', 'yes', 'yes')];
+  const s = objectionStats(rows, { asOfMs: Date.parse('2026-11-20T00:00:00Z'), min: 1 });
+  assert.equal(s.smokescreen.k, 2, 'O1 and O6 have both markers yes');
+  assert.equal(s.smokescreen.n, 4, 'O1, O2, O3 and O6 have both markers known');
+  assert.equal(s.smokescreen.answers_without_both_markers, 2);
+  assert.equal(s.smokescreen.rate, 0.5);
+  const none = objectionStats([objection('O1', '2026-11-01', 'interested', '2026-11-02')], { asOfMs: Date.parse('2026-11-20T00:00:00Z'), min: 1 });
+  assert.equal(none.smokescreen.n, 0);
+  assert.equal(none.smokescreen.enough, false, 'no markers logged: no smokescreen share');
+  const few = objectionStats(rows, { asOfMs: Date.parse('2026-11-20T00:00:00Z') });
+  assert.equal(few.smokescreen.enough, false, 'below the minimum of 10 there is no percentage');
+  assert.equal(few.moved_forward.enough, false);
 });
 
 // ---------- the command line, on a throwaway folder ----------
@@ -302,7 +432,11 @@ test('cli: objections read outputs/sales/objection-log.jsonl', () => {
     assert.equal(s.available, true);
     assert.equal(s.n, 1);
     assert.equal(s.enough, false);
-    assert.match(cli(root, 'objections', '--as-of', '2026-12-01').stdout, /not enough data \(n=1, need ≥10\)/);
+    const text = cli(root, 'objections', '--as-of', '2026-12-01').stdout;
+    assert.match(text, /not enough data \(n=1, need ≥10\)/);
+    assert.match(text, /Moved forward \(interested only\): not enough data/);
+    assert.match(text, /Smokescreen share .*: not enough data \(n=0, need ≥10\)/);
+    assert.doesNotMatch(text, /\d%/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

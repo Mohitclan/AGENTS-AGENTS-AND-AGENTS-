@@ -15,13 +15,18 @@
 //   Reply rate: live outreach only, never demo sends. The unit is a contact (the lead, else the
 //     address). Its 14-day window (ops/approvals.md condition D) starts at the first live send and
 //     is closed once 14 days have passed. Only closed contacts are counted. A reply counts if it
-//     is a reply, opt-out or complaint that arrived inside the window; auto-replies do not count;
-//     a contact whose email bounced is left out of both sides. Rate comes with a 95% Wilson interval.
-//   Reviews: a task's revisions are its reviews minus one. A review that holds a per-draft table
+//     is a reply, opt-out or complaint that arrived from the first send up to 14 days after it;
+//     auto-replies do not count; a contact whose email bounced is left out of both sides.
+//     --since keeps the contacts whose first live send is on or after that date.
+//     Rate comes with a 95% Wilson interval.
+//   Reviews: a task's revisions are its reviews minus one (the highest round seen counts as a
+//     review even when an earlier file is missing). A review that holds a per-draft table
 //     contributes one result per draft. First-review pass rate = PASS results in each task's first
 //     review (round 1) over all results in those reviews.
 //   Objections: of the objections whose answer a person sent, with the wait (7 days) over, the
-//     share where the buyer wrote back inside the wait. Source: outputs/sales/objection-log.jsonl.
+//     share where the buyer wrote back inside the wait (labels above). Also reported: "moved
+//     forward" (Interested only) and the smokescreen share (both markers yes, of answers with both
+//     markers known). Source: outputs/sales/objection-log.jsonl.
 //
 // Below the minimum sample (default 10) no rate is printed: "not enough data (n=X, need ≥10)".
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
@@ -39,9 +44,16 @@ export const Z95 = 1.959963984540054;
 export const RESPONDED = new Set(['reply', 'opt_out', 'complaint']);
 
 // Objection-log labels (the reply-triage categories in snake_case, plus `declined` for a flat no
-// that is not an opt-out). Only these count as the buyer writing back and keeping the talk going.
+// that is not an opt-out). The definition is the "Brief for P4" in outputs/sales/skill-drafts/README.md
+// and row 4 of the shortlist's assumptions.
+//   Wrote back (the talk went on): interested, objection (a second one), referral, wrong_person, not_now.
+//   Moved forward (a separate count): interested only for now.
+//   Stay in n but are not wrote back: declined, opt_out, complaint, auto_reply (and silence).
+//   Left out of both sides: bounce, unknown, and needs_person (held until a person labels it).
 export const OBJECTION_LABELS = ['interested', 'objection', 'referral', 'not_now', 'wrong_person', 'needs_person', 'declined', 'opt_out', 'complaint', 'auto_reply', 'bounce', 'unknown'];
-export const OBJECTION_RECOVERED = new Set(['interested', 'objection', 'referral', 'needs_person']);
+export const OBJECTION_RECOVERED = new Set(['interested', 'objection', 'referral', 'wrong_person', 'not_now']);
+export const MOVED_FORWARD = new Set(['interested']);
+export const HELD_FOR_PERSON = new Set(['needs_person']);
 
 // ---------- pure helpers (tested in scripts/tests/stats.test.mjs) ----------
 
@@ -99,10 +111,11 @@ export function parseJsonl(text) {
 // ({ kind, mode, lead, sent_to, send_message_id, received | at }).
 export function replyRate({ sends, replies, windowDays = REPLY_WINDOW_DAYS, asOfMs = Date.now(), sinceMs = null, min = DEFAULT_MIN }) {
   const outreach = sends.filter((s) => s.kind === 'outreach');
-  const live = outreach.filter((s) => s.mode === 'live' && (sinceMs == null || toMs(s.at) >= sinceMs));
+  const live = outreach.filter((s) => s.mode === 'live');
   const demoExcluded = outreach.filter((s) => s.mode === 'demo').length;
   const otherMode = outreach.filter((s) => s.mode !== 'live' && s.mode !== 'demo').length;
 
+  // Group every live send first, so a contact's first send is its real first send.
   const groups = new Map();
   for (const s of [...live].sort((a, b) => toMs(a.at) - toMs(b.at))) {
     const key = s.lead || String(s.to || '').toLowerCase();
@@ -112,27 +125,32 @@ export function replyRate({ sends, replies, windowDays = REPLY_WINDOW_DAYS, asOf
     if (s.to) g.tos.add(String(s.to).toLowerCase());
     if (s.message_id) g.ids.add(String(s.message_id).toLowerCase());
   }
+  // --since keeps contacts whose first live send is on or after the date (not single sends).
+  const everyone = [...groups.values()];
+  const kept = sinceMs == null ? everyone : everyone.filter((g) => g.firstAt >= sinceMs);
 
   const liveReplies = replies.filter((r) => r.mode === 'live');
   const belongs = (g, r) => (r.lead && r.lead === g.key) || (r.send_message_id && g.ids.has(String(r.send_message_id).toLowerCase())) || (r.sent_to && g.tos.has(String(r.sent_to).toLowerCase()));
   let late = 0;
-  for (const g of groups.values()) {
+  let early = 0;
+  for (const g of kept) {
     g.bounced = false;
     g.responded = false;
     for (const r of liveReplies.filter((x) => belongs(g, x))) {
       if (r.kind === 'bounce') g.bounced = true;
       const at = toMs(r.received) ?? toMs(r.at);
-      const inside = at != null && at <= g.firstAt + windowDays * DAY;
+      const inside = at != null && at >= g.firstAt && at <= g.firstAt + windowDays * DAY;
       if (RESPONDED.has(r.kind)) {
         if (inside) {
           g.responded = true;
           g.kinds[r.kind] = (g.kinds[r.kind] || 0) + 1;
-        } else late++;
+        } else if (at != null && at < g.firstAt) early++;
+        else late++;
       }
     }
   }
 
-  const all = [...groups.values()];
+  const all = kept;
   const bounced = all.filter((g) => g.bounced);
   const counted = all.filter((g) => !g.bounced);
   const closed = counted.filter((g) => windowClosed(g.firstAt, windowDays, asOfMs));
@@ -144,14 +162,16 @@ export function replyRate({ sends, replies, windowDays = REPLY_WINDOW_DAYS, asOf
     window_days: windowDays,
     as_of: new Date(asOfMs).toISOString().slice(0, 10),
     since: sinceMs == null ? null : new Date(sinceMs).toISOString().slice(0, 10),
-    live_sends: live.length,
+    live_sends: kept.reduce((sum, g) => sum + g.sends, 0),
     contacts: all.length,
+    contacts_before_since_excluded: everyone.length - kept.length,
     bounced: bounced.length,
     still_open: open.length,
     closed: closed.length,
     replied: k,
     reply_kinds: by,
     late_replies_not_counted: late,
+    replies_dated_before_first_send_not_counted: early,
     demo_sends_excluded: demoExcluded,
     other_mode_sends_excluded: otherMode,
     ...rateOf(k, closed.length, min),
@@ -165,10 +185,14 @@ const cellsOf = (line) => line.trim().replace(/^\||\|$/g, '').split('|').map((c)
 const plain = (s) => s.replace(/[*`]/g, '').trim();
 
 // "T-20261030-01-review.md" is round 1, "...-review-r2.md" and "...-r2.md" are round 2.
+// A lettered sub-task ("T-20261103-09a-r1.md") is its own task.
 export function reviewName(file) {
-  const m = /^(T-\d{8}-\d{2})(?:-review)?(?:-r(\d+))?\.md$/.exec(file);
+  const m = /^(T-\d{8}-\d{2}[a-z]?)(?:-review)?(?:-r(\d+))?\.md$/.exec(file);
   return m ? { task: m[1], round: m[2] ? Number(m[2]) : 1 } : null;
 }
+
+// A table lists drafts only if its first column is not a list of checks, items or rules.
+const CHECK_TABLE_FIRST_COLUMN = /^(item|items|check|checks|rule|rules|claim|claims|criterion|criteria|probe|probes|fix|fixes|source|sources|test|tests|call|calls|area|requirement|mutant|step)\b/;
 
 // One result per draft: a table in the top of the file whose header has a Verdict column.
 function tableResults(lines) {
@@ -178,6 +202,7 @@ function tableResults(lines) {
     const head = cellsOf(top[i]).map((c) => plain(c).toLowerCase());
     const col = head.findIndex((c) => /^(per-lead |final |batch )?verdict$/.test(c));
     if (col < 0) continue;
+    if (CHECK_TABLE_FIRST_COLUMN.test(head[0] || '')) continue;
     const out = [];
     for (let j = i + 2; j < lines.length && lines[j].trim().startsWith('|'); j++) {
       const cells = cellsOf(lines[j]);
@@ -191,14 +216,11 @@ function tableResults(lines) {
   return [];
 }
 
-// Verdicts of one review file: per-draft table first, then the frontmatter, then the Verdict line.
-export function parseReview(text) {
-  const lines = String(text || '').replace(/\r\n/g, '\n').split('\n');
-  const rows = tableResults(lines);
-  if (rows.length) return { results: rows, source: 'table', warning: null };
+// The review's own headline verdict: frontmatter first, then the Verdict line. null if neither.
+function headlineVerdict(text, lines) {
   const fm = frontmatter(text);
   const fv = fm?.verdict && TOKEN.exec(fm.verdict.toUpperCase());
-  if (fv) return { results: [{ label: 'review', verdict: fv[1] }], source: 'frontmatter', warning: null };
+  if (fv) return { verdict: fv[1], source: 'frontmatter', warning: null };
   for (const line of lines.slice(0, 40)) {
     const at = line.search(/verdict/i);
     if (at < 0) continue;
@@ -206,8 +228,23 @@ export function parseReview(text) {
     const t = TOKEN.exec(after);
     if (!t) continue;
     const seen = [...new Set(after.match(new RegExp(TOKEN.source, 'g')) || [])];
-    return { results: [{ label: 'review', verdict: t[1] }], source: 'headline', warning: seen.length > 1 ? `headline names ${seen.join(' and ')}; counted ${t[1]}, the first` : null };
+    return { verdict: t[1], source: 'headline', warning: seen.length > 1 ? `headline names ${seen.join(' and ')}; counted ${t[1]}, the first` : null };
   }
+  return null;
+}
+
+// Verdicts of one review file: per-draft table first, then the frontmatter, then the Verdict line.
+// When a table is used, its verdicts must include the headline verdict, or a warning is raised.
+export function parseReview(text) {
+  const lines = String(text || '').replace(/\r\n/g, '\n').split('\n');
+  const head = headlineVerdict(text, lines);
+  const rows = tableResults(lines);
+  if (rows.length) {
+    const seen = [...new Set(rows.map((r) => r.verdict))];
+    const warning = head && !seen.includes(head.verdict) ? `table verdicts are ${seen.join(', ')} but the ${head.source} verdict is ${head.verdict}; check the table lists drafts` : null;
+    return { results: rows, source: 'table', warning };
+  }
+  if (head) return { results: [{ label: 'review', verdict: head.verdict }], source: head.source, warning: head.warning };
   return { results: [], source: null, warning: 'no verdict found' };
 }
 
@@ -237,8 +274,10 @@ export function reviewStats(files, min = DEFAULT_MIN) {
     list.sort((a, b) => a.round - b.round);
     const first = list[0];
     const hasFirst = first.round === 1;
-    if (!hasFirst) gaps.push(`${task}: no round 1 review file (earliest is r${first.round}); left out of the first-review pass rate; its revisions are reviews − 1, so the true count may be higher`);
-    revisions += list.length - 1;
+    // A file for round N proves rounds 1 to N took place, even when an earlier file is missing.
+    const rounds = Math.max(list.length, list[list.length - 1].round);
+    if (!hasFirst) gaps.push(`${task}: no round 1 review file (earliest is r${first.round}); left out of the first-review pass rate; revisions are counted from the highest round (r${list[list.length - 1].round}), so the earlier review is counted as having happened`);
+    revisions += rounds - 1;
     reviewCount += list.length;
     if (hasFirst) {
       firstResults += first.results.length;
@@ -247,7 +286,7 @@ export function reviewStats(files, min = DEFAULT_MIN) {
     rows.push({
       task,
       reviews: list.length,
-      revisions: list.length - 1,
+      revisions: rounds - 1,
       first_review: hasFirst ? first.results.map((r) => r.verdict).join(' + ') || 'unknown' : 'not seen',
       last_review: list[list.length - 1].results.map((r) => r.verdict).join(' + ') || 'unknown',
     });
@@ -277,9 +316,13 @@ export function objectionStats(rows, { windowDays = OBJECTION_WINDOW_DAYS, asOfM
   const all = [...latest.values()];
   const answered = all.filter((r) => toMs(r.answer_sent) != null);
   const notAnswered = all.length - answered.length;
-  const out = { logged: all.length, not_answered_yet: notAnswered, bounced: 0, pending: 0, unlabelled: 0, unknown_labels: [], late_replies_not_counted: 0 };
+  const out = { logged: all.length, not_answered_yet: notAnswered, bounced: 0, pending: 0, unlabelled: 0, held_for_person: 0, unknown_labels: [], late_replies_not_counted: 0 };
   let n = 0;
   let k = 0;
+  let moved = 0;
+  let marked = 0;
+  let smoke = 0;
+  const yesNo = (v) => (v === true || v === 'yes' ? 'yes' : v === false || v === 'no' ? 'no' : null);
   for (const r of answered) {
     const sent = toMs(r.answer_sent);
     const label = r.reply_category ?? null;
@@ -291,20 +334,41 @@ export function objectionStats(rows, { windowDays = OBJECTION_WINDOW_DAYS, asOfM
       out.pending++;
       continue;
     }
+    if (label && HELD_FOR_PERSON.has(label)) {
+      out.held_for_person++;
+      continue;
+    }
     if (label === 'unknown' || (label && !OBJECTION_LABELS.includes(label))) {
       out.unlabelled++;
       if (label !== 'unknown') out.unknown_labels.push(`${r.id ?? '?'}: ${label}`);
       continue;
     }
     n++;
+    const pre = yesNo(r.pre_information);
+    const none = yesNo(r.no_specifics);
+    if (pre && none) {
+      marked++;
+      if (pre === 'yes' && none === 'yes') smoke++;
+    }
     const at = toMs(r.reply_at);
     const inside = at != null && at >= sent && at <= sent + windowDays * DAY;
     if (label && OBJECTION_RECOVERED.has(label)) {
-      if (inside) k++;
-      else out.late_replies_not_counted++;
+      if (inside) {
+        k++;
+        if (MOVED_FORWARD.has(label)) moved++;
+      } else out.late_replies_not_counted++;
     }
   }
-  return { window_days: windowDays, as_of: new Date(asOfMs).toISOString().slice(0, 10), ...out, closed: n, recovered: k, ...rateOf(k, n, min) };
+  return {
+    window_days: windowDays,
+    as_of: new Date(asOfMs).toISOString().slice(0, 10),
+    ...out,
+    closed: n,
+    recovered: k,
+    ...rateOf(k, n, min),
+    moved_forward: rateOf(moved, n, min),
+    smokescreen: { ...rateOf(smoke, marked, min), answers_without_both_markers: n - marked },
+  };
 }
 
 // ---------- reading the team's files ----------
@@ -452,10 +516,10 @@ function main() {
       min,
     });
     const lines = [
-      `Reply rate, live outreach only (demo sends never count). As of ${r.as_of}${r.since ? `, sends since ${r.since}` : ''}.`,
+      `Reply rate, live outreach only (demo sends never count). As of ${r.as_of}${r.since ? `, contacts first emailed since ${r.since} (${r.contacts_before_since_excluded} earlier contact(s) left out)` : ''}.`,
       `Window: ${r.window_days} days from the first live send to each contact. Only closed windows count.`,
       `Live sends: ${r.live_sends} to ${r.contacts} contact(s). Closed: ${r.closed}. Still open: ${r.still_open}. Bounced, left out: ${r.bounced}.`,
-      `Demo sends excluded: ${r.demo_sends_excluded}. Replies that came after the window, not counted: ${r.late_replies_not_counted}.`,
+      `Demo sends excluded: ${r.demo_sends_excluded}. Replies that came after the window, not counted: ${r.late_replies_not_counted}. Replies dated before the first send, not counted: ${r.replies_dated_before_first_send_not_counted}.`,
       showRate(r),
     ];
     if (r.enough) lines.push(`Replies by kind: ${kv(r.reply_kinds)}. A rate shows what happened, not why.`);
@@ -489,8 +553,11 @@ function main() {
     const s = objectionStats(parsed.rows, { windowDays: intFlag(args, 'window', OBJECTION_WINDOW_DAYS), asOfMs, min });
     const lines = [
       `Objection recovery rate (outputs/sales/objection-log.jsonl). As of ${s.as_of}.`,
-      `Logged: ${s.logged}. Answer not sent yet: ${s.not_answered_yet}. Still inside the ${s.window_days}-day wait: ${s.pending}. Bounced, left out: ${s.bounced}. Reply not labelled yet, left out: ${s.unlabelled}.`,
-      showRate(s),
+      `Logged: ${s.logged}. Answer not sent yet: ${s.not_answered_yet}. Still inside the ${s.window_days}-day wait: ${s.pending}. Bounced, left out: ${s.bounced}. Reply not labelled yet, left out: ${s.unlabelled}. Held for a person (needs_person), left out of both sides: ${s.held_for_person}.`,
+      `Wrote back (interested, objection, referral, wrong_person, not_now): ${showRate(s)}`,
+      `Moved forward (interested only): ${showRate(s.moved_forward)}`,
+      `Answers without both smokescreen markers, left out of the share: ${s.smokescreen.answers_without_both_markers}.`,
+      `Smokescreen share (both markers yes, of answers with both markers known): ${showRate(s.smokescreen)}`,
       'The rate shows whether the talk went on, not whether they agreed.',
     ];
     for (const u of s.unknown_labels) lines.push(`Check: label not recognised, left out: ${u}`);
