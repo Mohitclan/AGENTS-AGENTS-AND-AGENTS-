@@ -79,22 +79,51 @@ export function fail(message) {
 // A shared host (a site many people have a page on) is never a company domain: opting out of one
 // profile on it must not opt out everyone else.
 
+// Free consumer mailboxes: knowledge/company.md says never contact personal (non-work) addresses, and an
+// opt-out can't be filed against one of these domains, because it would cover everyone who uses it.
+export const PERSONAL_MAIL = new Set([
+  'gmail.com', 'googlemail.com', 'yahoo.com', 'yahoo.in', 'yahoo.co.in', 'ymail.com', 'outlook.com', 'hotmail.com', 'live.com', 'msn.com',
+  'icloud.com', 'me.com', 'aol.com', 'proton.me', 'protonmail.com', 'rediffmail.com', 'gmx.com', 'mail.com', 'yandex.com',
+]);
+
 // Sites where a person's page is a path on the host: linkedin.com/in/asha, x.com/asha.
 const PROFILE_PATH_HOSTS = ['linkedin.com', 'x.com', 'twitter.com', 'github.com', 'gitlab.com', 'medium.com', 'substack.com',
-  'facebook.com', 'instagram.com', 'youtube.com', 'producthunt.com', 'peerlist.io', 'wellfound.com', 'threads.net', 'bsky.app', 'dev.to'];
+  'facebook.com', 'instagram.com', 'youtube.com', 'producthunt.com', 'peerlist.io', 'wellfound.com', 'threads.net', 'bsky.app', 'dev.to',
+  'linktr.ee', 'calendly.com', 'bento.me', 'about.me', 'read.cv'];
 // Sites where a person's page is a subdomain: asha.github.io, asha.substack.com. The bare host is shared.
 const PROFILE_SUBDOMAIN_HOSTS = ['github.io', 'gitlab.io', 'medium.com', 'substack.com', 'vercel.app', 'netlify.app', 'pages.dev',
   'hashnode.dev', 'notion.site', 'carrd.co', 'webflow.io', 'blogspot.com', 'wordpress.com'];
 export const SHARED_HOSTS = [...new Set([...PROFILE_PATH_HOSTS, ...PROFILE_SUBDOMAIN_HOSTS])];
 // linkedin.com/in alone would cover every member, so a LinkedIn entry needs two path segments (in/asha, company/acme).
 const MIN_PATH_SEGMENTS = { 'linkedin.com': 2 };
+// First path segments that name a kind of page and need a name after them: x.com/i, youtube.com/c, github.com/orgs.
+const NEEDS_NAME = new Set(['i', 'c', 'channel', 'user', 'users', 'orgs', 'in', 'company', 'school', 'showcase', 'pub', 'groups']);
+// First path segments that are never one person's page.
+const NOT_A_PERSON = new Set(['home', 'explore', 'search', 'settings', 'login', 'signup', 'notifications', 'messages', 'feed', 'watch',
+  'results', 'playlist', 'hashtag', 'intent', 'share', 'compose', 'topics', 'marketplace', 'features', 'pricing']);
+// A page that is named by a query parameter, not by its path: facebook.com/profile.php?id=123.
+const QUERY_IDENTIFIED = { 'facebook.com': { 'profile.php': 'id' } };
+
+// Common two-part public suffixes (co.uk). A host that is only a suffix, or only one label (de, me), is not a company.
+const MULTI_SUFFIXES = new Set(['co.uk', 'org.uk', 'ac.uk', 'gov.uk', 'me.uk', 'ltd.uk', 'plc.uk', 'net.uk', 'com.au', 'net.au', 'org.au',
+  'edu.au', 'gov.au', 'co.in', 'net.in', 'org.in', 'gen.in', 'firm.in', 'ind.in', 'ac.in', 'edu.in', 'gov.in', 'res.in', 'co.nz', 'org.nz',
+  'net.nz', 'co.za', 'org.za', 'com.br', 'net.br', 'org.br', 'com.cn', 'net.cn', 'org.cn', 'co.jp', 'ne.jp', 'or.jp', 'com.mx', 'com.sg',
+  'com.hk', 'co.kr', 'com.tr', 'com.ar', 'com.my', 'co.id', 'com.ph', 'com.pk', 'com.ng', 'co.ke', 'com.eg', 'com.sa', 'com.vn', 'com.tw',
+  'co.il', 'com.co', 'com.ua', 'com.pl']);
 
 const underHost = (host, base) => host === base || host.endsWith(`.${base}`);
 const isEmail = (s) => /^[^\s@/]+@[^\s@/]+\.[^\s@/]+$/.test(s);
+const isPublicSuffix = (host) => !host.includes('.') || MULTI_SUFFIXES.has(host);
+const isSharedHost = (host) => SHARED_HOSTS.some((b) => underHost(host, b));
 
 // The same site under its other names: www., m., mobile., LinkedIn's country sites, twitter.com for x.com.
+// Never cuts a host down to a public suffix: mobile.de stays mobile.de, www.com stays www.com.
 function canonicalHost(host) {
-  let h = String(host).toLowerCase().replace(/\.$/, '').replace(/^(www|m|mobile)\./, '');
+  let h = String(host).toLowerCase().replace(/\.$/, '');
+  const www = h.replace(/^www\./, '');
+  if (www !== h && !isPublicSuffix(www)) h = www;
+  const mobile = h.replace(/^(m|mobile)\./, '');
+  if (mobile !== h && isSharedHost(mobile)) h = mobile;
   if (underHost(h, 'linkedin.com')) h = 'linkedin.com';
   if (h === 'twitter.com') h = 'x.com';
   return h;
@@ -106,10 +135,13 @@ function sharedHostOf(host) {
   return PROFILE_PATH_HOSTS.find((b) => host === b) || PROFILE_SUBDOMAIN_HOSTS.find((b) => underHost(host, b)) || null;
 }
 
+// An email address with any mailto: wrapper taken off, or the text unchanged.
+const stripMailto = (s) => (/^mailto:/i.test(s) ? s.replace(/^mailto:/i, '').split('?')[0] : s);
+
 // Reads text as a web address, with or without http(s)://. Returns null for an email or anything else.
 function parseWebAddress(text) {
   let s = String(text ?? '').trim();
-  if (!s || /\s/.test(s) || isEmail(s)) return null;
+  if (!s || /\s/.test(s) || isEmail(stripMailto(s))) return null;
   if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(s)) s = `https://${s}`;
   try {
     const u = new URL(s);
@@ -120,60 +152,97 @@ function parseWebAddress(text) {
 }
 
 // https://host/path with the host and path lower-case, and no www., query, fragment or trailing slash.
+// The one query kept is the one that names a page (facebook.com/profile.php?id=123).
 export function normalizeProfileUrl(text) {
   const u = parseWebAddress(text);
   if (!u) return null;
-  return `https://${canonicalHost(u.hostname)}${u.pathname.toLowerCase().replace(/\/+$/, '')}`;
+  const host = canonicalHost(u.hostname);
+  const path = u.pathname.toLowerCase().replace(/\/+$/, '');
+  const param = QUERY_IDENTIFIED[host]?.[path.split('/')[1]];
+  const id = param && u.searchParams.get(param);
+  return `https://${host}${path}${id ? `?${param}=${id.toLowerCase()}` : ''}`;
 }
 
-// What `suppress` should store for a value, or why it can't: { kind: 'email' | 'url' | 'domain', value } or { error }.
-export function classifySuppression(input) {
-  const raw = String(input ?? '').trim().toLowerCase();
+// Reads one opt-out value. Returns { kind, value } with kind email | url | domain | shared-root | invalid.
+// `error` is set when `suppress` must refuse the value. An old or hand-written entry can still carry an error:
+// a shared-root entry (linkedin.com, https://www.linkedin.com/, https://linkedin.com/in) is read as "this whole
+// host", and a person must replace it; an invalid one covers nobody. leads.mjs check fails on both.
+function readSuppression(input) {
+  const raw = stripMailto(String(input ?? '').trim().toLowerCase());
   if (isEmail(raw)) return { kind: 'email', value: raw };
   const u = parseWebAddress(raw);
-  if (!u) return { error: `"${input}" is not a domain, an email address or a profile URL` };
+  if (!u) return { kind: 'invalid', value: raw, error: `"${input}" is not a domain, an email address or a profile URL` };
   const host = canonicalHost(u.hostname);
-  const path = u.pathname.replace(/\/+$/, '');
+  if (isPublicSuffix(host)) {
+    return { kind: 'invalid', value: host, error: `"${input}" is a public suffix, not a company. Give the company's own domain` };
+  }
+  if (PERSONAL_MAIL.has(host)) {
+    return { kind: 'domain', value: host, error: `${host} is a personal mail service: suppressing it would cover every address there. Give the person's email address instead` };
+  }
   const shared = sharedHostOf(host);
   if (!shared) return { kind: 'domain', value: host };
-  const example = PROFILE_PATH_HOSTS.includes(host) ? `https://${host}/${host === 'linkedin.com' ? 'in/<name>' : '<name>'}` : `https://<name>.${host}`;
-  if (host === shared && !path) {
-    return { error: `${host} is a shared site: suppressing it would cover everyone who has a page there. Give the person's profile URL instead, for example ${example}` };
+  const pathHost = PROFILE_PATH_HOSTS.includes(host);
+  const example = pathHost ? `https://${host}/${host === 'linkedin.com' ? 'in/<name>' : '<name>'}` : `https://<name>.${host}`;
+  const root = (why) => ({ kind: 'shared-root', value: host, error: `${why} Give the person's profile URL instead, for example ${example}` });
+  const segs = u.pathname.split('/').filter(Boolean).map((x) => x.toLowerCase());
+  if (host === shared && !segs.length) {
+    return root(`${host} is a shared site: suppressing it would cover everyone who has a page there.`);
   }
-  if (path.split('/').filter(Boolean).length < (MIN_PATH_SEGMENTS[host] || 0)) {
-    return { error: `"${input}" does not name one person. Give the full profile URL, for example ${example}` };
+  if (host === shared && !pathHost) {
+    return root(`${host} is a shared site: a page on it is not one person.`);
+  }
+  if (pathHost) {
+    const [first] = segs;
+    const idParam = QUERY_IDENTIFIED[host]?.[first];
+    const nameless = NOT_A_PERSON.has(first)
+      || (idParam && !(segs.length === 1 && u.searchParams.get(idParam)))
+      || (!idParam && segs.length < Math.max(MIN_PATH_SEGMENTS[host] || 1, NEEDS_NAME.has(first) ? 2 : 1));
+    if (nameless) return root(`"${input}" does not name one person.`);
   }
   return { kind: 'url', value: normalizeProfileUrl(raw) };
 }
 
-// An old entry that is a bare shared host (linkedin.com, x.com): `suppress` used to drop the profile path and
-// store this. It matches nothing; `leads.mjs check` warns that it must be re-entered as a profile URL.
-export function isBareSharedHostEntry(entry) {
-  const v = String(entry?.value ?? '').trim().toLowerCase();
-  return !v.includes('@') && !v.includes('/') && SHARED_HOSTS.includes(canonicalHost(v));
+// What `suppress` should store for a value, or why it can't: { kind: 'email' | 'url' | 'domain', value } or { error }.
+export function classifySuppression(input) {
+  const { kind, value, error } = readSuppression(input);
+  return error ? { error } : { kind, value };
+}
+
+// What is wrong with a stored entry, or '' when it is fine. `leads.mjs check` fails on any entry that has one.
+export function suppressionProblem(entry) {
+  const { kind, value, error } = readSuppression(entry?.value);
+  if (!error) return '';
+  if (kind === 'shared-root') return `it blocks every lead on ${value}. ${error}`;
+  if (kind === 'invalid') return `it covers nobody. ${error}`;
+  return error;
+}
+
+// How a matched entry reads in the gate: the value, or the old entry's reason to re-enter it.
+export function describeSuppression(entry) {
+  const { kind, value } = readSuppression(entry?.value);
+  return kind === 'shared-root' ? `legacy ${value}: re-enter as a profile URL` : String(entry?.value ?? '');
 }
 
 // The first entry in the list that covers this contact, or undefined.
 //   contact  the contact's email address or URL
 //   website  the lead's website, if any
 //   domain   the lead's stored domain, if any
+// An old or hand-written shared-root entry covers every lead on that site until a person replaces it: the
+// opt-out is not lost, and `leads.mjs check` fails while it exists. An invalid entry covers nobody.
 export function suppressionMatch(list, { contact = '', website = '', domain = '' } = {}) {
-  const c = String(contact || '').trim().toLowerCase();
+  const c = stripMailto(String(contact || '').trim().toLowerCase());
   const email = isEmail(c) ? c : '';
   const pages = [c, website].map(normalizeProfileUrl).filter(Boolean);
-  const hosts = new Set(email ? [email.split('@').pop()] : []);
+  const hosts = new Set(email ? [canonicalHost(email.split('@').pop())] : []);
   for (const text of [c, website, domain]) {
     const u = parseWebAddress(text);
     if (u) hosts.add(canonicalHost(u.hostname));
   }
   return (list || []).find((s) => {
-    const v = String(s?.value ?? '').trim().toLowerCase();
-    if (!v || isBareSharedHostEntry(s)) return false;
-    if (isEmail(v)) return v === email;
-    if (v.includes('/')) {
-      const url = normalizeProfileUrl(v);
-      return !!url && pages.some((p) => p === url || p.startsWith(`${url}/`));
-    }
-    return [...hosts].some((h) => underHost(h, v));
+    const { kind, value } = readSuppression(s?.value);
+    if (kind === 'email') return value === email;
+    if (kind === 'url') return pages.some((p) => p === value || p.startsWith(`${value}/`));
+    if (kind === 'domain' || kind === 'shared-root') return [...hosts].some((h) => underHost(h, value));
+    return false;
   });
 }

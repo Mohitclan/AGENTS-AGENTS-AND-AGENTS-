@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { after, before, describe, it } from 'node:test';
+import { classifySuppression, suppressionMatch, suppressionProblem } from '../_shared.mjs';
 import { isSuppressed } from '../send-email.mjs';
 import { makeCopy } from './_helpers.mjs';
 
@@ -208,6 +209,17 @@ describe('critical signals', () => {
     return byCompany(l.company);
   };
   const strong = (name, extra = {}) => lead(name, `https://${name.toLowerCase()}.example`, { score_breakdown: top, ...extra });
+  // Adds hand-written lines to pipeline/suppression.jsonl for one test, then puts the file back as it was.
+  const withEntries = (values, fn) => {
+    const file = repo.path('pipeline', 'suppression.jsonl');
+    const before = existsSync(file) ? readFileSync(file, 'utf8') : '';
+    appendFileSync(file, values.map((value) => `${JSON.stringify({ value, reason: 'hand-written', at: today })}\n`).join(''));
+    try {
+      return fn();
+    } finally {
+      writeFileSync(file, before);
+    }
+  };
 
   it('a clean top-scoring lead is still a Go (no override when no signal is present)', () => {
     const l = qualified(strong('Cleango'));
@@ -323,13 +335,93 @@ describe('critical signals', () => {
     });
     it('refuses a bare shared host and says to give the profile URL', () => {
       const before = entries().length;
-      for (const bare of ['linkedin.com', 'https://www.linkedin.com/', 'x.com', 'twitter.com', 'github.com', 'github.io', 'https://github.io/', 'medium.com', 'substack.com', 'https://linkedin.com/in']) {
+      for (const bare of ['linkedin.com', 'https://www.linkedin.com/', 'x.com', 'twitter.com', 'github.com', 'github.io', 'https://github.io/', 'medium.com', 'substack.com', 'https://linkedin.com/in', 'linktr.ee', 'calendly.com']) {
         const r = repo.run('leads.mjs', 'suppress', bare, 'asked not to be contacted');
         assert.equal(r.code, 1, `${bare} should be refused`);
         assert.match(r.stderr, /profile URL/, bare);
       }
       assert.equal(entries().length, before);
       assert.equal(byCompany('Linkedb').status, 'qualified');
+    });
+
+    it('refuses a bare free-mail domain, in any case or as a URL, and still takes an address there', () => {
+      const before = entries().length;
+      for (const bare of ['gmail.com', 'GMAIL.COM', 'https://gmail.com/', 'googlemail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', 'proton.me', 'icloud.com']) {
+        const r = repo.run('leads.mjs', 'suppress', bare, 'asked not to be contacted');
+        assert.equal(r.code, 1, `${bare} should be refused`);
+        assert.match(r.stderr, /personal mail service.*email address/, bare);
+      }
+      assert.equal(entries().length, before);
+      const ok = repo.run('leads.mjs', 'suppress', 'Founder-Optout@Gmail.com', 'asked not to be contacted');
+      assert.equal(ok.code, 0, ok.stderr);
+      assert.equal(entries().at(-1).value, 'founder-optout@gmail.com');
+    });
+    it('strips mailto: and stores the address, and the entry covers that address however it is written', () => {
+      const r = repo.run('leads.mjs', 'suppress', 'mailto:Lee@Mailto-Opt.example?subject=hi', 'asked not to be contacted');
+      assert.equal(r.code, 0, r.stderr);
+      assert.match(r.stdout, /Suppressed lee@mailto-opt\.example\./);
+      assert.equal(entries().at(-1).value, 'lee@mailto-opt.example');
+      assert.ok(suppressionMatch(entries(), { contact: 'lee@mailto-opt.example' }));
+      assert.ok(suppressionMatch(entries(), { contact: 'mailto:LEE@mailto-opt.example' }));
+      assert.ok(suppressionMatch([{ value: 'mailto:lee@acme.example' }], { contact: 'lee@acme.example' }), 'a hand-written mailto: entry');
+      assert.equal(suppressionMatch([{ value: 'lee@acme.example' }], { contact: 'ann@acme.example' }), undefined);
+      const before = entries().length;
+      assert.equal(repo.run('leads.mjs', 'suppress', 'mailto:', 'x').code, 1);
+      assert.equal(entries().length, before);
+    });
+    it('never cuts a company host down to a public suffix, and refuses a bare suffix', () => {
+      for (const [input, stored] of [['mobile.de', 'mobile.de'], ['m.me', 'm.me'], ['www.com', 'www.com'], ['www.acme.example', 'acme.example'], ['www.acme.co.uk', 'acme.co.uk'], ['https://m.acme.example/x', 'm.acme.example']]) {
+        assert.deepEqual(classifySuppression(input), { kind: 'domain', value: stored }, input);
+      }
+      for (const suffix of ['co.uk', 'https://co.uk/x', 'com.au', 'co.in', 'de', 'com']) {
+        assert.ok(classifySuppression(suffix).error, `${suffix} should be refused`);
+      }
+      assert.equal(suppressionMatch([{ value: 'mobile.de' }], { contact: 'ann@shop.de' }), undefined, 'mobile.de must not cover every .de');
+      assert.equal(suppressionMatch([{ value: 'm.me' }], { contact: 'ann@acme.me' }), undefined);
+      assert.ok(suppressionMatch([{ value: 'mobile.de' }], { contact: 'ann@mobile.de' }));
+      const r = repo.run('leads.mjs', 'suppress', 'co.uk', 'asked not to be contacted');
+      assert.equal(r.code, 1);
+      assert.match(r.stderr, /public suffix/);
+    });
+    it('keeps the id of a Facebook profile.php page and refuses pages that name no one', () => {
+      assert.deepEqual(classifySuppression('https://www.facebook.com/profile.php?id=123&ref=x'), { kind: 'url', value: 'https://facebook.com/profile.php?id=123' });
+      const list = [{ value: 'https://facebook.com/profile.php?id=123' }];
+      assert.ok(suppressionMatch(list, { contact: 'https://m.facebook.com/profile.php?id=123' }));
+      assert.equal(suppressionMatch(list, { contact: 'https://facebook.com/profile.php?id=999' }), undefined);
+      assert.equal(suppressionMatch(list, { contact: 'https://facebook.com/profile.php?id=1234' }), undefined);
+      assert.equal(suppressionMatch(list, { contact: 'https://facebook.com/profile.php' }), undefined);
+      const before = entries().length;
+      for (const generic of ['facebook.com/profile.php', 'x.com/i', 'x.com/home', 'youtube.com/c', 'youtube.com/channel', 'youtube.com/watch?v=abc', 'github.com/orgs', 'linkedin.com/in/']) {
+        const r = repo.run('leads.mjs', 'suppress', generic, 'asked not to be contacted');
+        assert.equal(r.code, 1, `${generic} should be refused`);
+        assert.match(r.stderr, /does not name one person|shared site/, generic);
+        assert.match(r.stderr, /profile URL/, generic);
+      }
+      assert.equal(entries().length, before);
+      for (const named of ['x.com/i/lists/1', 'youtube.com/c/acme', 'youtube.com/@acme', 'github.com/orgs/acme']) {
+        assert.equal(classifySuppression(named).kind, 'url', named);
+      }
+    });
+    it('a profile URL covers the pages below it and LinkedIn country sites, on a / boundary, in the gate, import and set-status', () => {
+      const page = (name, value) => strong(name, { contact: { channel: 'linkedin', value, source_url: `https://${name.toLowerCase()}.example/team` } });
+      const sub = qualified(page('Linkedsub', 'https://in.linkedin.com/in/sub-asha/details/experience?x=1'));
+      const other = qualified(page('Linkedsubother', 'https://linkedin.com/in/sub-ashab'));
+      withEntries(['https://linkedin.com/in/sub-asha'], () => {
+        assert.match(line('Linkedsub'), /Stop.*suppressed \(https:\/\/linkedin\.com\/in\/sub-asha\)/);
+        assert.match(line('Linkedsubother'), /\bGo\b/);
+        const r = repo.run('leads.mjs', 'set-status', sub.id, 'drafted', 'seq');
+        assert.equal(r.code, 1);
+        assert.match(r.stderr, /Suppressed, never contact/);
+        const again = importLeads('li-sub-again', [page('Linkedsub', 'https://in.linkedin.com/in/sub-asha/details/experience')]);
+        assert.equal(again.code, 1);
+        assert.match(again.stderr, /suppression list/);
+        assert.equal(repo.run('leads.mjs', 'set-status', other.id, 'drafted', 'seq').code, 0);
+      });
+      const list = [{ value: 'https://linkedin.com/in/asha' }];
+      for (const [contact, covered] of [['https://in.linkedin.com/in/asha', true], ['https://uk.linkedin.com/in/ASHA/', true], ['https://linkedin.com/in/asha/details/experience', true],
+        ['https://linkedin.com/in/asha?trk=x', true], ['https://linkedin.com/in/asha-b', false], ['https://linkedin.com/in/ashab/', false], ['https://linkedin.com/in', false]]) {
+        assert.equal(Boolean(suppressionMatch(list, { contact })), covered, contact);
+      }
     });
   });
 
@@ -382,18 +474,65 @@ describe('critical signals', () => {
     });
   });
 
-  it('an old bare shared-host entry matches nothing, and check warns that it must be re-entered', () => {
-    appendFileSync(repo.path('pipeline', 'suppression.jsonl'), `${JSON.stringify({ value: 'linkedin.com', reason: 'old entry', at: today })}\n${JSON.stringify({ value: 'x.com', reason: 'old entry', at: today })}\n`);
+  it('an old bare shared-host entry keeps blocking every lead on that host, and check fails until a person replaces it', () => {
     qualified(strong('Legacyli', { contact: { channel: 'linkedin', value: 'https://www.linkedin.com/in/legacy-person', source_url: 'https://legacyli.example/team' } }));
+    qualified(strong('Legacyx', { contact: { channel: 'other', value: 'https://x.com/legacy_person', source_url: 'https://legacyx.example/team' } }));
     assert.match(line('Legacyli'), /\bGo\b/);
-    const list = readFileSync(repo.path('pipeline', 'suppression.jsonl'), 'utf8').trim().split('\n').map((x) => JSON.parse(x));
-    assert.equal(isSuppressed('https://www.linkedin.com/in/legacy-person', list), null);
-    assert.equal(isSuppressed('someone@x.com', list), null);
-    const r = repo.run('leads.mjs', 'check');
-    assert.equal(r.code, 0);
-    assert.match(r.stderr, /WARNING.*"linkedin\.com".*profile URL/);
-    assert.match(r.stderr, /WARNING.*"x\.com"/);
-    assert.match(r.stdout, /^OK:/);
+    assert.equal(repo.run('leads.mjs', 'check').code, 0);
+    withEntries(['linkedin.com', 'x.com'], () => {
+      const list = readFileSync(repo.path('pipeline', 'suppression.jsonl'), 'utf8').trim().split('\n').map((x) => JSON.parse(x));
+      assert.ok(isSuppressed('https://www.linkedin.com/in/legacy-person', list));
+      assert.ok(isSuppressed('https://x.com/legacy_person', list));
+      assert.equal(isSuppressed('someone@acme.example', list), null);
+      const out = gate('--status', 'all');
+      assert.match(out.stdout.split('\n').find((l) => l.includes('Legacyli')), /Stop.*suppressed \(legacy linkedin\.com: re-enter as a profile URL\)/);
+      assert.match(out.stdout.split('\n').find((l) => l.includes('Legacyx')), /Stop.*suppressed \(legacy x\.com: re-enter as a profile URL\)/);
+      assert.match(out.stderr, /WARNING.*"linkedin\.com".*blocks every lead on linkedin\.com.*profile URL/);
+      const l = byCompany('Legacyli');
+      const drafted = repo.run('leads.mjs', 'set-status', l.id, 'drafted', 'seq');
+      assert.equal(drafted.code, 1);
+      assert.match(drafted.stderr, /Suppressed, never contact/);
+      assert.equal(importLeads('legacy-again', [strong('Legacyli', { contact: { channel: 'linkedin', value: 'https://linkedin.com/in/legacy-person', source_url: 'https://legacyli.example/team' } })]).code, 1);
+      const r = repo.run('leads.mjs', 'check');
+      assert.equal(r.code, 1);
+      assert.match(r.stderr, /2 problem\(s\) in pipeline\/suppression\.jsonl/);
+      assert.match(r.stderr, /"linkedin\.com" \(hand-written\).*blocks every lead on linkedin\.com.*suppress <email address or profile URL>.*a person removes this line/);
+      assert.match(r.stderr, /"x\.com"/);
+    });
+    assert.equal(repo.run('leads.mjs', 'check').code, 0);
+    assert.match(line('Legacyli'), /\bGo\b/);
+  });
+  it('a hand-written site root blocks that site and fails check; a hand-written www. domain matches', () => {
+    qualified(strong('Rootli', { contact: { channel: 'linkedin', value: 'https://www.linkedin.com/in/root-person', source_url: 'https://rootli.example/team' } }));
+    for (const root of ['https://www.linkedin.com/', 'linkedin.com/', 'https://linkedin.com/in', 'https://in.linkedin.com/']) {
+      withEntries([root], () => {
+        assert.match(line('Rootli'), /Stop.*suppressed \(legacy linkedin\.com: re-enter as a profile URL\)/, root);
+        const r = repo.run('leads.mjs', 'check');
+        assert.equal(r.code, 1, root);
+        assert.match(r.stderr, /blocks every lead on linkedin\.com/, root);
+      });
+    }
+    withEntries(['www.wwwopt.example'], () => {
+      assert.equal(repo.run('leads.mjs', 'check').code, 0);
+      assert.ok(suppressionMatch([{ value: 'www.wwwopt.example' }], { website: 'https://www.wwwopt.example', contact: 'asha@wwwopt.example' }));
+      assert.ok(suppressionMatch([{ value: 'www.wwwopt.example' }], { contact: 'asha@mail.wwwopt.example' }));
+    });
+  });
+  it('check fails on any entry that covers nobody or a whole mail service, and passes the good kinds', () => {
+    withEntries(['asha@acme.example', 'acme.example', 'https://linkedin.com/in/asha', 'mailto:lee@acme.example', 'www.acme.example', 'mobile.de'], () => {
+      assert.equal(repo.run('leads.mjs', 'check').code, 0);
+    });
+    withEntries(['de', 'gmail.com', 'co.uk', 'not an entry'], () => {
+      const r = repo.run('leads.mjs', 'check');
+      assert.equal(r.code, 1);
+      assert.match(r.stderr, /4 problem\(s\) in pipeline\/suppression\.jsonl/);
+      assert.match(r.stderr, /"de" \(hand-written\): it covers nobody/);
+      assert.match(r.stderr, /"gmail\.com".*personal mail service/);
+      assert.equal(suppressionMatch([{ value: 'de' }, { value: 'co.uk' }, { value: 'not an entry' }], { contact: 'ann@shop.de', website: 'https://acme.co.uk' }), undefined);
+    });
+    assert.equal(repo.run('leads.mjs', 'check').code, 0);
+    assert.ok(suppressionProblem({ value: 'linkedin.com' }));
+    assert.equal(suppressionProblem({ value: 'https://linkedin.com/in/asha' }), '');
   });
   it('a personal mail domain is matched whatever its case', () => {
     qualified(strong('Uppermail', { contact: { channel: 'email', value: 'Asha@GMAIL.COM', source_url: 'https://uppermail.example/contact' } }));
