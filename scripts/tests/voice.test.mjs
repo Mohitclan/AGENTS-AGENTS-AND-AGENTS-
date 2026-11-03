@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { addressee, localIntent, taskFor } from '../control/gems/voice.js';
+import { addressee, heardTrigger, localIntent, plain, taskFor } from '../control/gems/voice.js';
 
 describe('voice commands', () => {
   it('routes a task to the agent named first', () => {
@@ -21,5 +21,18 @@ describe('voice commands', () => {
     assert.deepEqual(localIntent('open the leads page'), { kind: 'open', hash: '#/leads' });
     assert.deepEqual(localIntent('show researcher'), { kind: 'open', hash: '#/agent/researcher' });
     assert.equal(localIntent('find three competitors'), null);
+  });
+
+  it('hears "go start" however it is written, and drops it from the task', () => {
+    for (const s of ['find leads go start', 'find leads, go start.', 'find leads go-start', 'find leads. Go, start!', 'find leads send it']) assert.equal(heardTrigger(s), true, s);
+    assert.equal(heardTrigger('go start finding leads'), false);
+    assert.equal(heardTrigger('find leads'), false);
+    assert.deepEqual(taskFor('Sales, draft a reply to Acme, go start.'), { agent: 'sales', task: 'Ask the sales to: draft a reply to Acme' });
+  });
+
+  it('cancels by voice and reads summaries without markdown', () => {
+    assert.deepEqual(localIntent('Cancel that'), { kind: 'cancel' });
+    assert.deepEqual(localIntent('stop the last task'), { kind: 'cancel' });
+    assert.equal(plain('**Done.** See `outputs/x.md` at https://a.b/c'), 'Done. See outputs/x.md at a link');
   });
 });

@@ -4,9 +4,12 @@
 // same as the task box, so it runs in the background as a Claude Code session on the Max plan, and
 // the sub-agents do the work there. Spoken updates use the browser's own speech synthesis.
 //
-// What you say is always shown first and sent only when you press Send (or say "send it"), so a
-// misheard word never becomes a task. A few phrases are answered on the page without any agent:
-// "what's happening", "open <agent or page>", "start waiting tasks", "stop talking".
+// What you say is always shown first and sent only when you press Send or end with "go start" (or
+// "send it"); the task then starts at once and its words are read back, so "cancel that" can stop a
+// misheard one. With "Keep listening" on, the mic stays open for the next task, hands free. A few
+// phrases are answered on the page without any agent: "what's happening", "open <agent or page>",
+// "start waiting tasks", "stop talking", "cancel that". When a task ends, the coordinator's own
+// summary is read aloud.
 import { identityFor } from './identities.js';
 import { normalizeState, STATE_LABEL } from './status.js';
 
@@ -32,11 +35,15 @@ const PAGES = { home: '#/', office: '#/', working: '#/working', overview: '#/ove
 
 function load() {
   try {
-    return { speak: true, ...JSON.parse(localStorage.getItem(KEY) || '{}') };
+    return { speak: true, handsFree: false, ...JSON.parse(localStorage.getItem(KEY) || '{}') };
   } catch {
-    return { speak: true };
+    return { speak: true, handsFree: false };
   }
 }
+
+// The spoken words that send what was said: "go start" (heard as "go, start", "go-start"...) or "send it".
+export const TRIGGER = /[\s,.-]*\b(go[\s,.-]*start|send it|send)[.!]?\s*$/i;
+export const heardTrigger = (text) => /\b(go[\s,.-]*start|send it)[.!]?\s*$/i.test(text);
 function save(s) {
   try {
     localStorage.setItem(KEY, JSON.stringify(s));
@@ -46,6 +53,9 @@ function save(s) {
 }
 
 // "Researcher, find ten Indian dev-tool startups" -> { agent: 'researcher', rest: 'find ten ...' }
+// Markdown and links read badly aloud.
+export const plain = (s) => String(s).replace(/https?:\/\/\S+/g, 'a link').replace(/[`*_#>|[\]]/g, '').replace(/\s+/g, ' ').trim();
+
 export function addressee(text) {
   const t = text.trim().replace(/^(hey|hi|ok|okay)\s+/i, '');
   for (const [agent, words] of Object.entries(AGENT_WORDS)) {
@@ -60,7 +70,7 @@ export function addressee(text) {
 // The task text Jarvis gets. A named agent becomes an instruction to the coordinator.
 export function taskFor(text) {
   const { agent, rest } = addressee(text);
-  const clean = rest.replace(/[.\s]*(send it|send)[.!]?$/i, '').trim();
+  const clean = rest.replace(TRIGGER, '').trim();
   if (!agent || agent === 'coordinator') return { agent: 'coordinator', task: clean };
   return { agent, task: `Ask the ${agent} to: ${clean}` };
 }
@@ -71,6 +81,7 @@ export function localIntent(text) {
   if (/^(what('s| is) happening|status|who('s| is) (working|busy)|what are you (all )?doing)/.test(t)) return { kind: 'status' };
   if (/^(stop talking|be quiet|mute)$/.test(t)) return { kind: 'mute' };
   if (/^(start|run) (the )?waiting tasks$/.test(t)) return { kind: 'run' };
+  if (/^(cancel|stop) (that|it|this|the( last)? task)$/.test(t)) return { kind: 'cancel' };
   const open = /^(open|show|go to)\s+(the\s+)?(.+?)(\s+page)?$/.exec(t);
   if (open) {
     const target = open[3];
@@ -81,10 +92,12 @@ export function localIntent(text) {
   return null;
 }
 
-export function createVoice({ onTask, onRun, getAgents, navigate }) {
+export function createVoice({ onTask, onRun, onCancel, getAgents, navigate }) {
   const settings = load();
   let rec = null;
   let listening = false;
+  let wanted = false; // the person wants the mic on; Chrome ends a session after a silence, so restart it
+  let lastTask = null;
   let finalText = '';
   const supported = !!Recognition;
 
@@ -104,7 +117,8 @@ export function createVoice({ onTask, onRun, getAgents, navigate }) {
         <button type="button" class="vp-ghost" data-v="clear">Clear</button>
         <button type="button" class="vp-send" data-v="send">Send to the team</button>
       </div>
-      <div class="vp-row small"><label class="check"><input type="checkbox" id="vp-speak" ${settings.speak ? 'checked' : ''}> Speak updates aloud</label><span class="spacer"></span><span class="muted">Try: "Researcher, find 5 launch-active startups" · "What's happening?"</span></div>
+      <div class="vp-row small"><label class="check"><input type="checkbox" id="vp-speak" ${settings.speak ? 'checked' : ''}> Speak updates aloud</label><label class="check"><input type="checkbox" id="vp-hands" ${settings.handsFree ? 'checked' : ''}> Keep listening</label></div>
+      <p class="vp-tip muted">Say the task, then <b>"go start"</b>. Try: "Researcher, find 5 launch-active startups, go start" · "What's happening?" · "Cancel that"</p>
       <ol class="vp-log" id="vp-log"></ol>
     </section>`;
   document.body.append(root);
@@ -148,11 +162,12 @@ export function createVoice({ onTask, onRun, getAgents, navigate }) {
   const setListening = (on) => {
     listening = on;
     root.classList.toggle('listening', on);
-    $('#vp-sub').textContent = on ? 'Listening…' : supported ? 'Speech becomes text in your browser. Nothing is sent until you press Send.' : 'Type your task';
+    $('#vp-sub').textContent = on ? 'Listening… end with "go start"' : supported ? 'Speech becomes text in your browser. Nothing is sent until you say "go start" or press Send.' : 'Type your task';
     $('[data-v="mic"] span').textContent = on ? 'Stop' : 'Speak';
   };
 
   function startListening() {
+    wanted = true;
     if (!supported || listening) return;
     rec = new Recognition();
     rec.lang = 'en-IN';
@@ -168,16 +183,24 @@ export function createVoice({ onTask, onRun, getAgents, navigate }) {
       }
       text.value = (finalText + interim).replace(/\s+/g, ' ').trimStart();
       showTo();
-      if (/\bsend it[.!]?\s*$/i.test(finalText)) {
+      if (heardTrigger(finalText)) {
+        const keep = settings.handsFree;
         stopListening();
-        send();
+        send().finally(() => keep && root.classList.contains('open') && startListening());
       }
     };
     rec.onerror = (e) => {
-      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') log('page', 'The microphone is blocked. Allow it for this site in the browser settings.');
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+        wanted = false;
+        log('page', 'The microphone is blocked. Allow it for this site in the browser settings.');
+      }
       else if (e.error !== 'no-speech' && e.error !== 'aborted') log('page', `Speech stopped (${e.error}). Press Speak to try again.`);
     };
-    rec.onend = () => setListening(false);
+    rec.onend = () => {
+      setListening(false);
+      // Hands free: a pause in speech ends Chrome's session, so pick up again where the text left off.
+      if (wanted && settings.handsFree && root.classList.contains('open')) setTimeout(startListening, 250);
+    };
     try {
       rec.start();
       setListening(true);
@@ -186,6 +209,7 @@ export function createVoice({ onTask, onRun, getAgents, navigate }) {
     }
   }
   function stopListening() {
+    wanted = false;
     try {
       rec?.stop();
     } catch {
@@ -227,6 +251,22 @@ export function createVoice({ onTask, onRun, getAgents, navigate }) {
       log('page', 'Opened.');
       return;
     }
+    if (intent?.kind === 'cancel') {
+      if (!lastTask) {
+        log('page', 'There is no task from this panel to cancel.');
+        return;
+      }
+      try {
+        const msg = await onCancel(lastTask);
+        lastTask = null;
+        log('team', msg);
+        speak('Cancelled.');
+      } catch (error) {
+        log('page', error.message);
+        speak('It could not be cancelled. It may have started already.');
+      }
+      return;
+    }
     if (intent?.kind === 'run') {
       const msg = await onRun();
       log('team', msg);
@@ -239,9 +279,12 @@ export function createVoice({ onTask, onRun, getAgents, navigate }) {
       return;
     }
     try {
-      const msg = await onTask(task);
-      log('team', msg);
-      speak(agent === 'coordinator' ? 'Got it. The team is on it.' : `Got it. ${identityFor(agent).name} is on it.`);
+      const { message, id } = await onTask(task);
+      lastTask = id || null;
+      log('team', message);
+      const who = agent === 'coordinator' ? 'The Captain' : identityFor(agent).name;
+      const when = /starting/.test(message) ? 'is starting on it now' : /window resets/.test(message) ? 'will start when the plan window resets' : 'will start after the current task';
+      speak(`Got it. ${who} ${when}: ${task.replace(/^Ask the [\w-]+ to: /, '').slice(0, 120)}. Say cancel that to stop it.`);
     } catch (error) {
       log('page', error.message);
       speak('That did not go through.');
@@ -281,6 +324,10 @@ export function createVoice({ onTask, onRun, getAgents, navigate }) {
     }
     if (e.key === 'Escape') open(false);
   });
+  $('#vp-hands').addEventListener('change', (e) => {
+    settings.handsFree = e.target.checked;
+    save(settings);
+  });
   $('#vp-speak').addEventListener('change', (e) => {
     settings.speak = e.target.checked;
     save(settings);
@@ -297,8 +344,11 @@ export function createVoice({ onTask, onRun, getAgents, navigate }) {
   function announce(events) {
     if (!settings.speak) return;
     const lines = [];
+    const said = events.find((e) => e.kind === 'run' && /^\S+ finished: ./.test(e.text));
+    if (said) lines.push(`The Captain says: ${plain(said.text.replace(/^\S+ finished: /, ''))}`);
     for (const e of events) {
       const name = identityFor(e.agent).name;
+      if (said && e.kind === 'run') continue;
       if (e.kind === 'run' && /started$/.test(e.text)) lines.push('The team started a task.');
       else if (e.kind === 'run' && /ended/.test(e.text)) lines.push(/needs approval/.test(e.text) ? 'A task is done. Drafts are waiting for your approval.' : /needs input/.test(e.text) ? 'A task is done and has a question for you.' : /failed|blocked/.test(e.text) ? 'A task stopped. Check its report.' : 'A task is done.');
       else if (e.kind === 'result' && e.status === 'failed') lines.push(`${name} hit a problem.`);
@@ -306,7 +356,7 @@ export function createVoice({ onTask, onRun, getAgents, navigate }) {
       else if (e.kind === 'fallback') lines.push(`${name}'s backup is taking over.`);
       else if (e.kind === 'reply') lines.push('A reply came in.');
     }
-    if (lines.length) speak([...new Set(lines)].slice(0, 2).join(' '));
+    if (lines.length) speak([...new Set(lines)].slice(0, said ? 1 : 2).join(' '));
   }
 
   return { announce, speak, supported, open: () => open(true) };

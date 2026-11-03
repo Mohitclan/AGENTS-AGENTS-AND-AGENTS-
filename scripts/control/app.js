@@ -892,7 +892,8 @@ shell();
 const dock = createDock({ onOpen: (name) => { location.hash = `#/agent/${name}`; } });
 // Talk to the team: browser speech to text, then the same task endpoint as the task box.
 const voice = createVoice({
-  onTask: async (task) => (await api('/api/tasks', { task })).message,
+  onTask: (task) => api('/api/tasks', { task }),
+  onCancel: async (id) => (await api(`/api/tasks/${id}/cancel`, {})).message,
   onRun: async () => (await api('/api/run', {})).message,
   getAgents: () => store.snap?.agents,
   navigate: (hash) => {
