@@ -119,8 +119,8 @@ if (rel === 'ops/gate-log.jsonl') {
 if (rel === 'ops/confirmations.jsonl') {
   block('ops/confirmations.jsonl is the record of who confirmed what, kept by mission control and can\'t be edited.');
 }
-if (rel.startsWith('knowledge/inbox/') || rel.startsWith('knowledge/history/')) {
-  block(`${rel} is written only by mission control (the person's uploaded form, or a sheet an update replaced) and can't be edited.`);
+if (rel.startsWith('knowledge/inbox/') || rel.startsWith('knowledge/history/') || rel.startsWith('knowledge/proposals/applied/')) {
+  block(`${rel} is written only by mission control (the person's uploaded form, a sheet an update replaced, or a proposal a person applied) and can't be edited.`);
 }
 
 // send-email.mjs reads both to stop a sequence and to keep the daily limit, so nobody edits them by hand.

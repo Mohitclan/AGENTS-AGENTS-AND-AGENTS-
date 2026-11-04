@@ -72,6 +72,10 @@ describe('pipeline and logs', () => {
     assert.equal(write('knowledge/history/acme-tool/2026-11-04-v1.md', 'x'), 'block');
     assert.equal(edit('knowledge/history/acme-tool/2026-11-04-v1.md', 'a', 'b'), 'block');
   });
+  it('blocks writing or editing an applied proposal', () => {
+    assert.equal(write('knowledge/proposals/applied/2026-11-04-acme-tool-v2.md', 'x'), 'block');
+    assert.equal(edit('knowledge/proposals/applied/2026-11-04-acme-tool-v2-changes.md', 'a', 'b'), 'block');
+  });
   it('blocks them in another letter case', { skip: process.platform === 'linux' }, () => {
     assert.equal(write('OPS/Confirmations.jsonl', 'x'), 'block');
     assert.equal(write('Knowledge/Inbox/acme-tool/x.md', 'x'), 'block');
@@ -81,9 +85,11 @@ describe('pipeline and logs', () => {
     assert.equal(write('knowledge/products/acme-tool.md', '---\nstatus: proposed\n---\n'), 'allow');
     assert.equal(write('ops/confirmations-notes.md', 'x'), 'allow');
     assert.equal(write('knowledge/inbox-notes.md', 'x'), 'allow');
+    assert.equal(write('knowledge/proposals/2026-11-04-acme-tool-v2-changes.md', 'x'), 'allow');
+    assert.equal(write('knowledge/proposals/applied-notes.md', 'x'), 'allow');
   });
   it('allows reading them', () => assert.equal(read('knowledge/inbox/acme-tool/2026-11-04-v1.md'), 'allow'));
-  it('allows writing a report',() => assert.equal(write('outputs/reports/J-20261030-01.md', 'x'), 'allow'));
+  it('allows writing a report', () => assert.equal(write('outputs/reports/J-20261030-01.md', 'x'), 'allow'));
 });
 
 describe('sending', () => {

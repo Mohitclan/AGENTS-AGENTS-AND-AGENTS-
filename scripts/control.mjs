@@ -394,7 +394,8 @@ export function snapshot(root = ROOT) {
     ...base.pending.map((p) => ({ kind: 'approval', id: p.id, text: clip(p.action, 140), ref: /outputs\/[\w/.-]+\.md/.exec(p.files || '')?.[0] || 'ops/approvals.md', risk: clip(p.risk, 160) })),
     ...base.tasks.filter((t) => ['needs_approval', 'needs_input', 'blocked', 'failed'].includes(t.status)).map((t) => ({ kind: 'task', id: t.id, text: `${t.status.replace('_', ' ')}: ${clip(t.title, 120)}`, ref: t.report || null })),
     ...events.filter((e) => ['fallback', 'blocked'].includes(e.kind)).slice(0, 10).map((e) => ({ kind: e.kind, id: e.task, text: `${e.agent}: ${e.text}`, ref: e.ref || null })),
-    ...list(root, 'knowledge/proposals').filter((f) => f !== 'README.md').map((f) => ({ kind: 'knowledge', id: f.replace(/\.md$/, ''), text: `Proposal waiting for a person to apply and confirm: ${f}`, ref: `knowledge/proposals/${f}` })),
+    // A "-changes.md" review list belongs to its replacement sheet: a person reads it in the update dialog, so it is not a second item to confirm.
+    ...list(root, 'knowledge/proposals').filter((f) => f !== 'README.md' && !/-changes\.md$/.test(f)).map((f) => ({ kind: 'knowledge', id: f.replace(/\.md$/, ''), text: `Proposal waiting for a person to apply and confirm: ${f}`, ref: `knowledge/proposals/${f}` })),
   ];
   const reviews = events.filter((e) => e.kind === 'review');
   return {

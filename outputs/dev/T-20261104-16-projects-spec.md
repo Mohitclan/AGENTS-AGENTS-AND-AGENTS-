@@ -141,3 +141,14 @@ In the **Overview** page, add a **Projects** panel, above or beside the current 
 - GitHub sign-in (shelved by the human).
 - Editing `CLAUDE.md`, `.claude/settings.json`, `knowledge/products/_template.md`, `knowledge/products/motionrepo.md` and the templates.
 - Teaching knowledge-base the conversion; its procedure file already exists.
+
+## Changes after review (T-20261104-19, from review T-20261104-18)
+
+The sections above describe the first brief. These points replace what they say where they differ.
+
+- **Confirm is tied to the reviewed text.** `GET /api/projects` returns `sha256` for each sheet and, for a pending update, `pendingUpdate.sha256` of the proposal file. The confirm request now carries `sha256` as well as `{kind, by, phrase}`. The server compares it with the hash of the file it reads in the same call (the sheet for `new`, the proposal for `update`) and answers 409 "The file changed since you opened it. Review it again." when they differ. A missing or malformed `sha256` is a 400.
+- **No confirm while an agent is working on it.** A confirm for a slug answers 409 while a `convert` or `update` task for that slug is queued or running. Tasks for other actions or other projects do not block it.
+- **Two files for an update of a confirmed sheet.** The comparison task writes `knowledge/proposals/<date>-<slug>-v<version>.md` (the full replacement sheet, `slug` and `status: proposed` in the frontmatter, its own Changes line) and `knowledge/proposals/<date>-<slug>-v<version>-changes.md` (the review list: section, old text, new text, evidence, why it matters). Only the first is the update: `pendingUpdate` is built from `-v<n>.md` names only and carries `changes`, the path of the list or `null`. The dialog links both. A confirm moves both to `knowledge/proposals/applied/`. The mission-control list of knowledge waiting to be confirmed shows the sheet and hides the `-changes.md` file.
+- **In-place update for a proposed sheet.** If the sheet is still `status: proposed`, an upload of a newer version queues an in-place update of that sheet (no proposal file, `inPlace: true` in the upload answer). It is then confirmed like a new project.
+- **Version rule.** A `new` confirm records the sheet's own frontmatter `version`, else the last confirmed version in `ops/confirmations.jsonl`, else `0`. The uploaded form's version is not used. The conversion, in-place and comparison tasks tell the agent to write `version: <n>` (the form's version) into the sheet or replacement sheet, so a converted sheet shows its real version. The list's display version is unchanged.
+- **Guard paths.** `scripts/guard.mjs` blocks agent writes to `knowledge/inbox/`, `knowledge/history/` and `knowledge/proposals/applied/`, as well as `ops/confirmations.jsonl`. Proposal files directly in `knowledge/proposals/` (including `-changes.md`) stay writable.

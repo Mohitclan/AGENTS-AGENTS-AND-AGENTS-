@@ -28,7 +28,7 @@ This follows `.claude/agents/knowledge-base.md`, step 6 of "Building a product f
 The agent copies `knowledge/products/_template.md` to `knowledge/products/<slug>.md` and fills it section by section from the form, using the mapping in section 3.
 
 1. **Read the frontmatter first.** The form must start with a `---` line and its keys must parse with `frontmatter()` in `scripts/_shared.mjs:32`. If they do not, stop and ask the filler; do not repair it by guessing.
-2. **Frontmatter of the sheet:** `status: proposed`; `name`, `slug`, `website`, `repo`, `stage`, `owner` copied; `last_verified` set to the form's `last_updated`; `sources` built from the sources cited in the form.
+2. **Frontmatter of the sheet:** `status: proposed`; `name`, `slug`, `website`, `repo`, `stage`, `owner` copied; `last_verified` set to the form's `last_updated`; `version` set to the form's `version`; `sources` built from the sources cited in the form.
 3. **Sources.** Each fact keeps its source in brackets, in the form the sheet already uses. A fact whose only source is the filler is written `[told by <filled_by> on <date>]`.
 4. **Audience marks.** `public` facts carry no mark. `internal` facts are written with "(internal, not customer-facing)" in the sentence. A row or line with no mark is carried over as internal and listed under Open questions as "audience not marked: <section, row>". The agent never guesses `public`.
 5. **Values.** `unknown` becomes an empty line and an Open question. `none` is written as "None" with its source or date. `not filled yet` leaves the section empty and adds an Open question that names the work waiting for it.
@@ -48,7 +48,7 @@ The agent copies `knowledge/products/_template.md` to `knowledge/products/<slug>
 | Frontmatter: name, slug, website, repo, owner | Frontmatter of the same names | All; `lead-generator` and `outreach` need the slug to pick the project (`scripts/leads.mjs:98`) |
 | Frontmatter: stage | Frontmatter `stage` | People only. No agent file, skill or script reads it (see section 7) |
 | Frontmatter: approver_* | "Owner and approvers" | `coordinator` (who approves), `sales` (discounts), `outreach` (send approval) |
-| Frontmatter: version, last_updated, filled_by | `last_verified`, and the Changes section ("Built from knowledge.md version N, filled by <name>") | `knowledge-base` (staleness checks), `evaluator` |
+| Frontmatter: version, last_updated, filled_by | `last_verified`, `version` (the form's version), and the Changes section ("Built from knowledge.md version N, filled by <name>") | `knowledge-base` (staleness checks), `evaluator` |
 | A. Identity | Customer-facing name: frontmatter `name` and the One-liner. Other names and "not to be confused with": Brand voice (this product). Selling entity: Pricing and plans (seller line above the table). Public contact email: Sign-up, trial and checkout | `outreach`, `marketing`, `docs-handler` (consistent naming); `sales` (proposals) |
 | B. One-liner | One-liner | `outreach`, `marketing`, `sales` |
 | C. Problem | Problem it solves | `outreach`, `marketing`, `researcher`, `demo-handler` (ties each workflow to a pain) |
@@ -113,8 +113,8 @@ Converted sheets carry all of these as extra sections for now. Changing `_templa
 ### How the knowledge-base agent treats an updated form
 
 1. **Same project, no sheet yet:** convert it as in section 2.
-2. **The sheet is still `proposed`:** update it in place and add a line to the sheet's Changes section.
-3. **The sheet is `confirmed`:** the agent cannot edit it. It compares the new form against the sheet fact by fact and sorts each difference as new, changed, removed or unchanged. It writes one proposal to `knowledge/proposals/YYYY-MM-DD-<slug>-v<version>.md`: a full replacement sheet, frontmatter first (the same `slug`, `status: proposed`), then a Changes section listing, for each change, the section, the current text, the proposed text, the evidence and why it matters, then the whole sheet. A person confirms the update in mission control (Projects panel), which replaces the sheet and keeps the old one in `knowledge/history/<slug>/`.
+2. **The sheet is still `proposed`:** update it in place, set the sheet's `version` to the form's version, and add a line to the sheet's Changes section.
+3. **The sheet is `confirmed`:** the agent cannot edit it. It compares the new form against the sheet fact by fact and sorts each difference as new, changed, removed or unchanged. It writes two files. `knowledge/proposals/YYYY-MM-DD-<slug>-v<version>.md` is the full replacement sheet, exactly as it should read once confirmed: frontmatter first (the same `slug`, `status: proposed`, and `version` set to the form's version), then the sheet, whose own Changes section gets one line for this version. `knowledge/proposals/YYYY-MM-DD-<slug>-v<version>-changes.md` is the review list: for each change, the section, the old text, the new text, the evidence and why it matters. Only the first file becomes the sheet. A person confirms the update in mission control (Projects panel), which replaces the sheet and keeps the old one in `knowledge/history/<slug>/`.
 4. **Until then,** the confirmed sheet stays in force. Nothing in the newer form is used with customers.
 5. **Blank is not removal.** A field left blank or deleted in the newer form is reported as "not supplied" and raised as a question. A fact is proposed for removal only when the change log says it was removed or replaced, with a reason.
 6. **Same or lower version number than the sheet records,** or a missing change log row for a changed fact: stop and ask the filler, because the agent cannot tell which copy is newer.

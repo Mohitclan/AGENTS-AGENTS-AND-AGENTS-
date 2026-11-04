@@ -260,14 +260,16 @@ const pjDate = (v) => {
 };
 // Files shown on a card. The server sends inbox and history as [{file}], with repo-relative paths.
 // The newest form is the highest version in its name (a repeat of one version ends -2, -3 ...). The server lists
-// newest first today, but this does not rely on the order: it takes the highest version, and for a tie the last item.
+// newest first, but this does not rely on the order: it takes the highest version; for two copies of one version, the
+// later date; for the same day, the higher -2/-3 suffix.
 const pjFormKey = (f) => {
   const m = String(f).match(/(\d{4}-\d{2}-\d{2})-v(\d+(?:\.\d+){0,2})(?:-(\d+))?\.md$/);
   return m ? { date: m[1], parts: m[2].split('.').map(Number), n: Number(m[3] || 1), v: m[2] } : null;
 };
 const pjNewer = (a, b) => {
   for (let i = 0; i < 3; i++) if ((a.parts[i] || 0) !== (b.parts[i] || 0)) return (a.parts[i] || 0) > (b.parts[i] || 0);
-  return a.n >= b.n;
+  if (a.date !== b.date) return a.date > b.date;
+  return a.n > b.n;
 };
 const pjLatestForm = (p) => {
   let best = null;
@@ -574,13 +576,19 @@ const projects = {
     if (!p || projects.modal) return;
     const kind = p.pendingUpdate ? 'update' : 'new';
     const file = kind === 'update' ? pjPath('knowledge/proposals', p.pendingUpdate.file) : `knowledge/products/${p.slug}.md`;
+    const changes = kind === 'update' && p.pendingUpdate.changes ? pjPath('knowledge/proposals', p.pendingUpdate.changes) : '';
     const phrase = `confirm ${p.slug}`;
+    // The hash of the text on disk when this dialog opened. The server confirms only that text, so a change after
+    // the person started reading ends in a 409 and not in a confirm of something they never saw.
+    const sha256 = kind === 'update' ? p.pendingUpdate.sha256 : p.sha256;
+    let stale = false;
     const el = document.createElement('div');
     el.className = 'pj-modal';
     el.innerHTML = `<div class="pj-dialog" role="dialog" aria-modal="true" aria-labelledby="pj-m-title" aria-describedby="pj-m-desc">
       <h2 id="pj-m-title">${kind === 'update' ? `Confirm update v${esc(p.pendingUpdate.version)} of ${esc(pjName(p))}` : `Confirm the facts for ${esc(pjName(p))}`}</h2>
-      <p id="pj-m-desc"><b>Confirming makes these facts usable in customer-facing work.</b> Read the sheet first${kind === 'update' ? '; it starts with what changed' : ''}.</p>
-      <p><a class="open" href="#" data-file="${esc(file)}">Open ${esc(file.split('/').pop())} to review</a> <span class="muted tiny"><code>${esc(file)}</code></span></p>
+      <p id="pj-m-desc"><b>Confirming makes these facts usable in customer-facing work.</b> Read the sheet first${kind === 'update' ? (changes ? ', then the list of changes' : '') : ''}.</p>
+      <p><a class="open" href="#" data-file="${esc(file)}">Open ${esc(file.split('/').pop())} to review</a> <span class="muted tiny"><code>${esc(file)}</code></span></p>${changes ? `
+      <p><a class="open" href="#" data-file="${esc(changes)}">Open ${esc(changes.split('/').pop())} to see what changed</a></p>` : ''}
       <form id="pj-m-form" autocomplete="off">
         <label><span>Your name</span><input id="pj-m-name" maxlength="80" required></label>
         <label><span>Type <code>${esc(phrase)}</code> to confirm</span><input id="pj-m-phrase" aria-describedby="pj-m-help" spellcheck="false" autocapitalize="off"></label>
@@ -595,7 +603,7 @@ const projects = {
     const typed = $('#pj-m-phrase', el);
     const ok = $('#pj-m-ok', el);
     const check = () => {
-      ok.disabled = !(name.value.trim() && typed.value.trim() === phrase);
+      ok.disabled = stale || !(name.value.trim() && typed.value.trim() === phrase);
     };
     name.addEventListener('input', check);
     typed.addEventListener('input', check);
@@ -607,7 +615,7 @@ const projects = {
       ok.disabled = true;
       $('#pj-m-err', el).textContent = '';
       try {
-        const r = await api(`/api/projects/${encodeURIComponent(slug)}/confirm`, { kind, by: name.value.trim(), phrase: typed.value.trim() });
+        const r = await api(`/api/projects/${encodeURIComponent(slug)}/confirm`, { kind, by: name.value.trim(), phrase: typed.value.trim(), sha256 });
         toast(r.message || `${pjName(p)} confirmed.`);
         // The opener button disappears when the card re-renders as "Ready", so focus goes to the card itself
         // (its data-fk is kept across re-renders by paint()), or to the panel heading if the card is gone.
@@ -617,7 +625,16 @@ const projects = {
         $('#pj-m-err', el).textContent = error.message;
         check();
       } finally {
-        projects.refresh(true);
+        await projects.refresh(true); // the card shows the new state either way
+        // If the file is no longer the one this dialog was opened on, confirming here can only fail again: the
+        // person closes the dialog and opens it again to read the new text. Cancel and the file links keep working.
+        const now = (projects.list || []).find((x) => x.slug === slug);
+        const current = kind === 'update' ? now?.pendingUpdate?.sha256 : now?.sha256;
+        if (projects.modal?.el === el && now && current !== sha256) {
+          stale = true;
+          $('#pj-m-err', el).textContent = $('#pj-m-err', el).textContent || 'The file changed since you opened it. Review it again.';
+          check();
+        }
       }
     });
     el.addEventListener('keydown', (e) => {
