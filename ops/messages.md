@@ -140,3 +140,27 @@ Every time one agent started another. Written by `scripts/team-hooks.mjs`.
 | 2026-11-03 15:29 | coordinator | marketing | T-20261103-13 | Revise listings per review r1 |
 | 2026-11-03 15:31 | coordinator | evaluator | T-20261103-13 | Re-review revised listings |
 | 2026-11-03 15:36 | coordinator | marketing | T-20261103-13 | Apply post-PASS wording notes |
+| 2026-11-04 10:28 | coordinator | knowledge-base | T-20261104-01 | Smoke: KB price/trial/feature |
+| 2026-11-04 10:28 | coordinator | researcher | T-20261104-02 | Smoke: researcher venues + fetch |
+| 2026-11-04 10:28 | coordinator | lead-generator | T-20261104-03 | Smoke: lead gate read-only |
+| 2026-11-04 10:28 | coordinator | outreach | T-20261104-04 | Smoke: outreach can_ask + subject |
+| 2026-11-04 10:28 | coordinator | sales | T-20261104-05 | Smoke: sales objection answer |
+| 2026-11-04 10:28 | outreach | knowledge-base | T-20261104-04 | Free trial length lookup |
+| 2026-11-04 10:28 | coordinator | marketing | T-20261104-06 | Smoke: marketing positioning line |
+| 2026-11-04 10:28 | coordinator | demo-handler | T-20261104-07 | Smoke: demo outline |
+| 2026-11-04 10:28 | coordinator | docs-handler | T-20261104-08 | Smoke: docs FAQ |
+| 2026-11-04 10:28 | coordinator | developer | T-20261104-09 | Smoke: developer run tests |
+| 2026-11-04 10:29 | coordinator | lead-generator | T-20261104-03 | Smoke retry: lead gate |
+| 2026-11-04 10:29 | coordinator | developer | T-20261104-09 | Smoke retry: run tests |
+| 2026-11-04 10:30 | coordinator | evaluator | T-20261104-10 | Smoke: combined review |
+| 2026-11-04 10:40 | coordinator | knowledge-base | T-20261104-11 | Deplexo prospect brief |
+| 2026-11-04 10:44 | coordinator | demo-handler | T-20261104-12 | Deplexo demo plan |
+| 2026-11-04 10:44 | coordinator | sales | T-20261104-13 | Deplexo call prep and follow-up |
+| 2026-11-04 10:48 | coordinator | evaluator | T-20261104-14 | Review use case 2 pack |
+| 2026-11-04 10:57 | coordinator | demo-handler | T-20261104-12 | Revise Deplexo demo plan |
+| 2026-11-04 10:57 | coordinator | sales | T-20261104-13 | Align Deplexo call prep and email |
+| 2026-11-04 10:59 | coordinator | evaluator | T-20261104-14 | Round 2 review of use case 2 |
+| 2026-11-04 11:59 | coordinator | knowledge-base | T-20261104-15 | Project knowledge.md template |
+| 2026-11-04 12:05 | coordinator | evaluator | T-20261104-15 | Review knowledge.md template |
+| 2026-11-04 12:11 | coordinator | knowledge-base | T-20261104-15 | Revise knowledge.md template |
+| 2026-11-04 12:25 | coordinator | evaluator | T-20261104-15 | Round 2 review of template |

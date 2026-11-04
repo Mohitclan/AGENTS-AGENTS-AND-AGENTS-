@@ -11,3 +11,5 @@
 - [Skill draft checks](feedback_skill_draft_checks.md) — loader tools from files (fallbacks lack Edit); "never add" vs REVISE fixes; test my own fix wording; quoted >> rows
 - [Marketing listing checks](feedback_marketing_listing_checks.md) — trial caps vs feature ranges; "yet" = roadmap; test author's site claims live; four U's per listing
 - [Lead batch checks](feedback_lead_batch_checks.md) — test gaps, "not found" and rejections past the homepage; recompute tiers; read board lines literally
+- [Template form checks](feedback_template_form_checks.md) — mapping rows both ways; simulate copy+parser; enums vs schema; lint-probe names; test my own rewrites
+- [Demo pack checks](feedback_demo_pack_checks.md) — spoken lines vs hypothesis labels; repo-only facts; git show main:; cross-file tag/CTA table

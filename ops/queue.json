@@ -152,5 +152,16 @@
     "report": "outputs/reports/J-20261103-03.md",
     "finished": "2026-11-03 17:32",
     "turns": 12
+  },
+  {
+    "id": "J-20261104-01",
+    "task": "Agent smoke test (2026-11-04): check every specialist and the evaluator work end to end. Save everything in outputs/tests/2026-11-04-agent-smoke/, one file per agent, each under 80 words. Product motionrepo. Files only unless a step says otherwise. Send nothing, contact no one, import no leads, change no lead, knowledge, skill or agent file. Run independent steps in parallel. 1) knowledge-base: MotionRepo's price, trial and one feature, each with its fact-sheet line. 2) researcher: 3 launch venues from the existing channel map, plus one WebFetch of https://motionrepo.panscience.ai noting whether it loaded. 3) lead-generator: run node scripts/leads.mjs gate --product motionrepo read-only and summarise the verdicts. 4) outreach: ask knowledge-base for the free trial length (one can_ask call), then write one subject line for a sign-up nudge, marked HELD. 5) sales: a 3-sentence answer to 'too expensive' using only confirmed facts. 6) marketing: a one-line positioning statement using the positioning skill. 7) demo-handler: a 5-bullet outline for a 10-minute demo. 8) docs-handler: a 3-question FAQ from the fact sheet. 9) developer: run node --test scripts/tests/lead-gates.test.mjs and report the counts; change no code. 10) Run node scripts/stats.mjs pipeline and include its output. 11) evaluator: ONE combined review of all files, PASS or REVISE per agent, no revision round. Report which agents worked, which failed and why.",
+    "status": "needs_input",
+    "added": "2026-11-04 10:26",
+    "started": "2026-11-04 10:27",
+    "note": "3 lesson(s) recorded",
+    "report": "outputs/reports/J-20261104-01.md",
+    "finished": "2026-11-04 10:33",
+    "turns": 46
   }
 ]
