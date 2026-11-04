@@ -248,3 +248,15 @@
 {"at":"2026-11-04T06:55","file":"knowledge/templates/project-knowledge-conversion.md","type":"general","passed":true,"failures":[],"warnings":2}
 {"at":"2026-11-04T06:56","file":"knowledge/templates/project-knowledge.md","type":"general","passed":true,"failures":[],"warnings":3}
 {"at":"2026-11-04T06:56","file":"knowledge/templates/project-knowledge-conversion.md","type":"general","passed":true,"failures":[],"warnings":2}
+{"at":"2026-11-04T07:25","file":"knowledge/templates/project-knowledge.md","type":"general","passed":true,"failures":[],"warnings":4}
+{"at":"2026-11-04T07:25","file":"knowledge/templates/project-knowledge-conversion.md","type":"general","passed":true,"failures":[],"warnings":4}
+{"at":"2026-11-04T07:28","file":"knowledge/templates/project-knowledge.md","type":"general","passed":true,"failures":[],"warnings":4}
+{"at":"2026-11-04T07:28","file":"knowledge/templates/project-knowledge-conversion.md","type":"general","passed":true,"failures":[],"warnings":3}
+{"at":"2026-11-04T07:28","file":"knowledge/templates/project-knowledge.md","type":"general","passed":true,"failures":[],"warnings":4}
+{"at":"2026-11-04T07:28","file":"knowledge/templates/project-knowledge-conversion.md","type":"general","passed":true,"failures":[],"warnings":3}
+{"at":"2026-11-04T07:29","file":"knowledge/templates/project-knowledge.md","type":"general","passed":true,"failures":[],"warnings":4}
+{"at":"2026-11-04T07:29","file":"knowledge/templates/project-knowledge-conversion.md","type":"general","passed":true,"failures":[],"warnings":3}
+{"at":"2026-11-04T07:40","file":"../../../AppData/Local/Temp/claude/C--Users-shiva-Downloads-PSI-AGENTS-AGENTS-AND-AGENTS-/1af74984-c8cd-4815-a400-baf62c2dae56/scratchpad/names-ok.md","type":"general","passed":true,"failures":[],"warnings":0}
+{"at":"2026-11-04T07:40","file":"../../../AppData/Local/Temp/claude/C--Users-shiva-Downloads-PSI-AGENTS-AGENTS-AND-AGENTS-/1af74984-c8cd-4815-a400-baf62c2dae56/scratchpad/names-bad.md","type":"general","passed":false,"failures":[{"code":"placeholder"}],"warnings":0}
+{"at":"2026-11-04T07:44","file":"knowledge/templates/project-knowledge.md","type":"general","passed":true,"failures":[],"warnings":4}
+{"at":"2026-11-04T07:44","file":"knowledge/templates/project-knowledge-conversion.md","type":"general","passed":true,"failures":[],"warnings":3}

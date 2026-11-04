@@ -1,6 +1,6 @@
 # Project knowledge form (`knowledge.md`)
 
-Form version 2 · 2026-11-04 · Owner: knowledge-base · Audience: our own team (internal)
+Form version 3 · 2026-11-04 · Owner: knowledge-base · Audience: our own team (internal)
 
 One person on the team fills in one copy of this form for each product or project. The knowledge-base agent turns the filled copy into `knowledge/products/<slug>.md` with `status: proposed`. A person then confirms that sheet (section 2). How the agent converts and updates the sheet, and the proof that this form holds everything the agents read, is in `knowledge/templates/project-knowledge-conversion.md`. You do not need that file to fill this one in.
 
@@ -28,8 +28,8 @@ Contents: 1 Rules · 2 What happens after you hand it in · 3 How to copy the fo
 ## 2. What happens after you hand it in
 
 - The knowledge-base agent builds `knowledge/products/<slug>.md` with `status: proposed` and adds the project to the Products table in `CLAUDE.md` (`.claude/agents/knowledge-base.md`, step 6 of "Building a product fact sheet").
-- Research and fact-sheet work may start at once. The coordinator holds lead finding, lead scoring, outreach, sales and demo work until a person confirms the sheet. Any fact used before then is marked `[UNCONFIRMED]` (`CLAUDE.md`, Knowledge rules).
-- A person confirms the sheet from the UI: a signed-in person types yes, and the confirm is recorded with their name and date (told by suryanshu on 2026-11-04, `memory/MAIN.md`). Agents never confirm anything.
+- Research and fact-sheet work may start at once. The coordinator holds lead finding, lead scoring, outreach, sales and demo work until a person confirms the sheet. That hold is the coordinator's rule (customer-facing work waits for a confirmed sheet) together with the human's 2026-11-04 decision that the converted sheet needs a person's confirm (`memory/MAIN.md`). It is stricter than `CLAUDE.md`, which only requires `[UNCONFIRMED]` on a `proposed` fact used in customer-facing work; a person can reverse it. Any such fact used before the confirm is marked `[UNCONFIRMED]` (`CLAUDE.md`, Knowledge rules).
+- A person confirms the sheet in mission control (Projects panel): a signed-in person types yes, and the confirm is recorded with their name and date (told by suryanshu on 2026-11-04, `memory/MAIN.md`). The panel was added by T-20261104-16 and T-20261104-17 (`ops/board.md`). A person may also confirm with `node scripts/kb.mjs confirm knowledge/products/<slug>.md` (`CLAUDE.md`, Knowledge rules). Agents never confirm anything.
 - Part 1 is what lead finding and outreach need. Lead finding and outreach do not start until every Part 1 section is filled with real values (`none` counts if you checked, `unknown` does not).
 - Part 2 is what replies, demos, proposals, docs and listings need. Fill it in before those start.
 - The sheet becomes `confirmed` as a whole. Facts marked `internal` stay out of anything a customer sees.
@@ -76,7 +76,7 @@ last_updated: <YYYY-MM-DD>
 
 # <Product name>: project knowledge
 
-Form version 2. Filled by <name> on <date>.
+Form version 3. Filled by <name> on <date>.
 
 ## Part 1: needed before lead finding and outreach
 
@@ -143,8 +143,8 @@ Applies to all segments:
 | Regions we sell to now | <...> | public | <...> |
 | Regions we cannot serve yet, and why (currency, payment, language, law) | <...> | <public or internal> | <...> |
 | Buying triggers (events that make them buy now), each with where it can be seen publicly | <trigger> / <where> | internal | <...> |
-| Public signals that a company has the problem, each marked `published` (they said it) or `observed_gap` (visible on their public site or repo). A guess is not a signal | <...> | internal | <...> |
-| Disqualifiers, each with its reason (who we should not sell to) | <...> | internal | <...> |
+| Public signals that a company has the problem, each marked `published` (they said it), `observed_gap` (visible on their public site or repo) or `inferred` (our guess from other facts; it sets timing only and is never mentioned to them, `pipeline/lead-schema.md`, field `evidence`). Then name the segment tests an `inferred` signal may pass, or write `none` | <...> | internal | <...> |
+| Disqualifiers, each with its reason (who we should not sell to), including whether any buyers or users may be under 18 (never contacted, `knowledge/company.md`) | <...> | internal | <...> |
 | What is not established yet (sizes of segments, willingness to pay) | <...> | internal | <...> |
 
 ### F. Features
@@ -173,6 +173,7 @@ Done when: both tables are filled, including what happens to customer data and w
 | Question | Answer | Audience | Source |
 |---|---|---|---|
 | Where does customer data go (our servers, third-party processors, AI providers)? | <...> | <public or internal> | <...> |
+| How long is customer data kept, how does a customer delete it, and is a data processing agreement offered (or `none`)? | <...> | <public or internal> | <...> |
 | Which certifications or audits do we hold (write each, or `none`)? | <...> | <public or internal> | <...> |
 | Which security features are missing (single sign-on, two-factor sign-in, activity log)? | <...> | internal | <...> |
 | What sign-in methods exist, and what does that rule out? | <...> | <public or internal> | <...> |
@@ -252,13 +253,19 @@ Real customers, metrics, reviews and press only. Numbers and quotes are copied e
 
 ### M. Competitors and alternatives
 
-Done when: every direct competitor has a row with its website, and each direct one has where we win and where we lose.
+Done when: every direct competitor has a row with its website, and each direct one has where we win and where we lose. Every row has a never-contact mark.
 
-Fill in what a buyer could do instead of buying this, including doing nothing and building it themselves. The lead-generator sets the `competitor` field on any lead that matches a row here, and the lead gate then stops that lead (`pipeline/lead-schema.md`, field `competitor`). If you are unsure whether a company is a competitor, write it in section U; do not guess. Competitor prices and features are not collected here: the researcher records them, dated, in `knowledge/competitors/<slug>.md`. Write no price comparison ("cheaper", "better") unless both prices are dated, within 90 days (rule 1) and in the same currency.
+Fill in what a buyer could do instead of buying this, including doing nothing and building it themselves. Mark each row `yes`, `no` or `ask` in the column "Never contact as a lead?". Direct competitors are always `yes` (`knowledge/company.md`: never contact competitors); if you think one should be contacted, ask in section U. Indirect and build-it-yourself rows default to `ask`, and a person can change them to `yes` or `no`. A "do nothing" row is `no` because it names no company. If you are unsure, write `ask` and add the question to section U; do not guess.
 
-| Name | Type: direct / indirect / build it yourself / do nothing | Website | Where we win | Where we lose | Audience | Source |
-|---|---|---|---|---|---|---|
-| <...> | <...> | <...> | <...> | <...> | internal | <...> |
+- `yes`: the lead-generator sets the `competitor` field on a lead that matches the row, and the lead gate then stops that lead (`pipeline/lead-schema.md`, field `competitor`).
+- `ask`: a person decides for each lead. The lead-generator puts a matching lead on hold with `node scripts/leads.mjs hold` until a person releases it (`pipeline/lead-schema.md`, field `competitor`; `.claude/skills/cold-email/SKILL.md`, Hold). This keeps a company that is only an alternative in a target segment, for example an agency that is both an indirect alternative and a customer segment, from being stopped by mistake.
+- `no`: a lead that matches the row is scored as usual.
+
+Competitor prices and features are not collected here: the researcher records them, dated, in `knowledge/competitors/<slug>.md`. Write no price comparison ("cheaper", "better") unless both prices are dated, within 90 days (rule 1) and in the same currency.
+
+| Name | Type: direct / indirect / build it yourself / do nothing | Website | Never contact as a lead? (yes / no / ask) | Where we win | Where we lose | Audience | Source |
+|---|---|---|---|---|---|---|---|
+| <...> | <...> | <...> | <yes / no / ask> | <...> | <...> | internal | <...> |
 
 | Item | Answer | Audience | Source |
 |---|---|---|---|
@@ -285,12 +292,13 @@ Done when: the one-sentence positioning, the three key messages and both claim t
 
 ### R. Brand voice for this project
 
-Done when: the product-name row and the plan-names row are filled. Write only what differs from the base voice in `knowledge/company.md`. The copy checker (`scripts/lint-copy.mjs`) reads only `evaluation/voice-rules.json`, not this form: agents and the evaluator apply your words by hand. To make a word fail the check, ask a person in section U to add it to that file.
+Done when: the product-name row, the plan-names row and the copy-checker row are filled. Write only what differs from the base voice in `knowledge/company.md`. The copy checker (`scripts/lint-copy.mjs`) reads only `evaluation/voice-rules.json`, not this form: agents and the evaluator apply your words by hand. To make a word fail the check, ask a person in section U to add it to that file. Agents never change that file or the script; a person does.
 
 | Item | Answer | Audience | Source |
 |---|---|---|---|
 | How to write the product name (capitals, spaces, never abbreviated as) | <...> | public | <...> |
 | Customer-facing plan names, and any internal ids never to use | <...> | public | <...> |
+| Words in the product or plan names, or in terms that must appear in copy, that the copy checker may flag. It fails any word in the `hard` list in `evaluation/voice-rules.json`, and the placeholder words listed in the `placeholder` rule (`scripts/lint-copy.mjs:93`, `:108`); a name that contains one fails every draft that uses it, and a live send is refused (`scripts/send-email.mjs:232`). It warns on the `flag` list (`:94`). To check, put the names in a scratch file and run `node scripts/lint-copy.mjs <file> --type general`. Write `none` if you checked. A person decides any exception (add it to section U) | <...> | internal | <...> |
 | Words customers use that we should adopt | <...> | internal | <...> |
 | Words to avoid for this product, with the reason | <...> | internal | <...> |
 | Terms that mean something specific here (define each) | <...> | public | <...> |
@@ -303,15 +311,15 @@ Done when: every row has a real value. This section can narrow `knowledge/compan
 | Item | Answer | Audience | Source |
 |---|---|---|---|
 | Channels allowed for this project (a subset of those in `knowledge/company.md`) | <...> | internal | <...> |
-| Does this project need a different sender from the one in `ops/mail-config.json`? (`no`, or who and why; only a person can change that file) | <...> | internal | <...> |
+| Does this project need a different sender from the one in `ops/mail-config.json`, or a different company name in the email signature from the selling entity in section A? (`no`, or who and why; only a person can change that file) | <...> | internal | <...> |
 | Offers a message may make (free trial, sample output, resource) and where each can be seen | <...> | public | <...> |
 | Regions or kinds of company never contacted cold, and why | <...> | internal | <...> |
 | Never-contact additions: company domains (not private people), each with its reason | <...> | internal | <...> |
 | Current customers, as company names, so nobody cold-emails them | <...> | internal | <...> |
 
-Never-contact domains: the agent cannot write the suppression list (`CLAUDE.md`, Where things live). The knowledge-base agent hands each domain to the coordinator as an item for a person to run `node scripts/leads.mjs suppress <domain> "<reason>"`.
+Never-contact domains: adding a never-contact domain is a policy change, so a person decides. The knowledge-base agent hands each domain to the coordinator as an item for a person to run `node scripts/leads.mjs suppress <domain> "<reason>"`.
 
-An opt-out is never written in this form. Tell the coordinator the same day, so it is suppressed with `node scripts/leads.mjs suppress` (`CLAUDE.md`, hard rule 7).
+An opt-out is never written in this form. If you know of one, tell the coordinator at once. If the knowledge-base agent finds one in a form, it suppresses it at once with `node scripts/leads.mjs suppress` (`CLAUDE.md`, hard rule 7), does not copy it into the sheet, and tells you which line it left out.
 
 ## Part 2: needed before replies, demos, proposals, docs and listings
 
@@ -343,6 +351,17 @@ One row per role that takes part in a purchase. Use `unknown` rather than invent
 | Custom, enterprise or self-hosted: public price or on request? Who may quote? | <...> | internal | <...> |
 | Anything about cancellation or refunds that a source states (do not infer it from the billing period) | <...> | <public or internal> | <...> |
 
+### I (continued). Support and service terms
+
+Write only what a source states. A support promise, response time, SLA or uptime figure that no source shows is `none` here, and any such term in a proposal is `[NEEDS APPROVAL]` (`.claude/skills/proposal/SKILL.md`, step 8).
+
+| Item | Answer | Audience | Source |
+|---|---|---|---|
+| How customers get help (channel, hours, who answers) | <...> | public | <...> |
+| Response time, SLA or uptime we commit to (or `none`) | <...> | <public or internal> | <...> |
+| Support by plan (what each plan gets) | <...> | public | <...> |
+| Where open support threads can be seen (system name, never a login) | <...> | internal | <...> |
+
 ### K. Integrations and API
 
 "Supports X" does not mean "supports every kind of X", so state the exact scope (public or private, read or write, which plans).
@@ -365,6 +384,10 @@ Objections buyers actually raise, in their words. An answer uses only facts from
 |---|---|---|---|---|---|---|---|
 | "<...>" | <...> | <...> | <...> | <...> | <...> | not approved | <public or internal> |
 
+| Item | Answer | Audience | Source |
+|---|---|---|---|
+| Switching from the usual alternative: what moves over and what effort it takes (or `unknown`) | <...> | <public or internal> | <...> |
+
 ### P. Demo
 
 Show only features marked `live` in section F. Name the place where the demo login is kept; never write the login. If the demo environment has no public URL, write `internal environment, ask <owner>` and give no address.
@@ -385,9 +408,9 @@ Standard flow (three steps, each tied to a pain from section C):
 |---|---|---|---|---|---|
 | 1 | <...> | <...> | <...> | <...> | internal |
 
-| Demo asset | Allowed or banned | Where it is (public URL, or system and title) | What it shows | Reason / approved by (name, date) | Audience |
-|---|---|---|---|---|---|
-| <...> | <allowed / banned> | <...> | <...> | <...> | <public or internal> |
+| Demo asset | Allowed or banned | Where it is (public URL, or system and title) | What it shows | Reason / approved by (name, date) | Owner (name) | Expires (YYYY-MM-DD, or `none`) | Audience |
+|---|---|---|---|---|---|---|---|
+| <...> | <allowed / banned> | <...> | <...> | <...> | <...> | <...> | <public or internal> |
 
 ### Q. Docs, links and listing assets
 

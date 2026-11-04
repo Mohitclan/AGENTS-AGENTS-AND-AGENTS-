@@ -169,7 +169,7 @@ describe('projects: updates', () => {
     assert.match(out.data.message, /Update to version 2/);
     const task = queue(repo).at(-1).task;
     assert.ok(task.startsWith(`Compare the updated project form knowledge/inbox/acme-tool/${today()}-v2.md with knowledge/products/acme-tool.md`));
-    assert.match(task, new RegExp(`write a full replacement sheet to knowledge/proposals/${today()}-acme-tool-v2\\.md \\(status: proposed\\) starting with a Changes section`));
+    assert.match(task, new RegExp(`write a full replacement sheet to knowledge/proposals/${today()}-acme-tool-v2\\.md \\(status: proposed\\), frontmatter first and then a Changes section`));
     assert.match(task, /Do not edit knowledge\/products\/acme-tool\.md/);
     assert.ok(!task.includes(BODY_MARK));
   });

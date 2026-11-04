@@ -19,4 +19,7 @@ For a form or template that agents convert into knowledge files, test the form's
 - A mechanism written in the present tense ("confirm from the UI") must exist today; otherwise name the current one (`kb.mjs confirm`).
 - Before suggesting a rewrite, test it against the confirmed product sheet: my r1 "any lead that matches a competitor row" would Stop MotionRepo's agency segment (indirect row), and my "tell the coordinator the same day" was weaker than hard rule 7's "at once". Correct my own wording in writing next round.
 
+- r3: test every "default X, a person can change it" against the form's own "never looser" line and `company.md`. A filler is a person, so "default `yes` for direct competitors" let a form loosen never-contact. Also compare each coordinator answer with how it was worded ("direct yes" had become a default).
+- Self-review `grep -c` counts usually leave out the self-review's own lines. Re-run them, and call it a wording fix, not a false pass.
+
 Related: [[revision-round-checks]], [[guide-proposal-checks]]

@@ -164,3 +164,7 @@ Every time one agent started another. Written by `scripts/team-hooks.mjs`.
 | 2026-11-04 12:05 | coordinator | evaluator | T-20261104-15 | Review knowledge.md template |
 | 2026-11-04 12:11 | coordinator | knowledge-base | T-20261104-15 | Revise knowledge.md template |
 | 2026-11-04 12:25 | coordinator | evaluator | T-20261104-15 | Round 2 review of template |
+| 2026-11-04 12:43 | coordinator | knowledge-base | T-20261104-15 | Template revision 2 |
+| 2026-11-04 12:43 | coordinator | developer | T-20261104-16 | Projects backend build |
+| 2026-11-04 12:43 | coordinator | developer | T-20261104-17 | Projects UI build |
+| 2026-11-04 12:59 | coordinator | evaluator | T-20261104-15 | Final review of template |

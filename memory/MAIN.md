@@ -19,6 +19,7 @@ Add and remove entries with `/teach` and `/forget`, or with `node scripts/memory
 - 2026-11-03 · Copy checks warn when a text uses more than about one em dash per 1,000 words; em dashes are never banned outright. (source: told by suryanshu on 2026-11-03 ("do recommended") · by: coordinator)
 - 2026-11-03 · Agents may only read from HubSpot: lead-generator, sales and their backups get ten named read-only HubSpot tools, never a wildcard. Any CRM change goes to a person first. (source: told by suryanshu on 2026-11-03 (A-20261103-01) · by: coordinator)
 - 2026-11-04 · Projects come from a person-written knowledge.md (template: knowledge/templates/project-knowledge.md). Its facts count as told by the person who filled it in, but the agent's converted fact sheet still needs a person's confirm, done from the UI (signed-in person, typed yes, recorded with name and date). MotionRepo's fact sheet stays as it is. (source: told by suryanshu on 2026-11-04 · by: coordinator)
+- 2026-11-04 · For a project from a knowledge.md: research and fact-sheet work may run before the confirm; lead finding, outreach, sales and demo work wait for it. Direct competitors are always never-contact, whatever a form says. Claude's call, reversible by a person. (source: outputs/reviews/T-20261104-15-r3.md policy flags · coordinator decision 2026-11-04 · by: coordinator)
 
 ## Preferences
 
