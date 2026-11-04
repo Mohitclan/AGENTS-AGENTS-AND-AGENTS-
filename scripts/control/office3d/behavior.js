@@ -39,12 +39,15 @@ export const ACTIVITIES = {
   success: { place: 'here', pose: 'stand', loop: 'still', once: 'ThumbsUp', label: 'Finished its part' },
   paused: { place: 'lounge', pose: 'sit', loop: 'rest', label: 'Paused until the plan window resets' },
   // ambient, only when idle
-  coffee: { place: 'coffee', pose: 'stand', loop: 'drink', ambient: true, dwell: [16, 26], cooldown: 240, label: 'Getting a coffee' },
-  window: { place: 'window', pose: 'stand', loop: 'gaze', ambient: true, dwell: [14, 24], cooldown: 180, label: 'Thinking by the window' },
-  lounge: { place: 'lounge', pose: 'sit', loop: 'rest', ambient: true, dwell: [25, 45], cooldown: 300, label: 'Resting in the lounge' },
-  meeting: { place: 'meeting', pose: 'stand', loop: 'chat', ambient: true, social: true, dwell: [18, 30], cooldown: 300, label: 'Chatting at the meeting table' },
-  huddle: { place: 'huddle', pose: 'stand', loop: 'chat', ambient: true, social: true, dwell: [12, 20], cooldown: 240, label: 'A quick word in the middle' },
-  desk: { place: 'desk', pose: 'sit', loop: 'rest', ambient: true, dwell: [30, 70], cooldown: 0, label: 'At the desk, between tasks' },
+  coffee: { place: 'coffee', pose: 'stand', loop: 'drink', ambient: true, dwell: [18, 30], cooldown: 150, label: 'Getting a coffee' },
+  window: { place: 'window', pose: 'stand', loop: 'gaze', ambient: true, dwell: [14, 24], cooldown: 120, label: 'Thinking by the window' },
+  lounge: { place: 'lounge', pose: 'sit', loop: 'rest', ambient: true, dwell: [30, 60], cooldown: 150, label: 'Resting in the lounge' },
+  meeting: { place: 'meeting', pose: 'stand', loop: 'chat', ambient: true, social: true, dwell: [18, 30], cooldown: 180, label: 'Chatting at the meeting table' },
+  huddle: { place: 'huddle', pose: 'stand', loop: 'chat', ambient: true, social: true, dwell: [12, 20], cooldown: 150, label: 'A quick word in the middle' },
+  // a stroll walks 3-5 waypoints round the office, pausing a few seconds at each
+  stroll: { place: 'stroll', pose: 'stand', loop: 'look', ambient: true, dwell: [3, 6], legs: [3, 5], cooldown: 60, label: 'Stretching their legs' },
+  shelf: { place: 'shelf', pose: 'stand', loop: 'browse', ambient: true, dwell: [12, 22], cooldown: 200, label: 'Browsing the bookshelf' },
+  desk: { place: 'desk', pose: 'sit', loop: 'rest', ambient: true, dwell: [15, 35], cooldown: 0, label: 'At the desk, between tasks' },
   // errands from real events
   brief: { place: 'brief', pose: 'stand', loop: 'chat', label: 'Getting the brief from the Captain' },
   visit: { place: 'visit', pose: 'stand', loop: 'chat', label: 'Asking a colleague' },
@@ -73,7 +76,8 @@ const hash = (s) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7)
 export function personality(agent) {
   const h = hash(agent);
   const w = (shift) => 0.5 + ((h >> shift) % 10) / 10;
-  return { coffee: w(0), window: w(4), lounge: w(8), meeting: w(12), huddle: w(16), desk: 1.4 + ((h >> 20) % 10) / 10, stroll: 0.85 + ((h >> 24) % 30) / 100 };
+  // `pace` is how fast this agent walks; the rest weigh its idle choices
+  return { coffee: w(0), window: w(4), lounge: w(8), meeting: w(12), huddle: w(16), stroll: w(2), shelf: w(6) * 0.7, desk: 0.6 + ((h >> 20) % 10) / 10, pace: 0.85 + ((h >> 24) % 30) / 100 };
 }
 
 export const placesOf = (kind) => SPOTS.filter((s) => s.kind === kind);
@@ -81,20 +85,21 @@ export const placesOf = (kind) => SPOTS.filter((s) => s.kind === kind);
 // Pick an ambient activity for an idle agent. `memory` holds when it last did each activity;
 // `taken` is the set of spot ids already claimed; `partners` are other idle agents free to join a
 // chat. Returns { activity, spot, dwell, partner?, partnerSpot? }.
-export function pickIdle({ agent, now, memory = {}, taken = new Set(), partners = [], rand = Math.random, justMoved = false }) {
+export function pickIdle({ agent, now, memory = {}, taken = new Set(), partners = [], rand = Math.random, justMoved = false, noDesk = false }) {
   const p = personality(agent);
   const options = [];
   for (const [name, a] of Object.entries(ACTIVITIES)) {
     if (!a.ambient) continue;
     if (name === 'desk') {
-      options.push({ name, weight: p.desk * (justMoved ? 2.5 : 1) });
+      if (!noDesk) options.push({ name, weight: p.desk * (justMoved ? 1.4 : 1) });
       continue;
     }
     if (now - (memory[name] ?? -Infinity) < a.cooldown * 1000) continue;
     const free = placesOf(a.place).filter((s) => !taken.has(s.id));
     if (a.social ? free.length < 2 || !partners.length : !free.length) continue;
-    options.push({ name, weight: p[name] * (justMoved ? 0.4 : 1) });
+    options.push({ name, weight: p[name] * (justMoved ? 0.75 : 1) });
   }
+  if (!options.length) options.push({ name: 'desk', weight: 1 }); // nowhere free: stay at the desk
   const total = options.reduce((s, o) => s + o.weight, 0);
   let r = rand() * total;
   let choice = options[options.length - 1];
@@ -111,6 +116,10 @@ export function pickIdle({ agent, now, memory = {}, taken = new Set(), partners 
   if (choice.name === 'desk') return { activity: 'desk', spot: null, dwell };
   const free = placesOf(a.place).filter((s) => !taken.has(s.id));
   const spot = free[Math.floor(rand() * free.length)];
+  if (a.legs) {
+    const [l0, l1] = a.legs;
+    return { activity: choice.name, spot: spot.id, dwell, legs: l0 + Math.floor(rand() * (l1 - l0 + 1)) };
+  }
   if (!a.social) return { activity: choice.name, spot: spot.id, dwell };
   const other = free.find((s) => s.id !== spot.id);
   return { activity: choice.name, spot: spot.id, dwell, partner: partners[Math.floor(rand() * partners.length)], partnerSpot: other.id };
