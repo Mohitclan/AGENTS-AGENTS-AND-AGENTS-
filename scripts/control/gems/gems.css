@@ -1,4 +1,4 @@
-/* SubE Gem avatars: sizing, expressions and motion for every state. Only transform and opacity
+/* Gem avatars: sizing, expressions and motion for every state. Only transform and opacity
    animate, so the browser can keep it cheap; avatars off screen (.gem-off), muted effects and
    prefers-reduced-motion all stop the movement. */
 

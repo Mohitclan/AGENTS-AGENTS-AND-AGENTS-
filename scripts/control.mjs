@@ -461,16 +461,20 @@ function signature(root) {
 // ---- the server ----------------------------------------------------------------------------------
 
 const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml' };
-const STATIC_FILES = /^(app\.js|app\.css|signin\.js|gems\/[\w-]+\.(js|css))$/;
+const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.glb': 'model/gltf-binary', '.png': 'image/png' };
+const STATIC_FILES = /^(app\.js|app\.css|signin\.js|(gems|office3d)\/[\w-]+\.(js|css))$/;
+// The 3D office: its character model, and the Three.js files it uses (copied in by
+// scripts/vendor-three.mjs). Both are cached for a day; everything else is no-store.
+const ASSET_FILES = /^assets\/((people\/)?[\w-]+\.glb|people\/Textures\/[\w-]+\.png)$/;
+const THREE_FILES = /^vendor\/three\/(build\/three\.(module|core)\.js|examples\/jsm\/(loaders|controls|utils|environments)\/\w+\.js)$/;
 const isLocal = (host) => /^(127\.0\.0\.1|localhost)(:\d+)?$/.test(host || '');
 const goodHost = (host, site) => (site ? host === site : isLocal(host));
 const cookieHeader = (value, site, age) => `${COOKIE}=${value}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${age}${site ? '; Secure' : ''}`;
 const readCookie = (header) => new RegExp(`(?:^|;\\s*)${COOKIE}=([a-f0-9]+)`).exec(header || '')?.[1];
 
-const shell = (body, script) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SubE Gems · Mission control</title><link rel="stylesheet" href="/app.css"><link rel="stylesheet" href="/gems/gems.css"><link rel="stylesheet" href="/gems/office.css"><link rel="stylesheet" href="/gems/ui.css"><link rel="stylesheet" href="/gems/home.css"></head><body>${body}<script type="module" src="/${script}"></script></body></html>`;
+const shell = (body, script) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>panscience · Mission control</title><link rel="stylesheet" href="/app.css"><link rel="stylesheet" href="/gems/gems.css"><link rel="stylesheet" href="/gems/office.css"><link rel="stylesheet" href="/gems/ui.css"><link rel="stylesheet" href="/office3d/office3d.css"><link rel="stylesheet" href="/gems/home.css"></head><body>${body}<script type="module" src="/${script}"></script></body></html>`;
 const APP = shell('<div id="app" class="app"><noscript>Mission Control needs JavaScript.</noscript></div>', 'app.js');
-const SIGN_IN = shell('<main class="signin"><form id="signin" class="signin-card"><div class="brand"><span class="brand-mark"></span>SubE Gems</div><p>Sign in to run the sales team.</p><label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" required><button type="submit">Sign in</button><p id="msg" role="status"></p></form></main>', 'signin.js');
+const SIGN_IN = shell('<main class="signin"><form id="signin" class="signin-card"><div class="brand"><span class="brand-mark"></span>panscience</div><p>Sign in to run the sales team.</p><label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" required><button type="submit">Sign in</button><p id="msg" role="status"></p></form></main>', 'signin.js');
 
 function main() {
   const args = process.argv.slice(2);
@@ -520,7 +524,7 @@ function main() {
   }, 20_000).unref();
 
   const send = (res, status, body, type = 'text/plain', extra = {}) => {
-    res.writeHead(status, { 'Content-Type': `${type}; charset=utf-8`, 'Content-Security-Policy': CSP, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', ...extra });
+    res.writeHead(status, { 'Content-Type': /^(model|image\/png)/.test(type) ? type : `${type}; charset=utf-8`, 'Content-Security-Policy': CSP, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', ...extra });
     res.end(body);
   };
   const json = (res, status, data, extra) => send(res, status, JSON.stringify(data), 'application/json', extra);
@@ -535,6 +539,9 @@ function main() {
       if (req.method === 'GET') {
         const file = path.slice(1);
         if (STATIC_FILES.test(file) && existsSync(join(STATIC, file))) return send(res, 200, readFileSync(join(STATIC, file), 'utf8'), TYPES[file.slice(file.lastIndexOf('.'))]);
+        const cache = { 'Cache-Control': 'public, max-age=86400' };
+        if (ASSET_FILES.test(file) && existsSync(join(STATIC, file))) return send(res, 200, readFileSync(join(STATIC, file)), TYPES[file.slice(file.lastIndexOf('.'))], cache);
+        if (THREE_FILES.test(file) && existsSync(join(STATIC, file))) return send(res, 200, readFileSync(join(STATIC, file), 'utf8'), 'text/javascript', cache);
         if (!signedIn) return path.startsWith('/api/') ? json(res, 401, { message: 'Sign in first.' }) : send(res, 200, SIGN_IN, 'text/html');
         if (path === '/') return send(res, 200, APP, 'text/html');
         if (path === '/api/state') return json(res, 200, state());

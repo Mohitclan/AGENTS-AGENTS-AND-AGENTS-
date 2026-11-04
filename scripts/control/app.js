@@ -5,10 +5,11 @@ import { avatarHTML, badgeImg, mountAvatars, setAvatarStatus } from './gems/avat
 import { createDock } from './gems/dock.js';
 import { createGallery } from './gems/gallery.js';
 import { identityFor } from './gems/identities.js';
-import { createOffice } from './gems/office.js';
 import { playIntro } from './gems/intro.js';
 import { createDemo } from './gems/simulator.js';
 import { normalizeState, STATE_LABEL } from './gems/status.js';
+import { createVoice } from './gems/voice.js';
+import { mountOffice } from './office3d/mount.js';
 
 // The agents' names and jobs as people read them. Their characters live in gems/identities.js.
 const AGENTS = {
@@ -91,7 +92,7 @@ function setMeters(root = document) {
 function shell() {
   $('#app').innerHTML = `
   <aside class="side" id="side">
-    <a class="brand" href="#/"><span class="brand-mark" aria-hidden="true"></span><span>SubE Gems</span></a>
+    <a class="brand" href="#/"><span class="brand-mark" aria-hidden="true"></span><span>panscience</span></a>
     <nav class="nav" aria-label="Pages">
       <a href="#/" data-nav="home">Home</a>
       <a href="#/working" data-nav="working">Working</a>
@@ -654,7 +655,7 @@ const home = {
     $('#view').innerHTML = `<div class="home" id="home"><div id="home-office"></div>
       <div class="hud hud-status" id="hud-status"><i class="live-dot"></i><span></span></div>
       <div class="hud hud-demo" id="hud-demo"></div></div>`;
-    home.office = createOffice($('#home-office'), { roster: roster(), immersive: true, onOpen: (name) => home.card(name) });
+    home.office = mountOffice($('#home-office'), { roster: roster(), immersive: true, onOpen: (name) => home.card(name) });
     home.demo = attachDemo({
       office: home.office,
       controls: $('#hud-demo'),
@@ -719,7 +720,7 @@ const working = {
     const open = (name) => {
       location.hash = `#/agent/${name}`;
     };
-    working.office = createOffice($('#office-host'), { roster: roster(), onOpen: open });
+    working.office = mountOffice($('#office-host'), { roster: roster(), onOpen: open });
     $('#who').innerHTML = roster().map((a) => `<li><button type="button" data-agent="${esc(a.name)}">${avatarHTML(a.name, { mode: 'badge', size: 'sm', status: a.status })}<span class="who-t"><span class="who-n">${esc(identityFor(a.name).name)}</span> <span class="muted tiny">${esc(agentName(a.name))}</span><span class="who-d"></span></span><span class="st-pill"></span></button></li>`).join('');
     mountAvatars($('#who'));
     $('#who').addEventListener('click', (e) => {
@@ -815,6 +816,28 @@ function route() {
   return { page: VIEWS[page] ? page : 'home', arg: decodeURIComponent(arg || '') };
 }
 
+// KPI numbers count up from their last value instead of jumping.
+const kpiPrev = new Map();
+function countKpis(root) {
+  for (const box of root.querySelectorAll('.kpi')) {
+    const v = box.querySelector('.kpi-v');
+    const label = box.querySelector('.kpi-l')?.textContent || '';
+    const to = Number(v.textContent);
+    if (!Number.isInteger(to)) continue;
+    const from = kpiPrev.get(label) ?? 0;
+    kpiPrev.set(label, to);
+    if (from === to || matchMedia('(prefers-reduced-motion: reduce)').matches) continue;
+    if (from !== 0) box.classList.add('kpi-bump');
+    const t0 = performance.now();
+    const step = (now) => {
+      const p = Math.min(1, (now - t0) / 700);
+      v.textContent = String(Math.round(from + (to - from) * (1 - (1 - p) ** 3)));
+      if (p < 1 && v.isConnected) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
+}
+
 function render() {
   if (!store.snap) return;
   const r = route();
@@ -824,8 +847,14 @@ function render() {
     current = key;
     VIEWS[r.page].build(r.arg);
     window.scrollTo(0, 0);
+    // Rows and cards animate in only while a page is new, not on every live update.
+    const view = $('#view');
+    view.classList.add('entering');
+    clearTimeout(view.entering);
+    view.entering = setTimeout(() => view.classList.remove('entering'), 1200);
   }
   VIEWS[r.page].update?.(store.snap, r.arg);
+  countKpis($('#view'));
   markNav();
 }
 
@@ -835,6 +864,7 @@ function onState(snap) {
   updateShell(snap);
   render();
   animateNew(snap);
+  if (store.primed) voice.announce(snap.feed.filter((e) => !store.seen.has(e.id) && Date.now() - Date.parse(e.at) < 3 * 60_000).reverse());
   for (const e of snap.feed) store.seen.add(e.id);
   store.primed = true;
 }
@@ -860,6 +890,16 @@ function connect() {
 if (!location.hash.startsWith('#/float')) playIntro();
 shell();
 const dock = createDock({ onOpen: (name) => { location.hash = `#/agent/${name}`; } });
+// Talk to the team: browser speech to text, then the same task endpoint as the task box.
+const voice = createVoice({
+  onTask: (task) => api('/api/tasks', { task }),
+  onCancel: async (id) => (await api(`/api/tasks/${id}/cancel`, {})).message,
+  onRun: async () => (await api('/api/run', {})).message,
+  getAgents: () => store.snap?.agents,
+  navigate: (hash) => {
+    location.hash = hash;
+  },
+});
 window.addEventListener('hashchange', render);
 connect();
 api('/api/state').then((s) => !store.snap && onState(s)).catch((e) => toast(e.message, true));

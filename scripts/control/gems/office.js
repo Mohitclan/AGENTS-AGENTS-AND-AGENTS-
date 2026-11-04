@@ -27,6 +27,22 @@ const MONITOR_DX = -3.9; // the monitor sits left of the desk centre
 const MONITOR_DY = -15;
 
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// Text that types itself out, for bubbles and captions. A new text cancels the one still typing.
+function typeInto(el, text, cps = 70) {
+  clearInterval(el.typer);
+  if (reduced() || !text) {
+    el.textContent = text;
+    return;
+  }
+  let i = 0;
+  el.textContent = '';
+  el.typer = setInterval(() => {
+    i = Math.min(text.length, i + 2);
+    el.textContent = text.slice(0, i);
+    if (i >= text.length) clearInterval(el.typer);
+  }, 2000 / cps);
+}
 const muted = () => document.documentElement.classList.contains('gems-muted');
 
 // A small thing each desk is known by.
@@ -67,6 +83,7 @@ function deskSVG(agent, label) {
     <path d="M2 16h116a4 4 0 0 1 4 4v2a2 2 0 0 1-2 2H0a2 2 0 0 1-2-2v-2a4 4 0 0 1 4-4z" fill="#ffeedd"/><path d="M0 22h120v3H0z" fill="#e9cfb5"/>
     <rect class="o-keys" x="46" y="11" width="28" height="6" rx="2" fill="#fff" stroke="#e7d6c5"/>
     <g class="o-papers"><rect x="76" y="8" width="11" height="8" rx="1" fill="#fff" stroke="#e7dcef"/><rect x="77" y="6.6" width="11" height="8" rx="1" fill="#fff" stroke="#e7dcef"/><rect x="76.4" y="5.2" width="11" height="8" rx="1" fill="#fff" stroke="#e7dcef"/></g>
+    <g class="o-steam" fill="none" stroke="#fff" stroke-width="1.4" stroke-linecap="round"><path d="M82 2q-2-3 0-6t0-6"/><path d="M86 2q-2-3 0-6t0-6"/></g>
     <g class="o-mug"><rect x="80" y="4" width="8" height="10" rx="2.4" fill="#fff"/><path d="M88 6.5a3 3 0 0 1 0 5" fill="none" stroke="#fff" stroke-width="2"/><rect x="80" y="4" width="8" height="2.4" fill="${t.primary}"/></g>
     ${DESK_PROP[agent] || ''}
     <rect x="34" y="40" width="52" height="13" rx="4" fill="#fffaf3" stroke="${t.primary}" stroke-width="1.5"/>
@@ -97,12 +114,13 @@ export function createOffice(container, { onOpen, roster, immersive = false }) {
     <div class="o-room" id="o-room">
       <div class="o-wall"><div class="o-wall-trim"></div></div>
       <div class="o-window"><div class="o-sky"></div><span class="o-sun"></span><span class="o-cloud c1"></span><span class="o-cloud c2"></span><span class="o-cloud c3"></span>${SKYLINE}<div class="o-frame"></div><div class="o-sill"></div></div>
-      <div class="o-sign"><span>SubE</span> Gems <small>HQ</small></div>
+      <div class="o-sign"><span>pan</span>science <small>HQ</small></div>
       <div class="o-poster"><i></i></div>
       <div class="o-board" id="o-board"></div>
       <div class="o-clock" id="o-clock"><i class="o-h"></i><i class="o-m"></i><b></b></div>
       <div class="o-shelf"><span class="b1"></span><span class="b2"></span><span class="b3"></span><span class="b4"></span><span class="pot"></span></div>
       <div class="o-lamps"><span class="l1"></span><span class="l2"></span><span class="l3"></span></div>
+      <div class="o-fairy" aria-hidden="true">${Array.from({ length: 26 }, () => '<i></i>').join('')}</div>
       <div class="o-floor"></div>
       <div class="o-beam"><i></i><i></i><i></i><i></i><i></i><i></i></div>
       <div class="o-rug"></div>
@@ -135,6 +153,11 @@ export function createOffice(container, { onOpen, roster, immersive = false }) {
     desk.innerHTML = deskSVG(name, identityFor(name).name);
     place(desk, x, y);
     desk.style.zIndex = String(Math.round(y * 10) + 2);
+    desk.classList.add('o-enter');
+    desk.style.animationDelay = `${150 + desks.size * 60}ms`;
+    desk.addEventListener('animationend', (ev) => {
+      if (ev.animationName === 'o-enter-rise') desk.classList.remove('o-enter');
+    });
     room.append(desk);
     desks.set(name, desk);
   }
@@ -160,6 +183,11 @@ export function createOffice(container, { onOpen, roster, immersive = false }) {
     const actor = { name, el, gem: el.querySelector('.gem'), home: [x, y - SIT], pos: [x, y - SIT], queue: Promise.resolve(), status: 'idle', doing: '' };
     el.style.zIndex = String(Math.round(y * 10));
     place(el, ...actor.pos);
+    el.classList.add('o-enter');
+    el.style.animationDelay = `${500 + actors.size * 90}ms`;
+    el.addEventListener('animationend', (ev) => {
+      if (ev.animationName === 'o-enter-pop') el.classList.remove('o-enter');
+    });
     actors.set(name, actor);
   }
   mountAvatars(room);
@@ -382,10 +410,11 @@ export function createOffice(container, { onOpen, roster, immersive = false }) {
       actor.el.querySelector('.o-backup').hidden = !(a.backup || a.backupActive);
       const bubble = actor.el.querySelector('.o-bubble');
       const text = st === 'idle' ? '' : st === 'paused' ? 'Paused' : st === 'success' ? `Done! ${clip(a.doing?.replace(/^Finished:\s*/, ''), 44)}` : st === 'error' ? `Problem: ${clip(a.doing, 46)}` : clip(a.doing || STATE_LABEL[st], 56);
-      if (bubble.textContent !== text) {
+      if (bubble.dataset.text !== text) {
+        bubble.dataset.text = text;
         bubble.hidden = !text;
-        bubble.textContent = text;
         bubble.className = `o-bubble b-${st}`;
+        typeInto(bubble, text);
       }
       const desk = desks.get(a.name);
       if (desk) {
@@ -415,8 +444,8 @@ export function createOffice(container, { onOpen, roster, immersive = false }) {
     c.classList.remove('show');
     if (!text) return;
     setTimeout(() => {
-      c.textContent = text;
       c.classList.add('show');
+      typeInto(c, text, 90);
     }, 180);
   }
 

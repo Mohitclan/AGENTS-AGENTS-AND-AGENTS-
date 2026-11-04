@@ -1,4 +1,4 @@
-// Character assets: the SVG parts every SubE Gem is built from. One shared rig (viewBox 0 0 160 200,
+// Character assets: the SVG parts every Gem is built from. One shared rig (viewBox 0 0 160 200,
 // feet at y≈190, head centred at 80,76) so every character has the same proportions, the same face
 // system and the same animation hooks:
 //   .gm-root > .gm-figure > .gm-legs (.gm-leg-l/.gm-leg-r) .gm-body .gm-prop .gm-arm-l/.gm-arm-r
