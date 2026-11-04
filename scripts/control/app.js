@@ -338,7 +338,8 @@ function feedItem(e, fresh = false) {
 
 function flagItem(f) {
   const label = { approval: 'Approval', task: 'Task', fallback: 'Backup', blocked: 'Blocked', knowledge: 'Knowledge' }[f.kind] || f.kind;
-  return `<li class="flag f-${esc(f.kind)}"><span class="pill p-${f.kind === 'approval' ? 'needs_approval' : f.kind === 'knowledge' ? 'queued' : 'failed'}">${esc(label)}</span><div><div>${esc(f.text)}</div>${f.risk ? `<div class="muted tiny">${esc(f.risk)}</div>` : ''}<div class="tiny">${f.id ? `<code>${esc(f.id)}</code> ` : ''}${f.ref ? fileLink(f.ref) : ''}</div></div></li>`;
+  const clickable = f.kind === 'approval' ? ` data-approval-id="${esc(f.id)}" style="cursor: pointer;"` : '';
+  return `<li class="flag f-${esc(f.kind)}"${clickable}><span class="pill p-${f.kind === 'approval' ? 'needs_approval' : f.kind === 'knowledge' ? 'queued' : 'failed'}">${esc(label)}</span><div><div>${esc(f.text)}</div>${f.risk ? `<div class="muted tiny">${esc(f.risk)}</div>` : ''}<div class="tiny">${f.id ? `<code>${esc(f.id)}</code> ` : ''}${f.ref ? fileLink(f.ref) : ''}</div></div></li>`;
 }
 
 // Something moving between desks: a hand-off, a finished piece of work going back.
