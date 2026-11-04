@@ -141,5 +141,16 @@
     "report": "outputs/reports/J-20261103-02.md",
     "finished": "2026-11-03 15:38",
     "turns": 45
+  },
+  {
+    "id": "J-20261103-03",
+    "task": "Using the directory-listing skill, have marketing plan listings on 5 Indian launch directories for MotionRepo from the existing channel map, using confirmed facts only, then have the evaluator review the plan. Drafts only: submit nothing, contact no one.",
+    "status": "needs_approval",
+    "added": "2026-11-03 17:31",
+    "started": "2026-11-03 17:31",
+    "note": "",
+    "report": "outputs/reports/J-20261103-03.md",
+    "finished": "2026-11-03 17:32",
+    "turns": 12
   }
 ]
