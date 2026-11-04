@@ -21,12 +21,14 @@ import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { ROOT, frontmatter, isMain } from './_shared.mjs';
 import { act, collect, createAuth, parseApprovals, renderMarkdown, sameSite } from './dashboard.mjs';
+import { projectsApi } from './projects.mjs';
 
 const DEFAULT_PORT = 4318;
 const STATIC = join(ROOT, 'scripts', 'control');
 const COOKIE = 'control_session';
 const SESSION_MS = 12 * 3_600_000;
 const MAX_BODY = 16 * 1024;
+const MAX_UPLOAD_BODY = 1024 * 1024; // a project form is up to 300 KB; JSON escaping adds a little
 const MAX_LOG = 8 * 1024 * 1024;
 const TICK_MS = 1500;
 
@@ -40,7 +42,8 @@ const OWNER = [
   [/^outputs\/replies\//, 'sales'], [/^knowledge\//, 'knowledge-base'], [/^pipeline\/inbox\//, 'lead-generator'],
 ];
 export const ownerOf = (path) => OWNER.find(([re]) => re.test(path))?.[1] ?? null;
-const READABLE = /^(outputs\/([\w-]+\/)?[\w.-]+\.md|knowledge\/([\w-]+\/)?[\w.-]+\.md|docs\/[\w.-]+\.md|ops\/(board|approvals|queue)\.md)$/;
+// knowledge/ also holds uploaded forms (inbox), replaced sheets (history) and applied proposals, one folder down.
+const READABLE = /^(outputs\/([\w-]+\/)?[\w.-]+\.md|knowledge\/([\w-]+\/)?[\w.-]+\.md|knowledge\/(inbox|history)\/[a-z0-9-]+\/[\w.-]+\.md|knowledge\/proposals\/applied\/[\w.-]+\.md|docs\/[\w.-]+\.md|ops\/(board|approvals|queue)\.md)$/;
 
 // ---- small readers -------------------------------------------------------------------------------
 
@@ -451,8 +454,8 @@ function signature(root) {
       parts.push(`${file}:-`);
     }
   };
-  ['ops/queue.json', 'ops/board.md', 'ops/approvals.md', 'ops/messages.md', 'ops/fallbacks.md', 'ops/gate-log.jsonl', 'ops/send-log.jsonl', 'ops/replies.jsonl', 'pipeline/leads.jsonl', 'ops/runs/jarvis.lock', 'ops/runs/plan-limits.json'].forEach(add);
-  for (const dir of ['ops/runs', 'outputs/reviews', 'outputs/reports', 'outputs/research', 'outputs/outreach', 'outputs/sales', 'outputs/dev', 'knowledge/proposals']) {
+  ['ops/queue.json', 'ops/confirmations.jsonl', 'ops/board.md', 'ops/approvals.md', 'ops/messages.md', 'ops/fallbacks.md', 'ops/gate-log.jsonl', 'ops/send-log.jsonl', 'ops/replies.jsonl', 'pipeline/leads.jsonl', 'ops/runs/jarvis.lock', 'ops/runs/plan-limits.json'].forEach(add);
+  for (const dir of ['ops/runs', 'outputs/reviews', 'outputs/reports', 'outputs/research', 'outputs/outreach', 'outputs/sales', 'outputs/dev', 'knowledge/products', 'knowledge/proposals']) {
     for (const f of list(root, dir, dir === 'ops/runs' ? '.log' : '.md')) add(`${dir}/${f}`);
   }
   return createHash('sha1').update(parts.join('\n')).digest('hex');
@@ -551,6 +554,10 @@ function main() {
           const detail = agentDetail(ROOT, agent[1]);
           return detail ? json(res, 200, detail) : json(res, 404, { message: 'No such agent.' });
         }
+        if (path === '/api/projects') {
+          const out = projectsApi(ROOT, 'GET', path);
+          return json(res, out.status, out.data);
+        }
         if (path === '/api/file') {
           const doc = readFile(ROOT, url.searchParams.get('path'));
           return doc ? json(res, 200, doc) : json(res, 404, { message: 'That file is not available here.' });
@@ -569,7 +576,7 @@ function main() {
       req.setEncoding('utf8');
       req.on('data', (chunk) => {
         body += chunk;
-        if (body.length > MAX_BODY) req.destroy();
+        if (body.length > (path === '/api/projects/upload' && signedIn ? MAX_UPLOAD_BODY : MAX_BODY)) req.destroy();
       });
       req.on('end', () => {
         const from = { host: req.headers.host, origin: req.headers.origin, marker: req.headers['x-team-page'], body, site };
@@ -590,6 +597,11 @@ function main() {
           return json(res, 200, { message: 'Signed out.' }, { 'Set-Cookie': cookieHeader('', site, 0) });
         }
         if (!signedIn) return json(res, 401, { message: 'Sign in first.' });
+        const project = projectsApi(ROOT, 'POST', path, body);
+        if (project) {
+          lastSig = ''; // show the change at once
+          return json(res, project.status, project.data);
+        }
         const action = path.replace(/^\/api/, '');
         const out = act(ROOT, action, from);
         lastSig = ''; // show the change at once

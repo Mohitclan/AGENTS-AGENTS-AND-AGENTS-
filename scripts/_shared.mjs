@@ -40,6 +40,19 @@ export function frontmatter(text) {
   return out;
 }
 
+// The text of a knowledge file with `status: confirmed` and `last_verified: <date>` set in its
+// frontmatter, or null when it has none. `kb.mjs confirm` and mission control's confirm both use it.
+export function markConfirmed(text, date = today()) {
+  const block = /^---\r?\n[\s\S]*?\r?\n---/.exec(text);
+  if (!block) return null;
+  let head = block[0];
+  head = /^status:.*$/m.test(head) ? head.replace(/^status:.*$/m, 'status: confirmed') : head.replace(/^---/, '---\nstatus: confirmed');
+  head = /^last_verified:.*$/m.test(head)
+    ? head.replace(/^last_verified:.*$/m, `last_verified: ${date}`)
+    : head.replace(/\r?\n---$/, `\nlast_verified: ${date}\n---`);
+  return head + text.slice(block[0].length);
+}
+
 export function walk(dir, ext = '.md') {
   let entries;
   try {
