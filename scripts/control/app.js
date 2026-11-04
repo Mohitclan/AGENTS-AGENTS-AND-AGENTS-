@@ -207,11 +207,403 @@ function markNav() {
   for (const a of $$('[data-nav]')) a.classList.toggle('active', a.dataset.nav === key);
 }
 
+// ---- projects ------------------------------------------------------------------------------------
+// The Projects panel on the overview: upload a person-written knowledge.md, tick projects, give them
+// work, and confirm a sheet. The server does every check; this page only asks. Confirming is typed
+// by a person (their name and "confirm <slug>"), and the server records it.
+
+const PJ_ACTIONS = [['research', 'Research'], ['leads', 'Find leads'], ['outreach', 'Draft outreach'], ['demo', 'Demo pack']];
+const PJ_MAX = 5; // projects per request; the server refuses more
+const PJ_MAX_BYTES = 300 * 1024; // the server's upload limit
+
+const pjName = (p) => p.name || p.slug;
+const pjActive = (p) => (p.tasks || []).filter((t) => ['queued', 'running'].includes(t.status));
+// A task that is converting or updating the sheet. Research, leads, outreach and demo tasks do not count:
+// they can run on a sheet that is still waiting for its confirm.
+const pjPreparing = (p) => pjActive(p).some((t) => !PJ_ACTIONS.some(([a]) => a === t.action));
+const pjPath = (dir, f) => (String(f).includes('/') ? String(f) : `${dir}/${f}`);
+const pjDate = (v) => {
+  if (!v) return 'not dated';
+  const t = Date.parse(v);
+  if (Number.isNaN(t)) return String(v);
+  return new Date(t).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', ...(/^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? { timeZone: 'UTC' } : {}) });
+};
+// The slug a form declares, if it declares one, so a card's "Upload new version" can refuse another project's form.
+const pjFormSlug = (text) => text.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1].match(/^slug:[ \t]*["']?([^"'\r\n#]+?)["']?[ \t]*$/m)?.[1]?.trim() || '';
+
+const projects = {
+  list: null,
+  error: '',
+  sel: new Set(),
+  at: 0,
+  loading: false,
+  uploading: false,
+  working: false,
+  html: '',
+  timer: null,
+  modal: null,
+  forSlug: '',
+  shell() {
+    projects.html = '';
+    return `
+    <section class="projects card" id="projects" aria-labelledby="pj-title">
+      <div class="pj-head">
+        <div>
+          <h2 id="pj-title">Projects</h2>
+          <p class="muted tiny">Upload a person-written <code>knowledge.md</code>. The team turns it into a fact sheet, and nothing is customer-ready until a person confirms it here.</p>
+        </div>
+        <div class="pj-up">
+          <button type="button" class="primary small" id="pj-pick">Upload knowledge.md</button>
+          <span class="muted tiny">or drop the file on this panel</span>
+        </div>
+      </div>
+      <input type="file" id="pj-file" accept=".md,text/markdown,text/plain" hidden>
+      <div class="pj-msg" id="pj-msg" role="status" aria-live="polite"></div>
+      <div class="pj-bar" role="toolbar" aria-label="Work on the ticked projects">
+        <label class="check pj-all"><input type="checkbox" id="pj-all"> Tick all</label>
+        <span class="muted tiny pj-count" id="pj-count"></span>
+        <span class="spacer"></span>
+        ${PJ_ACTIONS.map(([a, label]) => `<button type="button" class="ghost small" data-work="${a}" aria-describedby="pj-why">${esc(label)}</button>`).join('')}
+      </div>
+      <p class="pj-why tiny" id="pj-why" aria-live="polite"></p>
+      <div class="pj-result" id="pj-result" role="status" aria-live="polite"></div>
+      <div class="pj-cards" id="pj-cards"><p class="muted">Loading projects…</p></div>
+    </section>`;
+  },
+  bind() {
+    const panel = $('#projects');
+    $('#pj-pick').addEventListener('click', () => {
+      projects.forSlug = '';
+      $('#pj-file').click();
+    });
+    $('#pj-file').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      const slug = projects.forSlug;
+      e.target.value = '';
+      projects.forSlug = '';
+      projects.upload(file, slug);
+    });
+    let depth = 0;
+    panel.addEventListener('dragenter', (e) => {
+      if (!e.dataTransfer?.types?.includes('Files')) return;
+      depth += 1;
+      panel.classList.add('drop');
+    });
+    panel.addEventListener('dragover', (e) => {
+      if (e.dataTransfer?.types?.includes('Files')) e.preventDefault();
+    });
+    panel.addEventListener('dragleave', () => {
+      depth = Math.max(0, depth - 1);
+      if (!depth) panel.classList.remove('drop');
+    });
+    panel.addEventListener('drop', (e) => {
+      if (!e.dataTransfer?.files?.length) return;
+      e.preventDefault();
+      depth = 0;
+      panel.classList.remove('drop');
+      if (e.dataTransfer.files.length !== 1) return projects.say('Drop one .md file at a time.', true);
+      projects.upload(e.dataTransfer.files[0], '');
+    });
+    $('#pj-all').addEventListener('change', (e) => {
+      projects.sel = new Set(e.target.checked ? (projects.list || []).map((p) => p.slug) : []);
+      projects.paint();
+    });
+    $('.pj-bar').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-work]');
+      if (b) projects.work(b.dataset.work);
+    });
+    $('#pj-cards').addEventListener('change', (e) => {
+      const box = e.target.closest('[data-pick]');
+      if (!box) return;
+      if (box.checked) projects.sel.add(box.dataset.pick);
+      else projects.sel.delete(box.dataset.pick);
+      projects.paint();
+    });
+    $('#pj-cards').addEventListener('click', (e) => {
+      const up = e.target.closest('[data-upload]');
+      if (up) {
+        projects.forSlug = up.dataset.upload;
+        $('#pj-file').click();
+        return;
+      }
+      const ok = e.target.closest('[data-confirm]');
+      if (ok) projects.openConfirm(ok.dataset.confirm, ok.dataset.fk);
+      if (e.target.closest('[data-retry]')) projects.refresh(true);
+    });
+    $('#pj-result').addEventListener('click', (e) => {
+      if (e.target.closest('[data-dismiss]')) $('#pj-result').innerHTML = '';
+    });
+    projects.paint();
+    projects.refresh(true);
+    clearInterval(projects.timer);
+    projects.timer = setInterval(() => projects.refresh(), 15_000);
+  },
+  leave() {
+    clearInterval(projects.timer);
+    projects.timer = null;
+    projects.closeModal(false);
+  },
+  // Called when the state stream ticks; a fetch at most every 5 seconds.
+  tick() {
+    if (Date.now() - projects.at > 5000) projects.refresh();
+  },
+  async refresh(force = false) {
+    if (!$('#projects') || projects.loading) return;
+    if (!force && Date.now() - projects.at < 2000) return;
+    projects.loading = true;
+    projects.at = Date.now();
+    try {
+      const list = await api('/api/projects');
+      if (!Array.isArray(list)) throw new Error('The server sent something other than a project list.');
+      projects.list = list;
+      projects.error = '';
+      const known = new Set(list.map((p) => p.slug));
+      for (const s of [...projects.sel]) if (!known.has(s)) projects.sel.delete(s);
+    } catch (error) {
+      projects.error = error.message;
+    } finally {
+      projects.loading = false;
+      projects.paint();
+    }
+  },
+  say(text, bad = false) {
+    const el = $('#pj-msg');
+    if (!el) return toast(text, bad);
+    el.textContent = text;
+    el.classList.toggle('bad', bad);
+  },
+  picked() {
+    return (projects.list || []).filter((p) => projects.sel.has(p.slug));
+  },
+  // Why an action is not available for the ticked projects, or '' when it is.
+  reason(action) {
+    const picked = projects.picked();
+    const label = PJ_ACTIONS.find(([a]) => a === action)[1];
+    if (!picked.length) return 'Tick a project first.';
+    if (picked.length > PJ_MAX) return `Work on at most ${PJ_MAX} projects at a time. Untick ${picked.length - PJ_MAX}.`;
+    const no = projects.missing(action);
+    return no.length ? `${label} needs confirmed facts first. Not confirmed yet: ${no.join(', ')}.` : '';
+  },
+  // Names of the ticked projects the action cannot run on.
+  missing(action) {
+    return projects.picked().filter((p) => !p.canWork?.[action]).map(pjName);
+  },
+  paint() {
+    const box = $('#pj-cards');
+    if (!box) return;
+    const list = projects.list;
+    let html;
+    if (!list) html = projects.error ? `<p class="bad-text">Projects could not be loaded: ${esc(projects.error)} <button type="button" class="ghost small" data-retry>Try again</button></p>` : '<p class="muted">Loading projects…</p>';
+    else if (!list.length) html = '<p class="muted pj-empty">No projects yet. Upload a <code>knowledge.md</code> to start one.</p>';
+    else html = list.map(projects.card).join('');
+    if (html !== projects.html) {
+      const key = box.contains(document.activeElement) ? document.activeElement.dataset.fk : '';
+      box.innerHTML = html;
+      projects.html = html;
+      if (key) box.querySelector(`[data-fk="${CSS.escape(key)}"]`)?.focus();
+    }
+    projects.paintBar();
+  },
+  paintBar() {
+    const picked = projects.picked();
+    const total = projects.list?.length || 0;
+    const all = $('#pj-all');
+    all.disabled = !total;
+    all.checked = total > 0 && picked.length === total;
+    all.indeterminate = picked.length > 0 && picked.length < total;
+    $('#pj-count').textContent = picked.length ? `${picked.length} ticked${picked.length > PJ_MAX ? ` (most ${PJ_MAX} at a time)` : ''}` : total ? 'Tick the projects to work on' : '';
+    // Buttons that are grey for the same projects share one sentence. One visible line says why;
+    // screen readers hear it through aria-describedby.
+    const why = new Map();
+    for (const b of $$('[data-work]', $('#projects'))) {
+      const reason = projects.reason(b.dataset.work);
+      b.setAttribute('aria-disabled', String(!!reason));
+      b.title = reason;
+      const no = projects.missing(b.dataset.work).join(', ');
+      if (no && picked.length <= PJ_MAX) why.set(no, [...(why.get(no) || []), b.textContent]);
+    }
+    $('#pj-why').textContent = picked.length > PJ_MAX ? projects.reason('research') : [...why].map(([no, labels]) => `${labels.join(', ')}: need confirmed facts first. Not confirmed yet: ${no}.`).join(' ');
+  },
+  card(p) {
+    const preparing = pjPreparing(p);
+    const update = p.pendingUpdate;
+    const needsConfirm = !preparing && (!!update || p.status === 'proposed');
+    const chips = [];
+    if (p.status === 'confirmed') chips.push(['ok', 'Ready']);
+    else if (p.status === 'proposed') chips.push(preparing ? ['info', 'Being prepared'] : ['warn', 'Waiting for your confirm']);
+    else chips.push(['', p.status || 'Unknown']);
+    if (update) chips.push(['warn', `Update v${update.version} waiting`]);
+    else if (preparing && p.status === 'confirmed') chips.push(['info', 'Update being prepared']);
+    const hist = (p.history || []).length;
+    const tasks = pjActive(p).slice(0, 2);
+    const web = /^https?:\/\//i.test(p.website || '') ? `<a href="${esc(p.website)}" target="_blank" rel="noopener noreferrer">${esc(p.website.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/$/, ''))}</a>` : '<span class="muted">no website</span>';
+    const sel = projects.sel.has(p.slug);
+    return `<article class="pj-card${sel ? ' on' : ''}" data-slug="${esc(p.slug)}">
+      <div class="pj-top">
+        <label class="pj-pick"><input type="checkbox" class="pj-sel" data-pick="${esc(p.slug)}" data-fk="pick:${esc(p.slug)}" ${sel ? 'checked' : ''}><span class="sr">Tick </span><b>${esc(pjName(p))}</b></label>
+        <code>${esc(p.slug)}</code>
+      </div>
+      <div class="pj-chips">${chips.map(([tone, text]) => `<span class="pj-chip ${tone}">${esc(text)}</span>`).join('')}</div>
+      <dl class="pj-meta">
+        <div><dt>Version</dt><dd>${p.version ? `v${esc(p.version)}` : 'no form yet'}</dd></div>
+        <div><dt>Updated</dt><dd>${esc(pjDate(p.lastUpdated))}</dd></div>
+        <div><dt>History</dt><dd>${hist} earlier ${hist === 1 ? 'version' : 'versions'}</dd></div>
+        <div><dt>Website</dt><dd>${web}</dd></div>
+      </dl>
+      ${tasks.length ? `<ul class="pj-tasks">${tasks.map((t) => `<li><code>${esc(t.id)}</code> ${esc(t.action || 'prepare')} ${esc(TASK_STATUS[t.status] || t.status).toLowerCase()}</li>`).join('')}</ul>` : ''}
+      <div class="pj-acts">
+        ${needsConfirm ? `<button type="button" class="primary small" data-confirm="${esc(p.slug)}" data-fk="confirm:${esc(p.slug)}">${update ? `Review update v${esc(update.version)}` : 'Review and confirm'}</button>` : ''}
+        <button type="button" class="ghost small" data-upload="${esc(p.slug)}" data-fk="upload:${esc(p.slug)}" ${projects.uploading ? 'aria-disabled="true"' : ''}>Upload new version</button>
+      </div>
+    </article>`;
+  },
+  async upload(file, slug) {
+    if (!file) return;
+    if (projects.uploading) return projects.say('An upload is still running. Wait a moment.', true);
+    if (!/\.md$/i.test(file.name)) return projects.say(`${file.name} is not a .md file. Use the project knowledge form saved as markdown.`, true);
+    if (file.size > PJ_MAX_BYTES) return projects.say(`${file.name} is over 300 KB. The form should be far smaller; check the right file was picked.`, true);
+    let content;
+    try {
+      content = await file.text();
+    } catch {
+      return projects.say(`Could not read ${file.name}.`, true);
+    }
+    if (!content.startsWith('---')) return projects.say(`${file.name} does not start with a "---" line, so it is not the project knowledge form. Nothing was uploaded.`, true);
+    const declared = pjFormSlug(content);
+    if (slug && declared && declared !== slug) return projects.say(`This form says its slug is "${declared}", not "${slug}". Nothing was uploaded.`, true);
+    projects.uploading = true;
+    projects.say(`Uploading ${file.name}…`);
+    try {
+      const r = await api('/api/projects/upload', { filename: file.name, content });
+      const note = r.slug && slug && r.slug !== slug ? ` It was saved as "${r.slug}", not "${slug}".` : '';
+      const wait = r.kind === 'new' ? ' The card appears here once the team has written the draft sheet.' : '';
+      projects.say(`${r.message || (r.kind === 'update' ? `Update to v${r.version} received.` : `New project received, v${r.version}.`)}${r.taskId ? ` Task ${r.taskId} is queued.` : ''}${wait}${note}`);
+      toast(r.message || 'Form uploaded.');
+    } catch (error) {
+      projects.say(error.message, true);
+      toast(error.message, true);
+    } finally {
+      projects.uploading = false;
+      projects.refresh(true);
+    }
+  },
+  async work(action) {
+    const reason = projects.reason(action);
+    if (reason) return toast(reason, true);
+    if (projects.working) return;
+    projects.working = true;
+    const slugs = projects.picked().map((p) => p.slug);
+    const name = (s) => pjName((projects.list || []).find((p) => p.slug === s) || { slug: s });
+    const out = $('#pj-result') || document.createElement('div'); // the page may have changed while the request ran
+    try {
+      const r = await api('/api/projects/work', { slugs, action });
+      const queued = r.queued || [];
+      const refused = r.refused || [];
+      out.innerHTML = `<div class="pj-res">
+        <p>${esc(r.message || '')}</p>
+        ${queued.length ? `<p class="tiny"><b>Queued</b></p><ul>${queued.map((q) => `<li>${esc(name(q.slug))} <code>${esc(q.taskId)}</code></li>`).join('')}</ul>` : ''}
+        ${refused.length ? `<p class="tiny"><b>Refused</b></p><ul class="bad-text">${refused.map((q) => `<li>${esc(name(q.slug))}: ${esc(q.reason)}</li>`).join('')}</ul>` : ''}
+        <button type="button" class="ghost small" data-dismiss>Dismiss</button></div>`;
+      toast(r.message || `${queued.length} queued, ${refused.length} refused.`, !queued.length);
+    } catch (error) {
+      out.innerHTML = `<div class="pj-res bad"><p>${esc(error.message)}</p><button type="button" class="ghost small" data-dismiss>Dismiss</button></div>`;
+      toast(error.message, true);
+    } finally {
+      projects.working = false;
+      projects.refresh(true);
+    }
+  },
+  // ---- the confirm dialog
+  openConfirm(slug, openerKey) {
+    const p = (projects.list || []).find((x) => x.slug === slug);
+    if (!p || projects.modal) return;
+    const kind = p.pendingUpdate ? 'update' : 'new';
+    const file = kind === 'update' ? pjPath('knowledge/proposals', p.pendingUpdate.file) : `knowledge/products/${p.slug}.md`;
+    const phrase = `confirm ${p.slug}`;
+    const el = document.createElement('div');
+    el.className = 'pj-modal';
+    el.innerHTML = `<div class="pj-dialog" role="dialog" aria-modal="true" aria-labelledby="pj-m-title" aria-describedby="pj-m-desc">
+      <h2 id="pj-m-title">${kind === 'update' ? `Confirm update v${esc(p.pendingUpdate.version)} of ${esc(pjName(p))}` : `Confirm the facts for ${esc(pjName(p))}`}</h2>
+      <p id="pj-m-desc"><b>Confirming makes these facts usable in customer-facing work.</b> Read the sheet first${kind === 'update' ? '; it starts with what changed' : ''}.</p>
+      <p><a class="open" href="#" data-file="${esc(file)}">Open ${esc(file.split('/').pop())} to review</a> <span class="muted tiny"><code>${esc(file)}</code></span></p>
+      <form id="pj-m-form" autocomplete="off">
+        <label><span>Your name</span><input id="pj-m-name" maxlength="80" required></label>
+        <label><span>Type <code>${esc(phrase)}</code> to confirm</span><input id="pj-m-phrase" aria-describedby="pj-m-help" spellcheck="false" autocapitalize="off"></label>
+        <p class="muted tiny" id="pj-m-help">The Confirm button turns on when your name is filled in and the words match exactly. Your name and today's date are recorded.</p>
+        <p class="bad-text pj-err" id="pj-m-err" role="alert"></p>
+        <div class="pj-dlg-acts"><button type="button" class="ghost" id="pj-m-cancel">Cancel</button><button type="submit" class="primary" id="pj-m-ok" disabled>Confirm</button></div>
+      </form></div>`;
+    document.body.append(el);
+    document.documentElement.classList.add('pj-locked');
+    projects.modal = { el, slug, openerKey };
+    const name = $('#pj-m-name', el);
+    const typed = $('#pj-m-phrase', el);
+    const ok = $('#pj-m-ok', el);
+    const check = () => {
+      ok.disabled = !(name.value.trim() && typed.value.trim() === phrase);
+    };
+    name.addEventListener('input', check);
+    typed.addEventListener('input', check);
+    $('#pj-m-cancel', el).addEventListener('click', () => projects.closeModal());
+    $('#pj-m-form', el).addEventListener('submit', async (e) => {
+      e.preventDefault();
+      check();
+      if (ok.disabled) return;
+      ok.disabled = true;
+      $('#pj-m-err', el).textContent = '';
+      try {
+        const r = await api(`/api/projects/${encodeURIComponent(slug)}/confirm`, { kind, by: name.value.trim(), phrase: typed.value.trim() });
+        toast(r.message || `${pjName(p)} confirmed.`);
+        projects.closeModal();
+      } catch (error) {
+        $('#pj-m-err', el).textContent = error.message;
+        check();
+      } finally {
+        projects.refresh(true);
+      }
+    });
+    el.addEventListener('keydown', (e) => {
+      if (e.key !== 'Tab' || document.body.classList.contains('drawer-open')) return;
+      const items = $$('a[href], button:not([disabled]), input:not([disabled])', el);
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    });
+    name.focus();
+  },
+  closeModal(refocus = true) {
+    const m = projects.modal;
+    if (!m) return;
+    m.el.remove();
+    projects.modal = null;
+    document.documentElement.classList.remove('pj-locked');
+    if (!refocus) return;
+    const opener = m.openerKey ? $(`[data-fk="${CSS.escape(m.openerKey)}"]`) : null;
+    (opener || $('#pj-pick'))?.focus();
+  },
+};
+
+// Escape closes the dialog, unless the file viewer is open on top of it: then Escape closes the viewer first.
+// This runs in the capture phase so it sees the viewer still open, before the shell's own handler closes it.
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && projects.modal && !document.body.classList.contains('drawer-open')) projects.closeModal();
+}, true);
+
 // ---- overview ------------------------------------------------------------------------------------
 
 const overview = {
+  leave() {
+    projects.leave();
+  },
   build() {
     $('#view').innerHTML = `
+    ${projects.shell()}
     <section class="command card">
       <form id="command">
         <div class="command-h"><h1>Give the team a task</h1><p class="muted">Research, scraping and drafting run on their own. Every email waits for your review, and only Sushant can receive test sends.</p></div>
@@ -272,8 +664,10 @@ const overview = {
         toast(error.message, true);
       }
     });
+    projects.bind();
   },
   update(snap) {
+    projects.tick();
     const k = snap.kpis;
     const kpi = (label, value, note = '', tone = '') => `<div class="kpi ${tone}"><div class="kpi-v">${esc(value)}</div><div class="kpi-l">${esc(label)}</div>${note ? `<div class="kpi-n">${esc(note)}</div>` : ''}</div>`;
     $('#kpis').innerHTML = [
