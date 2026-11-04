@@ -13,3 +13,4 @@
 - [Lead batch checks](feedback_lead_batch_checks.md) — test gaps, "not found" and rejections past the homepage; recompute tiers; read board lines literally
 - [Template form checks](feedback_template_form_checks.md) — mapping rows both ways; simulate copy+parser; enums vs schema; lint-probe names; "default, person can change" vs never-looser
 - [Demo pack checks](feedback_demo_pack_checks.md) — spoken lines vs hypothesis labels; repo-only facts; git show main:; cross-file tag/CTA table
+- [Feature route checks](feedback_feature_route_checks.md) — archive test runs; leftover-file, req 'end' throw, fallback, guard probes; UI enums; confirm-binds-to-review; tie picks

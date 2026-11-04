@@ -17,5 +17,6 @@ Test a UI change's client behaviour claims by running the page's own script in h
 - Under virtual time, new CSS animations can stay `pending=true` at 0 ms because few frames are drawn. Check `a.pending` and count rAF calls before calling it a defect.
 - Use `--force-prefers-reduced-motion` for motion checks. `Animation` has no `.target`; use `.effect.target` or `.animationName`.
 - Measure scaled SVG text: rendered size = font size × (SVG width / viewBox width).
+- Mission control pages keep an `EventSource` open, so `--dump-dom` against the live server never settles (it timed out at 90 s). Instead, fetch `/`, `/api/state` and the feature's list from a seeded server, then copy `scripts/control/` to a harness folder. Load a classic `mock.js` (stub `fetch` and `EventSource`), then `app.js` and the probe, both as `type="module"`, over `file://` with `--allow-file-access-from-files`. Check focus after actions that re-render the opener away (T-20261104-18: focus fell to BODY after a confirm).
 
 Related: [[code-change-checks]], [[revision-round-checks]]

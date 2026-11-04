@@ -168,3 +168,10 @@ Every time one agent started another. Written by `scripts/team-hooks.mjs`.
 | 2026-11-04 12:43 | coordinator | developer | T-20261104-16 | Projects backend build |
 | 2026-11-04 12:43 | coordinator | developer | T-20261104-17 | Projects UI build |
 | 2026-11-04 12:59 | coordinator | evaluator | T-20261104-15 | Final review of template |
+| 2026-11-04 13:35 | coordinator | evaluator | T-20261104-18 | Code review of Projects feature |
+| 2026-11-04 14:13 | coordinator | developer | T-20261104-16 | Backend fixes for Projects |
+| 2026-11-04 14:13 | coordinator | developer | T-20261104-17 | UI fixes for Projects |
+| 2026-11-04 14:54 | coordinator | evaluator | T-20261104-18 | Code review round 2 |
+| 2026-11-04 15:10 | coordinator | developer | T-20261104-19 | Projects pre-merge fixes |
+| 2026-11-04 15:43 | coordinator | developer | T-20261104-19 | Projects version and list tidy-up |
+| 2026-11-04 16:01 | coordinator | evaluator | T-20261104-19 | Focused review of pre-merge fixes |

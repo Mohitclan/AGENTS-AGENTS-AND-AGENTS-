@@ -260,3 +260,8 @@
 {"at":"2026-11-04T07:40","file":"../../../AppData/Local/Temp/claude/C--Users-shiva-Downloads-PSI-AGENTS-AGENTS-AND-AGENTS-/1af74984-c8cd-4815-a400-baf62c2dae56/scratchpad/names-bad.md","type":"general","passed":false,"failures":[{"code":"placeholder"}],"warnings":0}
 {"at":"2026-11-04T07:44","file":"knowledge/templates/project-knowledge.md","type":"general","passed":true,"failures":[],"warnings":4}
 {"at":"2026-11-04T07:44","file":"knowledge/templates/project-knowledge-conversion.md","type":"general","passed":true,"failures":[],"warnings":3}
+{"at":"2026-11-04T08:52","file":"outputs/dev/T-20261104-17.md","type":"general","passed":true,"failures":[],"warnings":0}
+{"at":"2026-11-04T10:12","file":"outputs/dev/T-20261104-19.md","type":"general","passed":true,"failures":[],"warnings":1}
+{"at":"2026-11-04T10:17","file":"knowledge/templates/project-knowledge-conversion.md","type":"general","passed":true,"failures":[],"warnings":3}
+{"at":"2026-11-04T10:28","file":"outputs/dev/T-20261104-16-projects-spec.md","type":"general","passed":true,"failures":[],"warnings":0}
+{"at":"2026-11-04T10:31","file":"outputs/dev/T-20261104-19.md","type":"general","passed":true,"failures":[],"warnings":1}
