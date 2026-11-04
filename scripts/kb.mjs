@@ -5,10 +5,12 @@
 //   node scripts/kb.mjs confirm <file>    mark a file confirmed (human approval: settings.json asks first)
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
-import { ROOT, daysSince, fail, frontmatter, printTable, today, walk } from './_shared.mjs';
+import { ROOT, daysSince, fail, frontmatter, markConfirmed, printTable, today, walk } from './_shared.mjs';
 
 const KB = join(ROOT, 'knowledge');
 const STALE_AFTER_DAYS = 90;
+// Folders that hold forms, copies and applied proposals, not live knowledge.
+const NOT_KNOWLEDGE = ['knowledge/templates/', 'knowledge/inbox/', 'knowledge/history/', 'knowledge/proposals/applied/'];
 const toRel = (p) => relative(ROOT, p).split(sep).join('/');
 
 const [command, arg] = process.argv.slice(2);
@@ -22,6 +24,7 @@ function status() {
   for (const file of walk(KB)) {
     const rel = toRel(file);
     if (rel.endsWith('/_template.md') || rel.endsWith('/README.md')) continue;
+    if (NOT_KNOWLEDGE.some((dir) => rel.startsWith(dir))) continue;
     if (rel.startsWith('knowledge/proposals/')) {
       proposals++;
       continue;
@@ -57,16 +60,9 @@ function confirm(arg) {
   }
   if (rel.endsWith('/_template.md')) fail('The template is not knowledge.');
 
-  const text = readFileSync(file, 'utf8');
-  const block = /^---\r?\n[\s\S]*?\r?\n---/.exec(text);
-  if (!block) fail(`${rel} has no frontmatter.`);
+  const confirmed = markConfirmed(readFileSync(file, 'utf8'));
+  if (confirmed === null) fail(`${rel} has no frontmatter.`);
 
-  let head = block[0];
-  head = /^status:.*$/m.test(head) ? head.replace(/^status:.*$/m, 'status: confirmed') : head.replace(/^---/, '---\nstatus: confirmed');
-  head = /^last_verified:.*$/m.test(head)
-    ? head.replace(/^last_verified:.*$/m, `last_verified: ${today()}`)
-    : head.replace(/\r?\n---$/, `\nlast_verified: ${today()}\n---`);
-
-  writeFileSync(file, head + text.slice(block[0].length));
+  writeFileSync(file, confirmed);
   console.log(`Confirmed ${rel} (last_verified ${today()}).`);
 }

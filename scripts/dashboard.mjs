@@ -691,7 +691,7 @@ function jarvis(root, ...args) {
 
 // Starts a queue run. It stays attached to this console: on Windows, a process with no console
 // can't start the agent's own child processes.
-function startRun(root) {
+export function startRun(root) {
   if (runAlive(root)) return false;
   mkdirSync(join(root, 'ops', 'runs'), { recursive: true });
   const log = openSync(join(root, 'ops', 'runs', 'dashboard-run.log'), 'a');
@@ -701,6 +701,20 @@ function startRun(root) {
   child.on('error', () => undefined);
   child.unref();
   return true;
+}
+
+// Puts a task on the Jarvis queue as plain text (never through a shell). Returns { id } or { error }.
+export function addTask(root, task) {
+  const added = jarvis(root, 'add', task);
+  const id = /^Queued (J-\d+-\d+):/m.exec(added.stdout || '')?.[1];
+  return added.status === 0 && id ? { id } : { error: (added.stderr || 'no reason given').trim().slice(0, 200) };
+}
+
+// Starts the queue unless the plan's usage guard says to wait. Returns { full } (the window that is
+// full, if any) and { started } (false when a run was already going or the guard held it back).
+export function startQueued(root) {
+  const full = planUsage(root)?.full;
+  return full ? { full, started: false } : { full: undefined, started: startRun(root) };
 }
 
 // A POST from the page. The Origin and custom header keep other websites from reaching it.
@@ -721,9 +735,8 @@ export function act(root, path, { host, origin, marker, body, site }) {
     }
     if (!task) return reply(400, 'Write a task first.');
     if (task.length > MAX_TASK) return reply(400, `Keep the task under ${MAX_TASK} characters.`);
-    const added = jarvis(root, 'add', task);
-    const id = /^Queued (J-\d+-\d+):/m.exec(added.stdout || '')?.[1];
-    return added.status === 0 && id ? start(id) : reply(500, `The task wasn't queued: ${(added.stderr || 'no reason given').trim().slice(0, 200)}`);
+    const added = addTask(root, task);
+    return added.id ? start(added.id) : reply(500, `The task wasn't queued: ${added.error}`);
   }
   if (path === '/run') {
     if (full) return reply(409, `Tasks can't start until the plan's ${full} window resets.`);
