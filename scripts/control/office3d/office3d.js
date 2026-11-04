@@ -573,14 +573,20 @@ export async function createOffice3D(container, { roster = [], immersive = false
     // 60 fps while something moves, about 30 when the office is calm or motion is reduced
     const minGap = world.reduced || !lively ? 1000 / 31 : 0;
     if (now - last < minGap) return;
-    const dt = Math.min(0.05, (now - last) / 1000) * speed;
+    // Real time, even when the browser draws few frames (up to a quarter second per frame; longer
+    // gaps, such as a hidden tab, are skipped rather than replayed).
+    const dt = Math.min(0.25, (now - last) / 1000) * speed;
     last = now;
     frameUpdate(dt);
   }
   function frameUpdate(dt) {
     frame += 1;
-    clock += dt * 1000;
-    for (const ag of world.agents.values()) ag.update(dt, clock);
+    // agents think and walk in steps of at most 1/20 s, so a slow frame doesn't make them overshoot
+    for (let left = dt; left > 1e-6; left -= 0.05) {
+      const step = Math.min(0.05, left);
+      clock += step * 1000;
+      for (const ag of world.agents.values()) ag.update(step, clock);
+    }
     m4.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     frustum.setFromProjectionMatrix(m4);
     for (const ag of world.agents.values()) {

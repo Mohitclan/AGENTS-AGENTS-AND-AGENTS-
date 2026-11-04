@@ -6,6 +6,8 @@ model: opus
 color: green
 skills:
   - self-review
+  - red-green-proof
+  - root-cause-first
 fallback_for: developer
 ---
 

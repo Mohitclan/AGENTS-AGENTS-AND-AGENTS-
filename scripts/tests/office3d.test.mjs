@@ -67,7 +67,7 @@ describe('3D office behaviour rules', () => {
 
   it('respects cooldowns, taken places, and needs a partner to chat', () => {
     const now = 1_000_000;
-    const recent = { coffee: now - 1000, window: now - 1000, lounge: now - 1000, meeting: now - 1000, huddle: now - 1000 };
+    const recent = { coffee: now - 1000, window: now - 1000, lounge: now - 1000, meeting: now - 1000, huddle: now - 1000, stroll: now - 1000, shelf: now - 1000 };
     for (let i = 0; i < 20; i++) assert.equal(pickIdle({ agent: 'sales', now, memory: recent }).activity, 'desk');
     const taken = new Set(SPOTS.filter((s) => s.kind === 'coffee').map((s) => s.id));
     for (let i = 0; i < 50; i++) {

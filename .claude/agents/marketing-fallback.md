@@ -17,6 +17,8 @@ skills:
   - directory-listing
   - comparison-page
   - landing-page-audit
+  - press-pitch
+  - timeless-wording
 fallback_for: marketing
 ---
 

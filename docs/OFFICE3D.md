@@ -41,17 +41,18 @@ All of it is in `scripts/control/office3d/`. The three plain modules have no Thr
 | `error` | any | error | beside its desk: a head shake (the model's "No" clip), then a sad face |
 | `success` | any | success | where it is: a thumbs-up, then back to ambient |
 | `paused` | any | paused | a free seat on the sofa |
-| `idle` | any | ambient | the desk, coffee, a window, the sofa, a chat at the meeting table or on the rug |
+| `idle` | any | ambient | coffee, a window, the sofa or an armchair, the bookshelves, a stroll round the office (3-5 waypoints with pauses), a chat at the meeting table or on the rug, or the desk |
 
 Real events add short errands:
 - A coordinator handoff sends the agent to the display for a brief.
 - An agent-to-agent question sends the asker to the colleague's desk, and the answer comes back the same way.
 - An approval sends the coordinator to the tray.
 
-Ambient trips stay calm:
-- Only one new trip starts every 7 seconds, and any two choices are at least 1.5 seconds apart.
-- At most three idle agents are on the move at once.
-- Each activity has a cooldown.
+Ambient trips stay lively but not busy:
+- The first agents get up within a few seconds of the page loading; after that one new trip starts every 4 seconds at most, and any two choices are at least 1.2 seconds apart.
+- At most four idle agents are on the move at once, counting those still getting up.
+- Each activity has a cooldown, and time at a place counts from arrival, so a long walk doesn't cut the visit short.
+- In a 15-minute simulation with every agent idle, agents spent about 38% of their idle time at their desks; 17% on the sofa or armchairs; 15% at windows; 10% at coffee; and the rest strolling, chatting or at the shelves.
 - **Ambient** off, or **Reduced motion** on, keeps idle agents at their desks.
 
 ## The cast

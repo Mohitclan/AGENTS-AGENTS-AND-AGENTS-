@@ -8,7 +8,7 @@
 import * as THREE from '/vendor/three/build/three.module.js';
 import { RoomEnvironment } from '/vendor/three/examples/jsm/environments/RoomEnvironment.js';
 import { mergeGeometries } from '/vendor/three/examples/jsm/utils/BufferGeometryUtils.js';
-import { BENCH_BOXES, BOOKSHELVES, COUNTER, DESKS, DISPLAY, LOUNGE_TABLE, MEETING_TABLE, PLANTS, ROOM, RUG, SOFA, SPOTS, TRAY, WINDOWS } from './layout.js';
+import { ARMCHAIRS, BENCH_BOXES, BOOKSHELVES, COUNTER, DESKS, DISPLAY, LOUNGE_TABLE, MEETING_TABLE, PLANTS, ROOM, RUG, SOFA, SPOTS, TRAY, WINDOWS } from './layout.js';
 import { makeMug } from './characters.js';
 
 const VIOLET = 0x8b6cff;
@@ -410,6 +410,14 @@ export function buildOffice({ seatHeight = 0.45, sitBack = 0.2, deskRise = 0.21,
   for (const sz of [-1, 1]) box(SOFA.w, seatHeight + 0.18, 0.2, M.sofa, SOFA.x, (seatHeight + 0.18) / 2, SOFA.z + sz * (SOFA.d / 2 - 0.1));
   for (let i = 0; i < 3; i++) box(0.72, 0.1, 1.06, M.cushion, SOFA.x - 0.1, sofaBase + 0.05, SOFA.z - 1.1 + i * 1.1);
   for (let i = 0; i < 2; i++) box(0.14, 0.34, 0.5, M.cushion, SOFA.x + 0.28, seatHeight + 0.2, SOFA.z - 0.6 + i * 1.2).rotation.z = 0.25;
+  // armchairs facing the low table; set back by the cast's sitting offset, like the desk chairs
+  for (const c of ARMCHAIRS) {
+    const cx = c.x - sitBack;
+    box(0.8, sofaBase, 0.8, M.sofa, cx, sofaBase / 2, c.z);
+    box(0.62, 0.1, 0.62, M.cushion, cx + 0.05, sofaBase + 0.05, c.z);
+    box(0.18, seatHeight + 0.4, 0.8, M.sofa, cx - 0.31, (seatHeight + 0.4) / 2, c.z);
+    for (const sz of [-1, 1]) box(0.8, seatHeight + 0.14, 0.14, M.sofa, cx, (seatHeight + 0.14) / 2, c.z + sz * 0.33);
+  }
   box(LOUNGE_TABLE.w, 0.04, LOUNGE_TABLE.d, M.wood, LOUNGE_TABLE.x, 0.3, LOUNGE_TABLE.z);
   for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) box(0.04, 0.28, 0.04, M.metal, LOUNGE_TABLE.x + sx * 0.38, 0.14, LOUNGE_TABLE.z + sz * 0.68);
   box(0.24, 0.05, 0.32, new THREE.MeshStandardMaterial({ color: 0xff9f9f }), LOUNGE_TABLE.x, 0.345, LOUNGE_TABLE.z - 0.3);

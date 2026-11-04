@@ -15,6 +15,9 @@ skills:
   - proof-library
   - self-review
   - proposal
+  - discovery-call
+  - trial-to-paid
+  - timeless-wording
 fallback_for: sales
 ---
 

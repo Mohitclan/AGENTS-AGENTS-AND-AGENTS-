@@ -9,6 +9,8 @@ skills:
   - claim-check
   - self-review
   - comparison-page
+  - help-article-types
+  - timeless-wording
 fallback_for: docs-handler
 ---
 

@@ -11,3 +11,4 @@
 - [Skill draft checks](feedback_skill_draft_checks.md) — loader tools from files (fallbacks lack Edit); "never add" vs REVISE fixes; test my own fix wording; quoted >> rows
 - [Marketing listing checks](feedback_marketing_listing_checks.md) — trial caps vs feature ranges; "yet" = roadmap; test author's site claims live; four U's per listing
 - [Lead batch checks](feedback_lead_batch_checks.md) — test gaps, "not found" and rejections past the homepage; recompute tiers; read board lines literally
+- 2026-11-05 · New skills: finding-validation (try to disprove each High or Medium finding before keeping it, and tie every finding to a rule) and scoped-re-review (round 2+ and post-PASS wording: verdict per earlier fix, check only changed lines). (source: asked by the human on 2026-11-05; skills from the web research in outputs/research/2026-11-05-agent-skills.md · by: claude-code)

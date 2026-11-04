@@ -10,6 +10,9 @@ skills:
   - meeting-prep
   - claim-check
   - self-review
+  - live-demo
+  - discovery-call
+  - timeless-wording
 fallback_for: demo-handler
 ---
 
