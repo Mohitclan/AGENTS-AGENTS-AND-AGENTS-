@@ -62,6 +62,19 @@ describe('send-email', () => {
     assert.equal(isSuppressed('ceo@other.com', list), null);
   });
 
+  it('covers subdomains and a profile URL, and an old bare shared-host entry blocks that host', () => {
+    const list = [{ value: 'acme.com' }, { value: 'https://linkedin.com/in/asha' }];
+    assert.ok(isSuppressed('ceo@mail.acme.com', list));
+    assert.equal(isSuppressed('ceo@notacme.com', list), null);
+    assert.ok(isSuppressed('https://www.linkedin.com/in/Asha/', list));
+    assert.equal(isSuppressed('https://www.linkedin.com/in/lee', list), null);
+    assert.equal(isSuppressed('mailto:ceo@acme.com', list)?.value, 'acme.com');
+    const old = [...list, { value: 'linkedin.com' }]; // written before profile URLs were stored whole: blocks the host until a person replaces it
+    assert.ok(isSuppressed('https://www.linkedin.com/in/lee', old));
+    assert.ok(isSuppressed('lee@linkedin.com', old));
+    assert.equal(isSuppressed('ceo@other.com', old), null);
+  });
+
   it('allows a send only on a yes that names the recipient', () => {
     const table = [
       '| A-1 | T-1 | Send Email 1 to a@b.com | f | r | Yes, approved | Raj | 2026-11-02 |',

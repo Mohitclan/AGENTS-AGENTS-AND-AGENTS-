@@ -8,7 +8,7 @@
 //   node scripts/leads.mjs show <id>
 //   node scripts/leads.mjs set-status <id[,id...]> <status> [note] [--force]
 //   node scripts/leads.mjs export-csv                           rewrite pipeline/leads.csv
-//   node scripts/leads.mjs suppress <domain|email> "<reason>"   never contact them again, across every product
+//   node scripts/leads.mjs suppress <domain|email|profile URL> "<reason>"   never contact them again, across every product
 //   node scripts/leads.mjs gate [--product p] [--status s]      Go, Conditional or Stop for each lead before outreach
 //   node scripts/leads.mjs hold <id> "<reason>" --owner <who>   stop all outreach to a lead until a person releases it
 //   node scripts/leads.mjs release <id> "<note>"                lift a hold
@@ -19,7 +19,7 @@ import {
   appendFileSync, closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync, writeSync,
 } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
-import { ROOT, daysSince, fail, printTable, today } from './_shared.mjs';
+import { PERSONAL_MAIL, ROOT, classifySuppression, daysSince, describeSuppression, fail, printTable, suppressionMatch, suppressionProblem, today } from './_shared.mjs';
 
 const PIPELINE = join(ROOT, 'pipeline');
 const DB = join(PIPELINE, 'leads.jsonl');
@@ -55,11 +55,6 @@ const OUTREACH_STATUSES = new Set(['drafted', 'approved', 'contacted']);
 // Contact quality: a named person beats a shared inbox, and a support desk isn't a sales route.
 const SUPPORT_INBOX = /^(support|help|helpdesk|care|customercare|customerservice|service|billing|abuse|security|legal|privacy|no-?reply|donotreply)@/i;
 const GENERAL_INBOX = /^(hello|hi|hey|info|contact|team|founders?|sales|marketing|admin|office|mail|enquir(y|ies)|inquir(y|ies))@/i;
-// Free consumer mailboxes: knowledge/company.md says never contact personal (non-work) addresses.
-const PERSONAL_MAIL = new Set([
-  'gmail.com', 'googlemail.com', 'yahoo.com', 'yahoo.in', 'yahoo.co.in', 'ymail.com', 'outlook.com', 'hotmail.com', 'live.com', 'msn.com',
-  'icloud.com', 'me.com', 'aol.com', 'proton.me', 'protonmail.com', 'rediffmail.com', 'gmx.com', 'mail.com', 'yandex.com',
-]);
 const REACHABILITY_CAP = { general: 5, support: 3 };
 const SCORE_PARTS = { icp_fit: 40, need_evidence: 30, timing: 20, reachability: 10 };
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -253,16 +248,31 @@ function suppressions() {
   return readFileSync(SUPPRESSION, 'utf8').split('\n').filter((l) => l.trim()).map((l) => JSON.parse(l));
 }
 
-// A company domain covers everyone there; an email address covers that person.
+// The one opt-out match, in _shared.mjs so scripts/send-email.mjs uses the same rules: an email address
+// covers that person, a profile URL covers that page, a company domain covers it, its subdomains and
+// addresses on it. An old entry that is a bare shared host (linkedin.com) blocks every lead on that host until a
+// person replaces it; `check` fails while one exists.
 function suppressedBy(lead, list) {
-  const contact = String(lead.contact?.value || '').toLowerCase();
-  const domain = lead.domain || (isUrl(lead.website) ? domainOf(lead.website) : '');
-  return list.find((s) => s.value === domain || s.value === contact);
+  return suppressionMatch(list, { contact: lead.contact?.value, website: lead.website, domain: lead.domain });
+}
+
+// Entries in pipeline/suppression.jsonl that are not an email, a profile URL or a company domain: an old bare
+// shared host (linkedin.com), a hand-written site root, a personal mail domain, a bare suffix. Each one is named
+// with what it does now and what to do. A shared-root entry blocks every lead on that site until a person fixes it.
+function entryProblemsOf(list) {
+  return list.map((s) => ({ s, why: suppressionProblem(s) })).filter((x) => x.why)
+    .map(({ s, why }) => `"${s.value}" (${s.reason || 'no reason'}): ${why}. Re-enter the person with: node scripts/leads.mjs suppress <email address or profile URL> "<reason>", then a person removes this line`);
+}
+
+function warnAboutEntries(list) {
+  for (const p of entryProblemsOf(list)) console.error(`WARNING: pipeline/suppression.jsonl ${p}`);
 }
 
 function suppress(value, reason) {
-  value = (value || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '');
-  if (!value || !value.includes('.') || !reason?.trim()) fail('Usage: node scripts/leads.mjs suppress <domain|email> "<reason>"');
+  if (!value?.trim() || !reason?.trim()) fail('Usage: node scripts/leads.mjs suppress <domain|email|profile URL> "<reason>"');
+  const entry = classifySuppression(value);
+  if (entry.error) fail(entry.error);
+  value = entry.value;
   lock();
   if (suppressions().some((s) => s.value === value)) {
     console.log(`${value} is already suppressed.`);
@@ -280,18 +290,9 @@ function suppress(value, reason) {
   }
   if (hit.length) save(leads);
   console.log(`Suppressed ${value}.${hit.length ? ` ${hit.length} open lead(s) disqualified.` : ''}`);
-}
-
-// A domain covers its subdomains. The gate also reads the contact's own host, so an opt-out for
-// optout.example covers asha@optout.example even when the lead's website is on another domain.
-const underDomain = (host, base) => host === base || host.endsWith(`.${base}`);
-function suppressionHit(lead, list) {
-  const direct = suppressedBy(lead, list);
-  if (direct) return direct;
-  const site = lead.domain || (isUrl(lead.website) ? domainOf(lead.website) : '');
-  const value = String(lead.contact?.value || '').toLowerCase();
-  const contactHost = isUrl(value) ? domainOf(value) : value.includes('@') ? value.split('@').pop() : '';
-  return list.find((s) => !s.value.includes('@') && ((site && underDomain(site, s.value)) || (contactHost && underDomain(contactHost, s.value))));
+  if (entry.note) console.log(entry.note);
+  // Exit 0 either way: a lead imported later must still be blocked. A person checks that this covered the one they meant.
+  if (!hit.length) console.log('No open lead matched; check the entry covers the person.');
 }
 
 // Critical signals. Any one forces a Stop, whatever the lead's score or tier: a high score can't hide a
@@ -301,8 +302,8 @@ function suppressionHit(lead, list) {
 const CRITICAL_SIGNALS = [
   // Opt-outs are final (CLAUDE.md hard rule 7).
   (lead, list) => {
-    const hit = suppressionHit(lead, list);
-    return hit && `suppressed (${hit.value})`;
+    const hit = suppressedBy(lead, list);
+    return hit && `suppressed (${describeSuppression(hit)})`;
   },
   // Disqualified or lost (pipeline/lead-schema.md, statuses).
   (lead) => ['disqualified', 'lost'].includes(lead.status) && `status is ${lead.status}`,
@@ -349,6 +350,7 @@ function gate(args) {
   const product = flag('product');
   const status = flag('status') || 'qualified';
   const list = suppressions();
+  warnAboutEntries(list);
   const leads = load().filter((l) => (!product || l.product === product) && (status === 'all' || l.status === status));
   if (!leads.length) {
     console.log('No leads match.');
@@ -497,7 +499,12 @@ function check() {
     }
     if (!Array.isArray(lead.history) || !lead.history.length) problems.push(`${label}: missing history`);
   }
-  if (problems.length) fail(`${problems.length} problem(s) in pipeline/leads.jsonl:\n- ${problems.join('\n- ')}`);
+  const messages = [];
+  const block = (n, file, items) => `${n} problem(s) in ${file}:\n- ${items.join('\n- ')}`;
+  if (problems.length) messages.push(block(problems.length, 'pipeline/leads.jsonl', problems));
+  const entryProblems = entryProblemsOf(suppressions());
+  if (entryProblems.length) messages.push(block(entryProblems.length, 'pipeline/suppression.jsonl', entryProblems));
+  if (messages.length) fail(messages.join('\n'));
   console.log(`OK: ${leads.length} lead(s), no problems found.`);
 }
 
@@ -682,5 +689,5 @@ switch (command) {
     console.log(`Wrote ${toRel(CSV)}`);
     break;
   default:
-    fail('Usage: node scripts/leads.mjs import <file> | check | list [--product p] [--status s] [--tier A] | show <id> | set-status <ids> <status> [note] [--force] | export-csv | suppress <domain|email> "<reason>" | gate [--product p] [--status s] | hold <id> "<reason>" --owner <who> | release <id> "<note>" | supersede <id> <n> "<why>" | next <id> "<action>"');
+    fail('Usage: node scripts/leads.mjs import <file> | check | list [--product p] [--status s] [--tier A] | show <id> | set-status <ids> <status> [note] [--force] | export-csv | suppress <domain|email|profile URL> "<reason>" | gate [--product p] [--status s] | hold <id> "<reason>" --owner <who> | release <id> "<note>" | supersede <id> <n> "<why>" | next <id> "<action>"');
 }

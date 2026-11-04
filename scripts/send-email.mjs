@@ -17,7 +17,7 @@ import { spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
-import { ROOT, isMain } from './_shared.mjs';
+import { ROOT, isMain, suppressionMatch } from './_shared.mjs';
 import { replyStop } from './replies.mjs';
 
 const CONFIG = join(ROOT, 'ops', 'mail-config.json');
@@ -79,10 +79,9 @@ export function regreet(body, name) {
   return name ? body.replace(/^(Hi|Hello|Dear)\s+[^,\n]+,/, `$1 ${name},`) : body;
 }
 
+// The same match the lead gate uses (suppressionMatch in _shared.mjs): the address, its domain or a parent domain.
 export function isSuppressed(address, list) {
-  const a = address.toLowerCase();
-  const domain = a.split('@')[1] || '';
-  return list.find((s) => s.value === a || s.value === domain) || null;
+  return suppressionMatch(list, { contact: address }) || null;
 }
 
 // An approval row allows a send only if its Decision cell starts with Yes or Approved and the row
