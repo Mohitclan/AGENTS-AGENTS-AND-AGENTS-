@@ -67,8 +67,9 @@ describe('skills', () => {
   it('every preloaded skill exists', () => assert.doesNotMatch(skills('list').stdout, /Missing skills/));
   it('gives a skill to an agent and its fallback', () => {
     assert.equal(skills('give', 'developer', 'fact-sourcing').code, 0);
-    assert.match(text('.claude', 'agents', 'developer.md'), /\nskills:\n {2}- self-review\n {2}- fact-sourcing\n/);
-    assert.match(text('.claude', 'agents', 'developer-fallback.md'), /\nskills:\n {2}- self-review\n {2}- fact-sourcing\n/);
+    // added at the end of the agent's list, after the skills it already had
+    assert.match(text('.claude', 'agents', 'developer.md'), /\nskills:\n {2}- self-review\n(?: {2}- [\w-]+\n)* {2}- fact-sourcing\n/);
+    assert.match(text('.claude', 'agents', 'developer-fallback.md'), /\nskills:\n {2}- self-review\n(?: {2}- [\w-]+\n)* {2}- fact-sourcing\n/);
     assert.equal(repo.run('fallbacks.mjs', 'check').code, 0);
   });
   it('takes it away again', () => {

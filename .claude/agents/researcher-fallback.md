@@ -10,6 +10,9 @@ skills:
   - research-rigor
   - competitive-battlecard
   - self-review
+  - market-sizing
+  - rival-teardown
+  - buyer-intent-search
 fallback_for: researcher
 ---
 

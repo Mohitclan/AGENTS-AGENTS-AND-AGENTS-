@@ -8,6 +8,8 @@ memory: project
 skills:
   - fact-sourcing
   - claim-check
+  - finding-validation
+  - scoped-re-review
 can_ask:
   - knowledge-base
 fallback: evaluator-fallback

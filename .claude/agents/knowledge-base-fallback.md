@@ -9,6 +9,8 @@ skills:
   - claim-check
   - research-rigor
   - self-review
+  - feature-status-trace
+  - atomic-fact-check
 fallback_for: knowledge-base
 ---
 

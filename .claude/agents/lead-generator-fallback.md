@@ -9,6 +9,8 @@ skills:
   - fact-sourcing
   - signal-outreach
   - self-review
+  - lead-sources
+  - buyer-intent-search
 fallback_for: lead-generator
 ---
 
