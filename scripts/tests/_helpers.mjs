@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, relative, sep } from 'node:path';
 import { ROOT } from '../_shared.mjs';
 
-const SKIP = /^(\.git|repos|node_modules|\.claude[\\/]agent-memory|ops[\\/]runs|ops[\\/]gate-log\.jsonl|pipeline[\\/](leads\.jsonl|leads\.csv|leads\.lock|suppression\.jsonl|inbox))([\\/]|$)/;
+const SKIP = /^(\.git|repos|node_modules|\.claude[\\/]agent-memory|\.claude[\\/]worktrees|ops[\\/]runs|ops[\\/]gate-log\.jsonl|pipeline[\\/](leads\.jsonl|leads\.csv|leads\.lock|suppression\.jsonl|inbox))([\\/]|$)/;
 
 export function makeCopy() {
   const dir = mkdtempSync(join(tmpdir(), 'sales-team-test-'));

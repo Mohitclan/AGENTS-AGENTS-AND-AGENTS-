@@ -59,7 +59,31 @@ describe('pipeline and logs', () => {
   it('blocks editing the gate log', () => assert.equal(write('ops/gate-log.jsonl', 'x'), 'block'));
   it('blocks editing the send log', () => assert.equal(write('ops/send-log.jsonl', 'x'), 'block'));
   it('blocks editing the reply log', () => assert.equal(edit('ops/replies.jsonl', 'a', 'b'), 'block'));
-  it('allows writing a report', () => assert.equal(write('outputs/reports/J-20261030-01.md', 'x'), 'allow'));
+  it('blocks editing the confirmations log', () => {
+    assert.equal(write('ops/confirmations.jsonl', 'x'), 'block');
+    assert.equal(edit('ops/confirmations.jsonl', 'a', 'b'), 'block');
+    assert.equal(guard('MultiEdit', { file_path: 'ops/confirmations.jsonl', edits: [{ old_string: 'a', new_string: 'b' }] }), 'block');
+  });
+  it('blocks writing or editing an uploaded project form', () => {
+    assert.equal(write('knowledge/inbox/acme-tool/2026-11-04-v1.md', 'x'), 'block');
+    assert.equal(edit('knowledge/inbox/acme-tool/2026-11-04-v1.md', 'a', 'b'), 'block');
+  });
+  it('blocks writing or editing a replaced project sheet', () => {
+    assert.equal(write('knowledge/history/acme-tool/2026-11-04-v1.md', 'x'), 'block');
+    assert.equal(edit('knowledge/history/acme-tool/2026-11-04-v1.md', 'a', 'b'), 'block');
+  });
+  it('blocks them in another letter case', { skip: process.platform === 'linux' }, () => {
+    assert.equal(write('OPS/Confirmations.jsonl', 'x'), 'block');
+    assert.equal(write('Knowledge/Inbox/acme-tool/x.md', 'x'), 'block');
+  });
+  it('still allows the neighbours: proposals, products, and other ops files', () => {
+    assert.equal(write('knowledge/proposals/2026-11-04-acme-tool-v2.md', '---\nstatus: proposed\n---\n'), 'allow');
+    assert.equal(write('knowledge/products/acme-tool.md', '---\nstatus: proposed\n---\n'), 'allow');
+    assert.equal(write('ops/confirmations-notes.md', 'x'), 'allow');
+    assert.equal(write('knowledge/inbox-notes.md', 'x'), 'allow');
+  });
+  it('allows reading them', () => assert.equal(read('knowledge/inbox/acme-tool/2026-11-04-v1.md'), 'allow'));
+  it('allows writing a report',() => assert.equal(write('outputs/reports/J-20261030-01.md', 'x'), 'allow'));
 });
 
 describe('sending', () => {

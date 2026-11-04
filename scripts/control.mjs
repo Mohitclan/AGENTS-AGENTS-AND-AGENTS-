@@ -597,7 +597,15 @@ function main() {
           return json(res, 200, { message: 'Signed out.' }, { 'Set-Cookie': cookieHeader('', site, 0) });
         }
         if (!signedIn) return json(res, 401, { message: 'Sign in first.' });
-        const project = projectsApi(ROOT, 'POST', path, body);
+        // This runs after the request's try/catch has returned, so a file error here (a folder that can't be
+        // made, a file another program holds open) has to be caught here or it would stop the server.
+        let project;
+        try {
+          project = projectsApi(ROOT, 'POST', path, body);
+        } catch (error) {
+          lastSig = '';
+          return json(res, 500, { message: `That didn't work: ${error.message}` });
+        }
         if (project) {
           lastSig = ''; // show the change at once
           return json(res, project.status, project.data);

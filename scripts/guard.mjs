@@ -114,6 +114,15 @@ if (rel === 'ops/gate-log.jsonl') {
   block('ops/gate-log.jsonl is a log kept by scripts/lint-copy.mjs and can\'t be edited.');
 }
 
+// Mission control's Projects feature (scripts/projects.mjs) writes these. An agent edit would fake a
+// person's confirm, move a version, or change the form the person filled in.
+if (rel === 'ops/confirmations.jsonl') {
+  block('ops/confirmations.jsonl is the record of who confirmed what, kept by mission control and can\'t be edited.');
+}
+if (rel.startsWith('knowledge/inbox/') || rel.startsWith('knowledge/history/')) {
+  block(`${rel} is written only by mission control (the person's uploaded form, or a sheet an update replaced) and can't be edited.`);
+}
+
 // send-email.mjs reads both to stop a sequence and to keep the daily limit, so nobody edits them by hand.
 if (rel === 'ops/send-log.jsonl' || rel === 'ops/replies.jsonl') {
   block(`${rel} is a log kept by scripts/${rel.endsWith('replies.jsonl') ? 'replies' : 'send-email'}.mjs and can't be edited.`);

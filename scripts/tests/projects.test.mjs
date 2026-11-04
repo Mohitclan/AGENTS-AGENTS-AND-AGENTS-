@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { after, before, describe, it } from 'node:test';
 import { readFile } from '../control.mjs';
 import { hashPassword } from '../dashboard.mjs';
@@ -125,6 +125,21 @@ describe('projects: upload', () => {
     assert.equal(queue(repo).length, before, 'nothing was queued');
   });
 
+  it('when the task cannot be queued it answers 500 and does not leave the form in the inbox', () => {
+    const repo = fresh();
+    const was = process.env.JARVIS_TASK_ID;
+    process.env.JARVIS_TASK_ID = 'J-20261104-99'; // jarvis add refuses to run inside a Jarvis task
+    try {
+      const out = up(repo, form());
+      assert.equal(out.status, 500, JSON.stringify(out.data));
+      assert.match(out.data.message, /task wasn't queued/);
+    } finally {
+      process.env.JARVIS_TASK_ID = was;
+    }
+    assert.deepEqual(readdirSync(repo.path('knowledge', 'inbox', 'acme-tool')), [], 'the copy was removed, so the version is not used up');
+    assert.equal(up(repo, form()).status, 200, 'the same version can be uploaded again');
+  });
+
   it('refuses a file over 300 KB, and takes one just under it', () => {
     const repo = fresh();
     const big = form().replace(BODY_MARK, 'x'.repeat(300 * 1024));
@@ -171,7 +186,46 @@ describe('projects: updates', () => {
     assert.ok(task.startsWith(`Compare the updated project form knowledge/inbox/acme-tool/${today()}-v2.md with knowledge/products/acme-tool.md`));
     assert.match(task, new RegExp(`write a full replacement sheet to knowledge/proposals/${today()}-acme-tool-v2\\.md \\(status: proposed\\), frontmatter first and then a Changes section`));
     assert.match(task, /Do not edit knowledge\/products\/acme-tool\.md/);
-    assert.ok(!task.includes(BODY_MARK));
+    for (const leak of [BODY_MARK, 'Acme Tool', 'Asha', 'acme.example']) assert.ok(!task.includes(leak), `${leak} must not be in the update task`);
+    assert.equal(out.data.inPlace, false);
+  });
+
+  it('versions are compared as numbers, not as text: 9 then 10, and 1.9 then 1.10, are each newer', () => {
+    const repo = fresh();
+    writeFileSync(repo.path('knowledge', 'products', 'acme-tool.md'), sheet('confirmed'));
+    assert.equal(up(repo, form({ version: 9 })).status, 200);
+    assert.equal(up(repo, form({ version: 10 })).status, 200, '10 is newer than 9');
+    assert.equal(up(repo, form({ version: 9 })).status, 409);
+    assert.equal(up(repo, form({ version: '10.9' })).status, 200);
+    const tenTen = up(repo, form({ version: '10.10' }));
+    assert.equal(tenTen.status, 200, '10.10 is newer than 10.9');
+    assert.equal(up(repo, form({ version: '10.9' })).status, 409);
+  });
+
+  it('an update to a sheet that is still proposed is made in place, with no proposal, and is confirmed like a new one', () => {
+    const repo = fresh();
+    writeFileSync(repo.path('knowledge', 'products', 'acme-tool.md'), sheet('proposed', 'FIRST DRAFT FACT'));
+    const out = up(repo, form({ version: 2 }));
+    assert.equal(out.status, 200, JSON.stringify(out.data));
+    assert.deepEqual([out.data.kind, out.data.inPlace], ['update', true]);
+    assert.match(out.data.message, /in place/);
+    const task = queue(repo).at(-1).task;
+    assert.ok(task.startsWith(`Update the fact sheet knowledge/products/acme-tool.md in place (it is still status: proposed) from the updated person-written project form knowledge/inbox/acme-tool/${today()}-v2.md`));
+    assert.match(task, /section 6 \(Updating\), item 2 of knowledge\/templates\/project-knowledge-conversion\.md/);
+    assert.match(task, /Have the evaluator review the sheet/);
+    assert.match(task, /Do not confirm it; a person confirms in mission control\./);
+    assert.match(task, /Write no proposal file\./);
+    assert.doesNotMatch(task, /knowledge\/proposals\//, 'no proposal path is named');
+    assert.doesNotMatch(task, /Do not edit knowledge\/products/, 'the sheet is the thing to edit');
+    for (const leak of [BODY_MARK, 'Acme Tool', 'Asha', 'acme.example']) assert.ok(!task.includes(leak), `${leak} must not be in the task`);
+    const listed = listProjects(repo.dir).find((p) => p.slug === 'acme-tool');
+    assert.equal(listed.tasks[0].action, 'update', 'the panel sees it as an update being prepared');
+    assert.equal(listed.pendingUpdate, null);
+    // the agent edits the sheet; the project then needs the ordinary "new" confirm, which still works
+    assert.equal(confirm(repo.dir, 'acme-tool', { kind: 'update', by: 'S', phrase: 'confirm acme-tool' }).status, 409, 'there is no proposal to apply');
+    const done = confirm(repo.dir, 'acme-tool', { kind: 'new', by: 'S', phrase: 'confirm acme-tool' });
+    assert.equal(done.status, 200, JSON.stringify(done.data));
+    assert.equal(confirmations(repo).at(-1).version, '2', 'the confirm records the version of the form the sheet was built from');
   });
 
   it('the same or a lower version is refused with 409, a higher one is taken', () => {
@@ -206,7 +260,33 @@ describe('projects: updates', () => {
     assert.equal(out.data.kind, 'update');
     assert.equal(up(repo, form({ slug: 'motionrepo', name: 'MotionRepo', version: 1 })).status, 409);
     const listed = listProjects(repo.dir);
-    assert.equal(listed.find((p) => p.slug === 'motionrepo').version, '1', 'the upload is now the newest form on file, version 1');
+    assert.equal(listed.find((p) => p.slug === 'motionrepo').version, '0', 'an uploaded form is not a confirmed version: the sheet stays at 0 until the update is confirmed');
+  });
+
+  it('a confirmed sheet keeps its version until an update is confirmed, and the history copy carries the old version', () => {
+    const repo = fresh();
+    const moBefore = readFileSync(repo.path('knowledge', 'products', 'motionrepo.md'), 'utf8');
+    assert.equal(up(repo, form({ slug: 'motionrepo', name: 'MotionRepo', version: 1 })).status, 200);
+    const proposal = `knowledge/proposals/${today()}-motionrepo-v1.md`;
+    writeFileSync(repo.path(proposal), sheet('proposed', 'MOTION NEW FACT').replace('slug: acme-tool', 'slug: motionrepo'));
+    const waiting = listProjects(repo.dir).find((p) => p.slug === 'motionrepo');
+    assert.deepEqual([waiting.version, waiting.pendingUpdate], ['0', { file: proposal, version: '1' }], 'v0 beside "Update v1 waiting"');
+    const out = confirm(repo.dir, 'motionrepo', { kind: 'update', by: 'S', phrase: 'confirm motionrepo' });
+    assert.equal(out.status, 200, JSON.stringify(out.data));
+    assert.equal(readFileSync(repo.path('knowledge', 'history', 'motionrepo', `${today()}-v0.md`), 'utf8'), moBefore, 'the replaced sheet is kept as version 0');
+    assert.ok(!existsSync(repo.path('knowledge', 'history', 'motionrepo', `${today()}-v1.md`)));
+    assert.deepEqual([confirmations(repo).at(-1).kind, confirmations(repo).at(-1).version], ['update', '1']);
+    const after = listProjects(repo.dir).find((p) => p.slug === 'motionrepo');
+    assert.deepEqual([after.version, after.pendingUpdate], ['1', null]);
+  });
+
+  it('a sheet still being built from a form shows that form as a hint, and a confirmed one with a version line shows its own', () => {
+    const repo = fresh();
+    up(repo, form({ version: 3 }));
+    writeFileSync(repo.path('knowledge', 'products', 'acme-tool.md'), sheet('proposed'));
+    assert.equal(listProjects(repo.dir).find((p) => p.slug === 'acme-tool').version, '3');
+    writeFileSync(repo.path('knowledge', 'products', 'acme-tool.md'), sheet('confirmed').replace('stage: beta', 'stage: beta\nversion: 2'));
+    assert.equal(listProjects(repo.dir).find((p) => p.slug === 'acme-tool').version, '2', "the confirmed sheet's own line, not the newer uploaded form");
   });
 
   it('once the agent has written the sheet for a new project, the same version is refused and a higher one is an update', () => {
@@ -214,7 +294,10 @@ describe('projects: updates', () => {
     assert.equal(up(repo, form()).data.kind, 'new');
     writeFileSync(repo.path('knowledge', 'products', 'acme-tool.md'), sheet('proposed')); // the agent has now written the sheet
     assert.equal(up(repo, form()).status, 409, 'version 1 was already uploaded');
-    assert.equal(up(repo, form({ version: 2 })).data.kind, 'update');
+    const second = up(repo, form({ version: 2 }));
+    assert.equal(second.data.kind, 'update');
+    assert.equal(second.data.inPlace, true, 'the sheet is still proposed');
+    assert.match(queue(repo).at(-1).task, /^Update the fact sheet knowledge\/products\/acme-tool\.md in place/);
   });
 });
 
@@ -256,6 +339,63 @@ describe('projects: the list', () => {
     const by = (slug) => listProjects(repo.dir).find((p) => p.slug === slug).tasks.map((t) => t.action);
     assert.deepEqual(by('acme-tool'), ['leads']);
     assert.deepEqual(by('acme'), ['research'], 'acme does not pick up acme-tool');
+  });
+});
+
+describe('projects: the list, odd files and old proposals', () => {
+  it('skips product files whose name is not a slug, and one odd name does not break the list', () => {
+    const repo = fresh();
+    for (const odd of ['a(b.md', 'Upper.md', 'with space.md', '.hidden.md', 'x.md', 'a+b.md', 'inbox.md']) writeFileSync(repo.path('knowledge', 'products', odd), sheet('proposed'));
+    writeFileSync(repo.path('knowledge', 'products', 'acme-tool.md'), sheet('proposed'));
+    let all;
+    assert.doesNotThrow(() => {
+      all = listProjects(repo.dir);
+    });
+    assert.deepEqual(all.map((p) => p.slug), ['acme-tool', 'motionrepo']);
+  });
+
+  it('a slug that starts another slug does not take its proposal, history or tasks', () => {
+    const repo = fresh();
+    writeFileSync(repo.path('knowledge', 'products', 'acme.md'), sheet('confirmed').replace('acme-tool', 'acme'));
+    writeFileSync(repo.path('knowledge', 'products', 'acme-tool.md'), sheet('confirmed'));
+    writeFileSync(repo.path('knowledge', 'proposals', '2026-11-04-acme-tool-v2.md'), sheet('proposed'));
+    mkdirSync(repo.path('knowledge', 'history', 'acme-tool'), { recursive: true });
+    writeFileSync(repo.path('knowledge', 'history', 'acme-tool', '2026-10-01-v1.md'), 'old');
+    const by = (slug) => listProjects(repo.dir).find((p) => p.slug === slug);
+    assert.equal(by('acme').pendingUpdate, null, 'acme does not get the acme-tool proposal');
+    assert.deepEqual(by('acme-tool').pendingUpdate, { file: 'knowledge/proposals/2026-11-04-acme-tool-v2.md', version: '2' });
+    assert.deepEqual(by('acme').history, []);
+    // and a confirm of acme must not apply a proposal that is named for acme-tool, even if its slug line says acme
+    writeFileSync(repo.path('knowledge', 'proposals', '2026-11-04-acme-tool-v2.md'), sheet('proposed', 'WRONG PROJECT FACT').replace('acme-tool', 'acme'));
+    const before = readFileSync(repo.path('knowledge', 'products', 'acme.md'), 'utf8');
+    const out = confirm(repo.dir, 'acme', { kind: 'update', by: 'S', phrase: 'confirm acme' });
+    assert.equal(out.status, 409, JSON.stringify(out.data));
+    assert.equal(readFileSync(repo.path('knowledge', 'products', 'acme.md'), 'utf8'), before);
+    assert.ok(existsSync(repo.path('knowledge', 'proposals', '2026-11-04-acme-tool-v2.md')));
+  });
+
+  it('an older proposal is never offered or applied once a newer version is the sheet', () => {
+    const repo = fresh();
+    writeFileSync(repo.path('knowledge', 'products', 'acme-tool.md'), sheet('confirmed', 'V1 FACT'));
+    const v2 = 'knowledge/proposals/2026-11-02-acme-tool-v2.md';
+    const v3 = 'knowledge/proposals/2026-11-03-acme-tool-v3.md';
+    writeFileSync(repo.path(v2), sheet('proposed', 'V2 FACT'));
+    writeFileSync(repo.path(v3), sheet('proposed', 'V3 FACT'));
+    const call = () => confirm(repo.dir, 'acme-tool', { kind: 'update', by: 'S', phrase: 'confirm acme-tool' });
+    assert.equal(listProjects(repo.dir).find((p) => p.slug === 'acme-tool').pendingUpdate.version, '3');
+    assert.equal(call().status, 200, 'v3 is confirmed');
+    const listed = listProjects(repo.dir).find((p) => p.slug === 'acme-tool');
+    assert.deepEqual([listed.version, listed.pendingUpdate], ['3', null], 'the leftover v2 is not offered as "Update v2 waiting"');
+    const sheetNow = readFileSync(repo.path('knowledge', 'products', 'acme-tool.md'), 'utf8');
+    const stale = call();
+    assert.equal(stale.status, 409);
+    assert.match(stale.data.message, /version 2, which is not newer than the sheet's version 3/);
+    assert.equal(readFileSync(repo.path('knowledge', 'products', 'acme-tool.md'), 'utf8'), sheetNow, 'the sheet was not rolled back');
+    assert.ok(existsSync(repo.path(v2)), 'the old proposal stays where it is');
+    assert.equal(confirmations(repo).length, 1, 'no second confirm line');
+    // a proposal of the same version as the sheet is not newer either
+    writeFileSync(repo.path('knowledge', 'proposals', '2026-11-04-acme-tool-v3.md'), sheet('proposed', 'V3 AGAIN'));
+    assert.equal(call().status, 409);
   });
 });
 
@@ -385,6 +525,32 @@ describe('projects: confirm', () => {
     assert.equal(up(repo, form({ version: 2 })).status, 409);
   });
 
+  it('an update confirm needs a full replacement sheet: the same slug and status proposed', () => {
+    const repo = fresh();
+    writeFileSync(repo.path('knowledge', 'products', 'acme-tool.md'), sheet('confirmed', 'OLD FACT'));
+    const file = 'knowledge/proposals/2026-11-04-acme-tool-v2.md';
+    const call = () => confirm(repo.dir, 'acme-tool', { kind: 'update', by: 'S', phrase: 'confirm acme-tool' });
+    const bad = [
+      ['a change list with a status and no slug', '---\nstatus: proposed\n---\n\n| Section | Current | Proposed |\n|---|---|---|\n| H | a | b |\n', /for "no slug"/],
+      ['a change list with a slug and no status', '---\nslug: acme-tool\n---\n\n| Section | Current | Proposed |\n', /status "none", not proposed/],
+      ['a sheet that is already marked confirmed', sheet('confirmed', 'NEW FACT'), /status "confirmed", not proposed/],
+      ['a sheet for another slug', sheet('proposed', 'NEW FACT').replace('slug: acme-tool', 'slug: acme'), /for "acme", not acme-tool/],
+    ];
+    for (const [label, text, message] of bad) {
+      writeFileSync(repo.path(file), text);
+      const out = call();
+      assert.equal(out.status, 409, label);
+      assert.match(out.data.message, message, label);
+      assert.match(readFileSync(repo.path('knowledge', 'products', 'acme-tool.md'), 'utf8'), /OLD FACT/, `${label}: the sheet is untouched`);
+      assert.ok(existsSync(repo.path(file)), `${label}: the proposal stays`);
+    }
+    assert.ok(!existsSync(repo.path('knowledge', 'history')));
+    assert.ok(!existsSync(repo.path('ops', 'confirmations.jsonl')));
+    writeFileSync(repo.path(file), sheet('proposed', 'NEW FACT'));
+    assert.equal(call().status, 200, 'a full replacement sheet is applied');
+    assert.match(readFileSync(repo.path('knowledge', 'products', 'acme-tool.md'), 'utf8'), /NEW FACT/);
+  });
+
   it('with nothing to confirm it answers 409 and writes nothing', () => {
     const repo = fresh();
     const call = (slug, kind) => confirm(repo.dir, slug, { kind, by: 'S', phrase: `confirm ${slug}` });
@@ -408,9 +574,13 @@ describe('projects: the viewer reads what the screens link to', () => {
     const repo = fresh();
     for (const dir of ['inbox/acme-tool', 'history/acme-tool', 'proposals/applied']) mkdirSync(repo.path('knowledge', ...dir.split('/')), { recursive: true });
     const files = ['knowledge/inbox/acme-tool/2026-11-04-v1.md', 'knowledge/history/acme-tool/2026-11-04-v1.md', 'knowledge/proposals/applied/2026-11-04-acme-tool-v2.md', 'knowledge/products/acme-tool.md', 'knowledge/proposals/2026-11-04-acme-tool-v2.md'];
+    mkdirSync(repo.path('knowledge', 'proposals', 'old'), { recursive: true });
+    mkdirSync(repo.path('knowledge', 'proposals', 'applied', 'deeper'), { recursive: true });
+    writeFileSync(repo.path('knowledge', 'proposals', 'old', 'x.md'), '# old\n'); // exists, so only the path rule can refuse it
+    writeFileSync(repo.path('knowledge', 'proposals', 'applied', 'deeper', 'x.md'), '# deeper\n');
     files.forEach((f) => writeFileSync(repo.path(...f.split('/')), `# ${f}\n`));
     for (const f of files) assert.ok(readFile(repo.dir, f), f);
-    for (const bad of ['knowledge/inbox/acme-tool/x/y.md', 'knowledge/inbox/../../.env', 'knowledge/inbox/Acme_Tool/x.md', 'knowledge/history/acme-tool/x.txt', 'knowledge/proposals/applied/../../../.env']) {
+    for (const bad of ['knowledge/inbox/acme-tool/x/y.md', 'knowledge/inbox/../../.env', 'knowledge/inbox/Acme_Tool/x.md', 'knowledge/history/acme-tool/x.txt', 'knowledge/proposals/old/x.md', 'knowledge/proposals/applied/deeper/x.md','knowledge/proposals/applied/../../../.env']) {
       assert.equal(readFile(repo.dir, bad), null, bad);
     }
   });
@@ -507,6 +677,30 @@ describe('projects: the server', () => {
     }
   });
 
+  it('a file error inside a project POST answers 500 with a message and the server keeps running', async () => {
+    const repo = fresh();
+    writeFileSync(repo.path('knowledge', 'inbox'), 'a file where the folder should be'); // mkdir of knowledge/inbox/<slug> now fails
+    const { child, base } = await start(repo, { TEAM_PAGE_PASSWORD_HASH: '' });
+    try {
+      const before = queue(repo).length;
+      let exited = null;
+      child.on('exit', (code) => {
+        exited = code;
+      });
+      const out = await post(base, '/api/projects/upload', { filename: 'knowledge.md', content: form() }, HEAD(base));
+      assert.equal(out.status, 500);
+      assert.match((await out.json()).message, /^That didn't work: /);
+      assert.equal(queue(repo).length, before, 'nothing was queued');
+      const again = await post(base, '/api/projects/upload', { filename: 'knowledge.md', content: form() }, HEAD(base));
+      assert.equal(again.status, 500, 'still up, and still answering');
+      const list = await fetch(`${base}/api/projects`);
+      assert.equal(list.status, 200, 'the server is still running');
+      assert.equal(exited, null);
+    } finally {
+      child.kill();
+    }
+  });
+
   it('refuses POSTs that do not come from the page itself', async () => {
     const repo = fresh();
     const { child, base } = await start(repo, { TEAM_PAGE_PASSWORD_HASH: '' });
@@ -543,9 +737,11 @@ describe('projects: the server', () => {
         assert.equal(res.status, 401, path);
         assert.equal((await res.json()).message, 'Sign in first.');
       }
-      // a huge body without a session is cut off, not read in full and not answered with 200
-      const huge = await post(base, '/api/projects/upload', { filename: 'knowledge.md', content: 'x'.repeat(900 * 1024) }, HEAD(base)).then((r) => r.status, () => 'dropped');
-      assert.notEqual(huge, 200);
+      // without a session the body limit is the old 16 KB: the connection is cut, whatever is sent beyond it
+      const cut = (content) => post(base, '/api/projects/upload', { filename: 'knowledge.md', content }, HEAD(base)).then((r) => r.status, () => 'dropped');
+      assert.equal(await cut('x'.repeat(900 * 1024)), 'dropped', '900 KB');
+      assert.equal(await cut('x'.repeat(20 * 1024)), 'dropped', '20 KB is over the 16 KB cap, so the 1 MB allowance is not given without a session');
+      assert.equal(await cut('x'.repeat(2 * 1024)), 401, 'a small body gets the plain refusal');
       assert.equal(queue(repo).length, before);
       assert.ok(!existsSync(repo.path('knowledge', 'inbox')));
       const login = await post(base, '/login', { password: 'correct horse battery' }, HEAD(base));

@@ -136,6 +136,24 @@ function shell() {
   $('#nav-scrim').addEventListener('click', () => setNav(false));
   $('#scrim').addEventListener('click', closeAll);
   $('#drawer-close').addEventListener('click', closeAll);
+  // The viewer can open over the project confirm dialog. Tab stays inside the viewer while it does.
+  $('#drawer').addEventListener('keydown', (e) => {
+    if (e.key !== 'Tab' || !drawerReturn) return;
+    const items = $$('a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])', $('#drawer'));
+    if (!items.length) return;
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (!$('#drawer').contains(document.activeElement)) {
+      e.preventDefault();
+      first.focus();
+    } else if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  });
   document.addEventListener('keydown', (e) => e.key === 'Escape' && closeAll());
   $('#signout').addEventListener('click', async () => {
     await api('/logout', {}).catch(() => undefined);
@@ -152,15 +170,26 @@ function shell() {
   });
 }
 
+// Set only when the viewer opens over the project confirm dialog: the element to give focus back to on close.
+let drawerReturn = null;
+
 function closeAll() {
+  const wasOpen = document.body.classList.contains('drawer-open');
   document.body.classList.remove('side-open', 'drawer-open');
   document.documentElement.classList.remove('nav-open');
   $('#drawer').setAttribute('aria-hidden', 'true');
+  if (wasOpen && drawerReturn) {
+    const back = drawerReturn;
+    drawerReturn = null;
+    if (document.contains(back)) back.focus();
+  }
 }
 
 async function openFile(path) {
+  if (projects.modal && !document.body.classList.contains('drawer-open')) drawerReturn = document.activeElement;
   document.body.classList.add('drawer-open');
   $('#drawer').setAttribute('aria-hidden', 'false');
+  if (drawerReturn) $('#drawer-close').focus();
   $('#drawer-title').textContent = path.split('/').pop();
   $('#drawer-kicker').textContent = 'Loading…';
   $('#drawer-body').innerHTML = '';
@@ -218,9 +247,10 @@ const PJ_MAX_BYTES = 300 * 1024; // the server's upload limit
 
 const pjName = (p) => p.name || p.slug;
 const pjActive = (p) => (p.tasks || []).filter((t) => ['queued', 'running'].includes(t.status));
-// A task that is converting or updating the sheet. Research, leads, outreach and demo tasks do not count:
-// they can run on a sheet that is still waiting for its confirm.
-const pjPreparing = (p) => pjActive(p).some((t) => !PJ_ACTIONS.some(([a]) => a === t.action));
+// A task that is converting or updating the sheet: the server's tasks[].action is 'convert' or 'update'.
+// Work tasks (research, leads, outreach, demo) and 'other' (a person's own task that names the project)
+// do not count: they must never hide the confirm button.
+const pjPreparing = (p) => pjActive(p).some((t) => t.action === 'convert' || t.action === 'update');
 const pjPath = (dir, f) => (String(f).includes('/') ? String(f) : `${dir}/${f}`);
 const pjDate = (v) => {
   if (!v) return 'not dated';
@@ -228,6 +258,28 @@ const pjDate = (v) => {
   if (Number.isNaN(t)) return String(v);
   return new Date(t).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', ...(/^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? { timeZone: 'UTC' } : {}) });
 };
+// Files shown on a card. The server sends inbox and history as [{file}], with repo-relative paths.
+// The newest form is the highest version in its name (a repeat of one version ends -2, -3 ...). The server lists
+// newest first today, but this does not rely on the order: it takes the highest version, and for a tie the last item.
+const pjFormKey = (f) => {
+  const m = String(f).match(/(\d{4}-\d{2}-\d{2})-v(\d+(?:\.\d+){0,2})(?:-(\d+))?\.md$/);
+  return m ? { date: m[1], parts: m[2].split('.').map(Number), n: Number(m[3] || 1), v: m[2] } : null;
+};
+const pjNewer = (a, b) => {
+  for (let i = 0; i < 3; i++) if ((a.parts[i] || 0) !== (b.parts[i] || 0)) return (a.parts[i] || 0) > (b.parts[i] || 0);
+  return a.n >= b.n;
+};
+const pjLatestForm = (p) => {
+  let best = null;
+  for (const x of p.inbox || []) {
+    const file = x?.file || x;
+    if (!file) continue;
+    const key = pjFormKey(file);
+    if (!best || !key || !best.key || pjNewer(key, best.key)) best = { file: String(file), key };
+  }
+  return best;
+};
+const pjFileLink = (file, label) => `<a class="open" href="#" data-file="${esc(file)}" title="${esc(file)}">${esc(label)}</a>`;
 // The slug a form declares, if it declares one, so a card's "Upload new version" can refuse another project's form.
 const pjFormSlug = (text) => text.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1].match(/^slug:[ \t]*["']?([^"'\r\n#]+?)["']?[ \t]*$/m)?.[1]?.trim() || '';
 
@@ -249,7 +301,7 @@ const projects = {
     <section class="projects card" id="projects" aria-labelledby="pj-title">
       <div class="pj-head">
         <div>
-          <h2 id="pj-title">Projects</h2>
+          <h2 id="pj-title" tabindex="-1">Projects</h2>
           <p class="muted tiny">Upload a person-written <code>knowledge.md</code>. The team turns it into a fact sheet, and nothing is customer-ready until a person confirms it here.</p>
         </div>
         <div class="pj-up">
@@ -434,11 +486,13 @@ const projects = {
     else chips.push(['', p.status || 'Unknown']);
     if (update) chips.push(['warn', `Update v${update.version} waiting`]);
     else if (preparing && p.status === 'confirmed') chips.push(['info', 'Update being prepared']);
-    const hist = (p.history || []).length;
+    const history = (p.history || []).map((h) => h?.file || h).filter(Boolean);
+    const hist = history.length;
+    const form = pjLatestForm(p);
     const tasks = pjActive(p).slice(0, 2);
     const web = /^https?:\/\//i.test(p.website || '') ? `<a href="${esc(p.website)}" target="_blank" rel="noopener noreferrer">${esc(p.website.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/$/, ''))}</a>` : '<span class="muted">no website</span>';
     const sel = projects.sel.has(p.slug);
-    return `<article class="pj-card${sel ? ' on' : ''}" data-slug="${esc(p.slug)}">
+    return `<article class="pj-card${sel ? ' on' : ''}" data-slug="${esc(p.slug)}" data-fk="card:${esc(p.slug)}" tabindex="-1" aria-label="${esc(pjName(p))}">
       <div class="pj-top">
         <label class="pj-pick"><input type="checkbox" class="pj-sel" data-pick="${esc(p.slug)}" data-fk="pick:${esc(p.slug)}" ${sel ? 'checked' : ''}><span class="sr">Tick </span><b>${esc(pjName(p))}</b></label>
         <code>${esc(p.slug)}</code>
@@ -447,7 +501,8 @@ const projects = {
       <dl class="pj-meta">
         <div><dt>Version</dt><dd>${p.version ? `v${esc(p.version)}` : 'no form yet'}</dd></div>
         <div><dt>Updated</dt><dd>${esc(pjDate(p.lastUpdated))}</dd></div>
-        <div><dt>History</dt><dd>${hist} earlier ${hist === 1 ? 'version' : 'versions'}</dd></div>
+        <div><dt>Latest form</dt><dd>${form ? pjFileLink(form.file, form.key ? `v${form.key.v}, ${form.key.date}` : form.file.split('/').pop()) : '<span class="muted">none</span>'}</dd></div>
+        <div><dt>History</dt><dd>${hist} earlier ${hist === 1 ? 'version' : 'versions'}${hist ? `<ul class="pj-hist">${history.map((h) => `<li>${pjFileLink(h, h.split('/').pop().replace(/\.md$/, ''))}</li>`).join('')}</ul>` : ''}</dd></div>
         <div><dt>Website</dt><dd>${web}</dd></div>
       </dl>
       ${tasks.length ? `<ul class="pj-tasks">${tasks.map((t) => `<li><code>${esc(t.id)}</code> ${esc(t.action || 'prepare')} ${esc(TASK_STATUS[t.status] || t.status).toLowerCase()}</li>`).join('')}</ul>` : ''}
@@ -554,7 +609,10 @@ const projects = {
       try {
         const r = await api(`/api/projects/${encodeURIComponent(slug)}/confirm`, { kind, by: name.value.trim(), phrase: typed.value.trim() });
         toast(r.message || `${pjName(p)} confirmed.`);
-        projects.closeModal();
+        // The opener button disappears when the card re-renders as "Ready", so focus goes to the card itself
+        // (its data-fk is kept across re-renders by paint()), or to the panel heading if the card is gone.
+        projects.closeModal(false);
+        ($(`#pj-cards [data-fk="${CSS.escape(`card:${slug}`)}"]`) || $('#pj-title'))?.focus();
       } catch (error) {
         $('#pj-m-err', el).textContent = error.message;
         check();
