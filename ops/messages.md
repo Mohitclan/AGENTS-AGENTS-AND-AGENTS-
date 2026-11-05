@@ -175,3 +175,5 @@ Every time one agent started another. Written by `scripts/team-hooks.mjs`.
 | 2026-11-04 15:10 | coordinator | developer | T-20261104-19 | Projects pre-merge fixes |
 | 2026-11-04 15:43 | coordinator | developer | T-20261104-19 | Projects version and list tidy-up |
 | 2026-11-04 16:01 | coordinator | evaluator | T-20261104-19 | Focused review of pre-merge fixes |
+| 2026-11-04 23:14 | coordinator | evaluator | T-20261104-19 | Focused review of pre-merge fixes |
+| 2026-11-05 09:54 | coordinator | evaluator | T-20261104-19 | Quick review of pre-merge fixes |

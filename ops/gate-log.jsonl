@@ -265,3 +265,6 @@
 {"at":"2026-11-04T10:17","file":"knowledge/templates/project-knowledge-conversion.md","type":"general","passed":true,"failures":[],"warnings":3}
 {"at":"2026-11-04T10:28","file":"outputs/dev/T-20261104-16-projects-spec.md","type":"general","passed":true,"failures":[],"warnings":0}
 {"at":"2026-11-04T10:31","file":"outputs/dev/T-20261104-19.md","type":"general","passed":true,"failures":[],"warnings":1}
+{"at":"2026-11-04T17:51","file":"outputs/dev/T-20261104-19.md","type":"general","passed":true,"failures":[],"warnings":1}
+{"at":"2026-11-04T17:51","file":"knowledge/templates/project-knowledge-conversion.md","type":"general","passed":true,"failures":[],"warnings":3}
+{"at":"2026-11-04T17:52","file":"outputs/dev/T-20261104-16-projects-spec.md","type":"general","passed":true,"failures":[],"warnings":0}

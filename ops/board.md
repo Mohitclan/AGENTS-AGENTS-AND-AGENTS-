@@ -4,7 +4,7 @@ Kept by the coordinator, newest first. Statuses: `in_progress`, `in_review`, `in
 
 | Task | Request | Agent | Status | Output | Review | Updated |
 |---|---|---|---|---|---|---|
-| T-20261104-19 | Projects follow-up before merge: hash-bound confirm + no confirm while a task runs (A), B, C, E, G, separate changes file (D) | developer | awaiting_review | branch agent/T-20261104-projects (849c2b2), outputs/dev/T-20261104-19.md | focused review T-20261104-19-r1 did not finish (session ended); re-run before merge. Pushed on the human's yes (A-20261104-01) | 2026-11-04 |
+| T-20261104-19 | Projects follow-up before merge: hash-bound confirm + no confirm while a task runs (A), B, C, E, G, separate changes file (D) | developer | passed | branch agent/T-20261104-projects (849c2b2), outputs/dev/T-20261104-19.md | PASS 94 (T-20261104-19-r1); 6 Low later items | 2026-11-05 |
 | T-20261104-18 | Code review of T-16 + T-17 (Projects feature) | evaluator | done | outputs/reviews/T-20261104-18-r1.md, -r2.md | r1 REVISE 72, r2 PASS 83; item A (confirm not tied to reviewed text) to fix before merge | 2026-11-04 |
 | T-20261104-17 | Projects panel UI in mission control: upload, cards, checkboxes, actions, typed confirm (spec outputs/dev/T-20261104-16-projects-spec.md) | developer | passed | branch agent/T-20261104-projects; scripts/control/app.js, app.css | PASS 83 (T-20261104-18-r2) | 2026-11-04 |
 | T-20261104-16 | Projects backend: upload, list, work queue, confirm with history, tests (spec outputs/dev/T-20261104-16-projects-spec.md) | developer | passed | branch agent/T-20261104-projects (merged with T-17); scripts/projects.mjs, control.mjs, kb.mjs, tests | PASS 83 (T-20261104-18-r2) | 2026-11-04 |
