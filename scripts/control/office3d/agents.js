@@ -85,6 +85,12 @@ export class Agent {
       if (act === 'planning') return this.resolve('writing', deskPlace(this.name), 'state');
       return this.resolve(act, ACTIVITIES[act].place === 'here' ? 'here' : deskPlace(this.name), 'state');
     }
+    // idle, and the speaker is playing: off to the dance floor. Work always comes first, so only idle agents dance.
+    if (this.world.party) {
+      this.ambient = null; // choose afresh when the music stops
+      const floor = this.goal?.activity === 'dance' ? this.goal.place : this.freeSpot('dance');
+      if (floor) return this.resolve('dance', floor, 'party');
+    }
     // idle: ambient, unless the person paused it
     if (!this.world.ambient || this.world.reduced) return this.resolve('desk', deskPlace(this.name), 'idle');
     // Time at a place counts from arrival, so a long walk doesn't eat the visit. A trip that never
@@ -483,6 +489,7 @@ export class Agent {
     if (a.loop === 'upset') L.upset = 1;
     if (a.loop === 'rest') L.rest = 1;
     if (a.loop === 'wait') L.wait = 1;
+    if (a.loop === 'dance') L.dance = 1;
     ch.setLayers(L);
     ch.look = this.lookPoint(a, g, now);
   }

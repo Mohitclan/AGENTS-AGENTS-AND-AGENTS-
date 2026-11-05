@@ -60,6 +60,23 @@ function ARMCHAIR_SPOTS() {
   }));
 }
 
+// The music speaker stands at the back edge of the rug; while it plays, agents with no work dance in a ring
+// in the middle of the rug: four close in, eight further out, each facing the middle.
+export const SPEAKER = { x: 2.5, z: 0.05, r: 0.36 };
+export const DANCE_FLOOR = { x: 2.5, z: 2.6 };
+function DANCE_RING() {
+  const ring = [];
+  [[1.0, 4, Math.PI / 4], [1.85, 8, Math.PI / 8]].forEach(([r, n, turn]) => {
+    for (let i = 0; i < n; i++) {
+      const a = turn + (i * Math.PI * 2) / n;
+      const x = DANCE_FLOOR.x + Math.sin(a) * r;
+      const z = DANCE_FLOOR.z + Math.cos(a) * r;
+      ring.push({ id: `dance-${ring.length + 1}`, kind: 'dance', x, z, yaw: yawTo(DANCE_FLOOR.x - x, DANCE_FLOOR.z - z) });
+    }
+  });
+  return ring;
+}
+
 // Places agents go to that are not their own desk. `kind` says which activity uses the spot;
 // `cap` is 1 for every spot, so two agents never stand in the same place.
 export const SPOTS = [
@@ -86,6 +103,8 @@ export const SPOTS = [
   // the central shared area on the rug, for a quick word standing up
   { id: 'huddle-1', kind: 'huddle', x: 1.9, z: 2.2, yaw: yawTo(0.9, 0.5) },
   { id: 'huddle-2', kind: 'huddle', x: 3.0, z: 2.7, yaw: yawTo(-0.9, -0.5) },
+  // the dance floor: a ring round the middle of the rug, facing in, used while the speaker plays music
+  ...DANCE_RING(),
   // the task display on the back wall, where the coordinator plans and briefs
   { id: 'board', kind: 'board', x: 2.6, z: -6.5, yaw: Math.PI },
   { id: 'brief', kind: 'brief', x: 3.7, z: -6.2, yaw: Math.PI - 0.35 },
@@ -138,7 +157,7 @@ export function obstacles() {
   for (const b of BENCHES) boxes.push({ x: b.x, z: b.z, w: b.w, d: b.d });
   for (const d of DESKS) boxes.push({ x: d.seat.x, z: d.seat.z, w: 0.6, d: 0.6, chair: d.agent });
   boxes.push(COUNTER, SOFA, LOUNGE_TABLE, ...BOOKSHELVES, ...ARMCHAIRS.map((c) => ({ x: c.x, z: c.z, w: 0.8, d: 0.8, chair: 'armchair' })));
-  circles.push(MEETING_TABLE, TRAY, ...PLANTS);
+  circles.push(MEETING_TABLE, TRAY, SPEAKER, ...PLANTS);
   return { boxes, circles };
 }
 

@@ -8,7 +8,7 @@
 import * as THREE from '/vendor/three/build/three.module.js';
 import { RoomEnvironment } from '/vendor/three/examples/jsm/environments/RoomEnvironment.js';
 import { mergeGeometries } from '/vendor/three/examples/jsm/utils/BufferGeometryUtils.js';
-import { ARMCHAIRS, BENCH_BOXES, BOOKSHELVES, COUNTER, DESKS, DISPLAY, LOUNGE_TABLE, MEETING_TABLE, PLANTS, ROOM, RUG, SOFA, SPOTS, TRAY, WINDOWS } from './layout.js';
+import { ARMCHAIRS, BENCH_BOXES, SPEAKER, BOOKSHELVES, COUNTER, DESKS, DISPLAY, LOUNGE_TABLE, MEETING_TABLE, PLANTS, ROOM, RUG, SOFA, SPOTS, TRAY, WINDOWS } from './layout.js';
 import { BRAND, drawLogo } from '../gems/logo.js';
 import { makeMug } from './characters.js';
 
@@ -533,6 +533,60 @@ export function buildOffice({ seatHeight = 0.45, sitBack = 0.2, deskRise = 0.21,
   logoMesh.rotation.y = Math.PI / 2;
   scene.add(logoMesh);
 
+  // ---- the music speaker at the back of the rug: click it to play songs ----
+  const speaker = new THREE.Group();
+  speaker.userData.dynamic = true; // it pulses with the music, so it is not merged with the static room
+  speaker.position.set(SPEAKER.x, 0, SPEAKER.z);
+  const cabinetMat = new THREE.MeshStandardMaterial({ color: 0x1f1e23, roughness: 0.55, metalness: 0.15 });
+  const grilleMat = new THREE.MeshStandardMaterial({ color: 0x2c2b31, roughness: 0.95 });
+  const coneMat = new THREE.MeshStandardMaterial({ color: 0x3a3940, roughness: 0.6, metalness: 0.2 });
+  const ringMat = new THREE.MeshStandardMaterial({ color: 0xffe7c4, emissive: 0xffe7c4, emissiveIntensity: 0.25 });
+  const cabinet = new THREE.Mesh(new THREE.BoxGeometry(0.62, 1.12, 0.48), cabinetMat);
+  cabinet.position.y = 0.6;
+  const plinthTop = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.06, 0.54), M.metal);
+  plinthTop.position.y = 0.03;
+  const grille = new THREE.Mesh(new THREE.BoxGeometry(0.54, 1.0, 0.02), grilleMat);
+  grille.position.set(0, 0.62, 0.245);
+  speaker.add(cabinet, plinthTop, grille);
+  const cones = [];
+  for (const [y, r] of [[0.92, 0.1], [0.44, 0.19]]) {
+    const cone = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 0.72, 0.05, 28), coneMat);
+    cone.rotation.x = Math.PI / 2;
+    cone.position.set(0, y, 0.27);
+    const cap = new THREE.Mesh(new THREE.SphereGeometry(r * 0.28, 16, 10), M.black);
+    cap.position.set(0, y, 0.29);
+    speaker.add(cone, cap);
+    cones.push(cone, cap);
+  }
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.012, 8, 40), ringMat);
+  ring.position.set(0, 0.44, 0.275);
+  speaker.add(ring);
+  // a little music note above it, so it reads as something to click
+  const note = canvasTexture(128, 128, (ctx, w, h) => {
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#f4f2ef';
+    ctx.font = '700 96px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('♪', w / 2, h / 2 + 4);
+  });
+  const noteSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: note.tex, transparent: true, depthWrite: false }));
+  noteSprite.scale.set(0.34, 0.34, 0.34);
+  noteSprite.position.set(0, 1.42, 0);
+  speaker.add(noteSprite);
+  speaker.traverse((o) => {
+    if (o.isMesh) {
+      o.castShadow = true;
+      o.receiveShadow = true;
+      o.userData.speaker = true;
+    }
+  });
+  speaker.rotation.y = 0; // faces the dance floor (+z)
+  scene.add(speaker);
+  const speakerLight = new THREE.PointLight(0xffd9a8, 0, 5, 2); // warm glow over the dance floor while it plays
+  speakerLight.position.set(SPEAKER.x, 2.0, SPEAKER.z + 2.2);
+  scene.add(speakerLight);
+
   bakeStatic(scene);
 
   return {
@@ -550,6 +604,19 @@ export function buildOffice({ seatHeight = 0.45, sitBack = 0.2, deskRise = 0.21,
         drawTag(n);
       },
       center: new THREE.Vector3(TRAY.x, 1.05, TRAY.z),
+    },
+    speaker: {
+      root: speaker,
+      meshes: speaker.children.filter((o) => o.isMesh),
+      // t: seconds on the office clock; playing: whether a song is on. The cones thump at about 112 beats a minute.
+      pulse(t, playing) {
+        const k = playing ? Math.pow(Math.max(0, Math.sin(t * 5.85)), 6) : 0;
+        for (const c of cones) c.scale.setScalar(1 + 0.14 * k);
+        ringMat.emissiveIntensity = playing ? 0.6 + 1.6 * k : 0.25;
+        speakerLight.intensity = playing ? 2.2 + 2.5 * k : 0;
+        noteSprite.position.y = 1.42 + (playing ? 0.06 * Math.sin(t * 2.9) : 0);
+        noteSprite.material.opacity = playing ? 1 : 0.75;
+      },
     },
     sky,
     redrawSky() {

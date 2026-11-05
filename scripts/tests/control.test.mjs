@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { get } from 'node:http';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { after, describe, it } from 'node:test';
 import { agentDetail, avatarStatus, loadRoster, ownerOf, parseRun, readFile, snapshot } from '../control.mjs';
 import { hashPassword } from '../dashboard.mjs';
@@ -207,6 +207,57 @@ describe('control: the server', () => {
       for (const path of ['/vendor/three/../../../.env', '/vendor/three/LICENSE', '/assets/../control.mjs', '/vendor/three/examples/jsm/../../package.json', '/assets/people/LICENSE.txt', '/assets/people/../../app.js.map']) assert.notEqual(await raw(path), 200, path);
     } finally {
       child.kill();
+    }
+  });
+
+  it('plays songs from the music folder for the office speaker, with seeking, and nothing outside it', async () => {
+    rmSync(repo.path('music'), { recursive: true, force: true });
+    mkdirSync(repo.path('music'), { recursive: true });
+    const song = Buffer.from(Array.from({ length: 1000 }, (_, i) => i % 256));
+    writeFileSync(repo.path('music', '02 - Badtameez_Dil.mp3'), song);
+    writeFileSync(repo.path('music', '10 Kesariya.m4a'), song);
+    writeFileSync(repo.path('music', 'notes.txt'), 'not a song');
+    writeFileSync(repo.path('music', '.hidden.mp3'), song);
+    const { child, base } = await start({ TEAM_PAGE_HOST: '', TEAM_PAGE_PASSWORD_HASH: '' });
+    try {
+      const { songs } = await (await fetch(`${base}/api/music`)).json();
+      assert.deepEqual(songs, [{ file: '02 - Badtameez_Dil.mp3', title: 'Badtameez Dil' }, { file: '10 Kesariya.m4a', title: 'Kesariya' }]);
+      assert.match((await fetch(`${base}/`)).headers.get('content-security-policy'), /media-src 'self'/);
+      const url = `${base}/music/${encodeURIComponent(songs[0].file)}`;
+      const whole = await fetch(url);
+      assert.equal(whole.status, 200);
+      assert.equal(whole.headers.get('content-type'), 'audio/mpeg');
+      assert.equal(whole.headers.get('accept-ranges'), 'bytes');
+      assert.deepEqual(Buffer.from(await whole.arrayBuffer()), song);
+      const part = await fetch(url, { headers: { Range: 'bytes=100-199' } });
+      assert.equal(part.status, 206);
+      assert.equal(part.headers.get('content-range'), 'bytes 100-199/1000');
+      assert.deepEqual(Buffer.from(await part.arrayBuffer()), song.subarray(100, 200));
+      const tail = await fetch(url, { headers: { Range: 'bytes=-50' } });
+      assert.deepEqual(Buffer.from(await tail.arrayBuffer()), song.subarray(950));
+      assert.equal((await fetch(url, { headers: { Range: 'bytes=5000-' } })).status, 416);
+      assert.equal((await fetch(`${base}/music/notes.txt`)).status, 404);
+      assert.equal((await fetch(`${base}/music/.hidden.mp3`)).status, 404);
+      assert.equal((await fetch(`${base}/music/${encodeURIComponent('../package.json')}`)).status, 404);
+      assert.equal((await fetch(`${base}/music/%E0%A4%A`)).status, 400);
+    } finally {
+      child.kill();
+      rmSync(repo.path('music'), { recursive: true, force: true });
+    }
+  });
+
+  it('keeps the songs behind the sign-in', async () => {
+    mkdirSync(repo.path('music'), { recursive: true });
+    writeFileSync(repo.path('music', 'a.mp3'), 'x');
+    const { child, base } = await start({ TEAM_PAGE_HOST: '', TEAM_PAGE_PASSWORD_HASH: hashPassword('correct horse battery') });
+    try {
+      assert.equal((await fetch(`${base}/api/music`)).status, 401);
+      const song = await fetch(`${base}/music/a.mp3`); // the sign-in page, never the song
+      assert.match(song.headers.get('content-type'), /text\/html/);
+      assert.match(await song.text(), /Sign in/);
+    } finally {
+      child.kill();
+      rmSync(repo.path('music'), { recursive: true, force: true });
     }
   });
 });

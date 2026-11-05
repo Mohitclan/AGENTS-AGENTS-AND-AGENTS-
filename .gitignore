@@ -6,3 +6,6 @@ pipeline/leads.lock
 !.env.example
 .DS_Store
 ops/runs/
+# the office speaker's songs: your own files, never committed
+music/*
+!music/README.md

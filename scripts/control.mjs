@@ -25,6 +25,7 @@ import { ROOT, frontmatter, isMain } from './_shared.mjs';
 import { act, collect, createAuth, parseApprovals, planUsage, renderMarkdown, sameSite } from './dashboard.mjs';
 import { faviconHref, logoSvg } from './control/gems/logo.js';
 import { askGuide, guideContext } from './guide.mjs';
+import { listSongs, sendSong } from './music.mjs';
 import { projectsApi } from './projects.mjs';
 
 const DEFAULT_PORT = 4318;
@@ -500,7 +501,7 @@ function signature(root) {
 
 // ---- the server ----------------------------------------------------------------------------------
 
-const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.glb': 'model/gltf-binary', '.png': 'image/png' };
 const STATIC_FILES = /^(app\.js|app\.css|signin\.js|(gems|office3d)\/[\w-]+\.(js|css))$/;
 // The 3D office: its character model, and the Three.js files it uses (copied in by
@@ -592,6 +593,17 @@ function main() {
         if (!signedIn) return path.startsWith('/api/') ? json(res, 401, { message: 'Sign in first.' }) : send(res, 200, SIGN_IN, 'text/html');
         if (path === '/') return send(res, 200, APP, 'text/html');
         if (path === '/api/state') return json(res, 200, state());
+        // the office speaker: the songs a person put in music/, and one of them streamed
+        if (path === '/api/music') return json(res, 200, { folder: 'music', songs: listSongs(ROOT) });
+        if (path.startsWith('/music/')) {
+          let name;
+          try {
+            name = decodeURIComponent(path.slice('/music/'.length));
+          } catch {
+            return send(res, 400, 'Bad song name.');
+          }
+          return sendSong(ROOT, name, req, res, { 'X-Content-Type-Options': 'nosniff' });
+        }
         if (path === '/api/logs') return json(res, 200, allEvents(ROOT).events.slice(0, 3000));
         const agent = /^\/api\/agents\/([\w-]+)$/.exec(path);
         if (agent) {

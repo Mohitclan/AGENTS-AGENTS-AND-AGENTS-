@@ -267,7 +267,7 @@ export class Character {
     hand.add(this.mug);
     this.base = null;
     this.gesturing = null;
-    this.layers = { type: 0, read: 0, think: 0, drink: 0, chat: 0, present: 0, upset: 0, rest: 0, wait: 0 };
+    this.layers = { type: 0, read: 0, think: 0, drink: 0, chat: 0, present: 0, upset: 0, rest: 0, wait: 0, dance: 0 };
     this.target = { ...this.layers };
     this.faceNow = { Sad: 0, Surprised: 0, Angry: 0 };
     this.faceTarget = { Sad: 0, Surprised: 0, Angry: 0 };
@@ -539,6 +539,29 @@ export class Character {
         this.rot(B.upperR, Y, P.in * w);
       }
     }
+    // Dancing: arms pumping overhead in turn, hips swaying and twisting, the head nodding to the beat and a little
+    // bounce. About 112 beats a minute, near most Bollywood dance numbers; each agent starts at its own phase.
+    if (L.dance > 0.002) {
+      const w = L.dance;
+      const beat = 11.7; // radians a second: 112 bpm
+      const half = beat / 2;
+      if (this.pose.swing) {
+        this.rot(B.upperL, X, (-2.3 - 0.55 * s(half)) * w);
+        this.rot(B.upperR, X, (-2.3 - 0.55 * s(half, Math.PI)) * w);
+        this.rot(B.upperL, Y, (0.25 + 0.3 * s(half, 0.6)) * w);
+        this.rot(B.upperR, Y, -(0.25 + 0.3 * s(half, 0.6 + Math.PI)) * w);
+      } else {
+        this.rot(B.upperL, X, (-1.9 - 0.5 * s(half)) * w);
+        this.rot(B.upperR, X, (-1.9 - 0.5 * s(half, Math.PI)) * w);
+        this.rot(B.lowerL, X, (-0.5 + 0.3 * s(beat)) * w);
+        this.rot(B.lowerR, X, (-0.5 + 0.3 * s(beat, 1)) * w);
+      }
+      this.rot(B.torso, Z, 0.14 * s(half) * w);
+      this.rot(B.torso, Y, 0.22 * s(half / 2) * w);
+      this.rot(B.head, X, 0.12 * s(beat) * w);
+    }
+    if (this.lift.t >= 1) this.model.position.y = this.lift.to + 0.06 * Math.abs(Math.sin((this.t + this.phase) * 5.85)) * L.dance;
+
     // Head toward a point of interest (the screen, the display, a colleague).
     this.lookW = approach(this.lookW, this.look ? 1 : 0, 2.5, dt);
     if (this.look) this.lastLook = this.look;

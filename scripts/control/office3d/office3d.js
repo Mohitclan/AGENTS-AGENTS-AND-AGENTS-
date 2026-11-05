@@ -8,6 +8,8 @@
 // - Preview: states you set by hand in the Preview panel, to try the behaviours. Nothing runs.
 // - Ambient: what idle agents do between tasks (coffee, window, sofa, a chat). It is never shown
 //   as work, and an animation ending never changes a task.
+// - Music: the speaker on the rug plays the person's own songs (music/ folder). While one plays,
+//   agents with no work dance around it; agents with work stay at their desks.
 
 import * as THREE from '/vendor/three/build/three.module.js';
 import { OrbitControls } from '/vendor/three/examples/jsm/controls/OrbitControls.js';
@@ -18,6 +20,7 @@ import { Agent } from './agents.js';
 import { ACTIVITIES, initialPrefs, roamNote } from './behavior.js';
 import { Character, loadRig } from './characters.js';
 import { DESKS, deskFor, SPOTS } from './layout.js';
+import { musicPlayer } from './music.js';
 import { buildGrid } from './nav.js';
 import { buildOffice } from './scene.js';
 
@@ -77,6 +80,7 @@ export async function createOffice3D(container, { roster = [], immersive = false
         <div class="o3-roam" role="status" hidden></div>
         <div class="o3-tools" role="toolbar" aria-label="Office view">
           <div class="o3-seg" data-views>${Object.entries(VIEWS).map(([k, v]) => `<button type="button" data-view="${k}">${v.label}</button>`).join('')}</div>
+          <button type="button" class="o3-btn" data-act="music" aria-pressed="false" title="Play songs on the office speaker. Agents with no work come and dance">♪ Music</button>
           <button type="button" class="o3-btn" data-act="ambient" aria-pressed="${prefs.ambient}" title="Let idle agents get coffee, rest or chat">Ambient</button>
           <button type="button" class="o3-btn" data-act="reduced" aria-pressed="${prefs.reduced}" title="Less movement: idle agents stay at their desks and the camera doesn't glide">Reduced motion</button>
           <button type="button" class="o3-btn" data-act="preview" aria-pressed="false" title="Try agent states without running anything">Preview</button>
@@ -86,6 +90,7 @@ export async function createOffice3D(container, { roster = [], immersive = false
       </div>
       <aside class="o3-panel" hidden aria-live="polite"></aside>
       <section class="o3-preview" hidden aria-label="Preview states"></section>
+      <section class="o3-music" hidden aria-label="Music"></section>
       <div class="o3-caption"></div>
       <div class="o3-loading"><div class="o3-spin"></div><p>Building the office…</p></div>
     </div>`;
@@ -139,6 +144,7 @@ export async function createOffice3D(container, { roster = [], immersive = false
     ambient: prefs.ambient,
     reduced: prefs.reduced,
     lastAmbient: -Infinity,
+    party: false, // a song is playing: idle agents dance round the speaker
     spotsOf: (kind) => SPOTS.filter((s) => s.kind === kind),
     showCounterMug: (id, on) => {
       const m = office.mugs.get(id);
@@ -418,6 +424,7 @@ export async function createOffice3D(container, { roster = [], immersive = false
   function select(name) {
     selected = name;
     if (!name) following = false;
+    if (name && !$('.o3-music').hidden) showMusic(false); // the two panels share a corner
     paintPanel();
     for (const ag of world.agents.values()) paintLabel(ag);
   }
@@ -487,6 +494,40 @@ export async function createOffice3D(container, { roster = [], immersive = false
   }
   const PREVIEW_DOING = { working: 'Preview: working on a pretend task', researching: 'Preview: reading a pretend page', waiting: 'Preview: waiting for a pretend answer', error: 'Preview: a pretend step failed', success: 'Preview: finished a pretend part', paused: 'Preview: pretend plan limit' };
 
+  // ---- the speaker ----
+  const player = musicPlayer();
+  const detachPlayer = player.attach();
+  function paintMusic() {
+    const { songs, index, playing, loaded, error } = player.state;
+    world.party = playing;
+    $('[data-act="music"]').setAttribute('aria-pressed', String(!$('.o3-music').hidden || playing));
+    const p = $('.o3-music');
+    if (p.hidden) return;
+    const now = songs[index];
+    const list = !loaded
+      ? '<p class="o3-m-note">Reading the song list…</p>'
+      : songs.length
+        ? `<ol>${songs.map((s, i) => `<li><button type="button" data-song="${i}" aria-current="${i === index}"${i === index && playing ? ' class="on"' : ''}><span>${i === index && playing ? '♪' : i + 1}</span>${esc(s.title)}</button></li>`).join('')}</ol>`
+        : '<p class="o3-m-note">No songs yet. Put your own .mp3 or .m4a files in the <b>music</b> folder of the project, then press Refresh.</p>';
+    p.innerHTML = `<header><div><b>Office speaker</b><span>${now ? `${playing ? 'Playing' : 'Paused'}: ${esc(now.title)}` : 'Pick a song'}</span></div><button type="button" data-act="music-close" aria-label="Close">✕</button></header>
+      <div class="o3-m-controls">
+        <button type="button" data-act="music-play"${songs.length ? '' : ' disabled'}>${playing ? 'Pause' : 'Play'}</button>
+        <button type="button" data-act="music-next"${songs.length > 1 ? '' : ' disabled'}>Next</button>
+        <button type="button" data-act="music-stop"${now ? '' : ' disabled'}>Stop</button>
+        <button type="button" data-act="music-refresh">Refresh</button>
+      </div>
+      ${error ? `<p class="o3-m-error" role="alert">${esc(error)}</p>` : ''}
+      ${list}
+      <p class="o3-m-note">While a song plays, agents with no work come and dance. Agents with work stay at their desks.</p>`;
+  }
+  function showMusic(on) {
+    if (on && selected) select(null);
+    $('.o3-music').hidden = !on;
+    if (on && !player.state.loaded) player.load();
+    paintMusic();
+  }
+  const offMusic = player.onChange(paintMusic);
+
   // ---- input ----
   const ray = new THREE.Raycaster();
   const ndc = new THREE.Vector2();
@@ -499,7 +540,8 @@ export async function createOffice3D(container, { roster = [], immersive = false
     const r = canvas.getBoundingClientRect();
     ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
     ray.setFromCamera(ndc, camera);
-    const hit = ray.intersectObjects(pickables, false)[0];
+    const hit = ray.intersectObjects([...pickables, ...office.speaker.meshes], false)[0];
+    if (hit?.object.userData.speaker) return showMusic(true);
     select(hit ? hit.object.userData.agent : null);
   });
   labels.addEventListener('click', (e) => {
@@ -530,6 +572,18 @@ export async function createOffice3D(container, { roster = [], immersive = false
     const act = e.target.closest('[data-act]')?.dataset.act;
     const preset = e.target.closest('[data-preset]')?.dataset.preset;
     if (act === 'close') select(null);
+    if (act === 'music') showMusic($('.o3-music').hidden);
+    if (act === 'music-close') showMusic(false);
+    if (act === 'music-play') player.toggle();
+    if (act === 'music-next') player.next();
+    if (act === 'music-stop') player.stop();
+    if (act === 'music-refresh') player.load();
+    const song = e.target.closest('[data-song]')?.dataset.song;
+    if (song !== undefined) {
+      const i = Number(song);
+      if (i === player.state.index) player.toggle();
+      else player.play(i);
+    }
     if (act === 'follow') {
       following = !following;
       paintPanel();
@@ -610,7 +664,7 @@ export async function createOffice3D(container, { roster = [], immersive = false
       return;
     }
     const anyWalking = [...world.agents.values()].some((a) => a.walking);
-    const lively = moving || tween || anyWalking || following;
+    const lively = moving || tween || anyWalking || following || world.party;
     // 60 fps while something moves, about 30 when the office is calm or motion is reduced
     const minGap = world.reduced || !lively ? 1000 / 31 : 0;
     if (now - last < minGap) return;
@@ -659,6 +713,7 @@ export async function createOffice3D(container, { roster = [], immersive = false
         camera.position.z += dz * 0.06;
       }
     } else ring.visible = false;
+    office.speaker.pulse(clock / 1000, world.party);
     controls.update();
     if (clock - screensAt > 600) {
       screensAt = clock;
@@ -679,13 +734,14 @@ export async function createOffice3D(container, { roster = [], immersive = false
   for (const name of world.agents.keys()) drawMonitor(name);
   $('.o3-loading').remove();
   paintMode();
+  paintMusic();
   goView('overview');
   raf = requestAnimationFrame(tick);
   const sky = setInterval(() => office.redrawSky(), 10 * 60_000);
 
   // for checking the office by hand in the browser console
   window.__office3d = {
-    world, camera, controls, select, goView, setPreview, renderer, scene, office,
+    world, camera, controls, select, goView, setPreview, renderer, scene, office, player, showMusic,
     // advance the office by hand, e.g. when the tab is in the background: step(600) is 10 seconds
     step(frames = 60, dt = 1 / 60) {
       for (let i = 0; i < frames; i++) frameUpdate(dt * speed);
@@ -728,6 +784,8 @@ export async function createOffice3D(container, { roster = [], immersive = false
     destroy() {
       cancelAnimationFrame(raf);
       clearInterval(sky);
+      offMusic();
+      detachPlayer();
       ro.disconnect();
       controls.dispose();
       for (const ag of world.agents.values()) ag.ch.dispose();

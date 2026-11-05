@@ -49,6 +49,8 @@ export const ACTIVITIES = {
   stroll: { place: 'stroll', pose: 'stand', loop: 'look', ambient: true, dwell: [3, 6], legs: [3, 5], cooldown: 60, label: 'Stretching their legs' },
   shelf: { place: 'shelf', pose: 'stand', loop: 'browse', ambient: true, dwell: [12, 22], cooldown: 200, label: 'Browsing the bookshelf' },
   desk: { place: 'desk', pose: 'sit', loop: 'rest', ambient: true, dwell: [15, 35], cooldown: 0, label: 'At the desk, between tasks' },
+  // while the speaker plays: agents with no work dance on the rug (never an agent that has work)
+  dance: { place: 'dance', pose: 'stand', loop: 'dance', label: 'Dancing to the music' },
   // errands from real events
   brief: { place: 'brief', pose: 'stand', loop: 'chat', label: 'Getting the brief from the Captain' },
   visit: { place: 'visit', pose: 'stand', loop: 'chat', label: 'Asking a colleague' },

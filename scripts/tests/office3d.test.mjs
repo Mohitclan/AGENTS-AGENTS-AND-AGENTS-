@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { Agent } from '../control/office3d/agents.js';
 import { ACTIVITIES, activityFor, initialPrefs, pickIdle, ROLE_WORK, stepsTo } from '../control/office3d/behavior.js';
-import { DESKS, SPOTS, standPoint } from '../control/office3d/layout.js';
+import { DANCE_FLOOR, DESKS, SPEAKER, SPOTS, standPoint } from '../control/office3d/layout.js';
+import { nextIndex } from '../control/office3d/music.js';
+import { titleOf } from '../music.mjs';
 import { blockAround, buildGrid, findPath } from '../control/office3d/nav.js';
 
 const grid = buildGrid();
@@ -209,6 +211,55 @@ describe('3D office: no work means no desk', () => {
     });
     assert.ok(awayFromDesk.size >= 6, `only ${awayFromDesk.size} idle agents went anywhere while two were working`);
     assert.ok(developerLeft, 'the developer stayed at the desk after its work ended');
+  });
+});
+
+describe('3D office: music on the speaker', () => {
+  it('has room for everyone on the dance floor, facing the speaker, with the speaker out of the way', () => {
+    const dance = SPOTS.filter((s) => s.kind === 'dance');
+    assert.ok(dance.length >= DESKS.length, `${dance.length} dance spots for ${DESKS.length} agents`);
+    for (const s of dance) {
+      assert.ok(grid.walkable(s.x, s.z), `${s.id} is not walkable`);
+      assert.ok(Math.hypot(s.x - SPEAKER.x, s.z - SPEAKER.z) > SPEAKER.r + 0.3, `${s.id} is inside the speaker`);
+      const facing = Math.atan2(DANCE_FLOOR.x - s.x, DANCE_FLOOR.z - s.z);
+      assert.ok(Math.abs(Math.atan2(Math.sin(s.yaw - facing), Math.cos(s.yaw - facing))) < 0.05, `${s.id} faces away`);
+    }
+    assert.equal(grid.walkable(SPEAKER.x, SPEAKER.z), false);
+  });
+
+  it('brings every agent with no work to dance while a song plays, keeps the ones working at their desks, and lets them go when it stops', async () => {
+    const world = office();
+    const working = { developer: 'working', researcher: 'researching' };
+    const danced = new Set();
+    let afterMusic = 0;
+    await run(world, 200, (t) => {
+      world.party = t > 20 && t < 140;
+      return working;
+    }, (w, clock) => {
+      const t = clock / 1000;
+      const owners = new Map();
+      for (const a of w.agents.values()) {
+        if (working[a.name]) assert.notEqual(a.goal?.activity, 'dance', `${a.name} danced instead of working`);
+        if (t > 21 && t < 140 && !working[a.name]) assert.equal(a.goal?.activity, 'dance', `${a.name} is not dancing at ${t.toFixed(1)} s`);
+        if (a.goal?.activity === 'dance' && a.phase?.kind === 'loop') {
+          danced.add(a.name);
+          assert.ok(!owners.has(a.goal.spotId), `${a.name} and ${owners.get(a.goal.spotId)} share ${a.goal.spotId}`);
+          owners.set(a.goal.spotId, a.name);
+          assert.equal(a.ch.layers?.dance, 1, `${a.name} stands still on the dance floor`);
+        }
+        if (t > 141 && a.goal?.activity === 'dance') afterMusic++;
+      }
+    });
+    assert.equal(danced.size, DESKS.length - 2, `only ${[...danced].join(', ')} reached the dance floor`);
+    assert.equal(afterMusic, 0, 'agents kept dancing after the music stopped');
+    assert.equal(world.agents.get('developer').goal.key, 'coding@desk:developer');
+  });
+
+  it('names songs from their files, and plays the list round in order', () => {
+    assert.equal(titleOf('01 - Badtameez_Dil.mp3'), 'Badtameez Dil');
+    assert.equal(titleOf('Kal Ho Naa Ho.m4a'), 'Kal Ho Naa Ho');
+    assert.equal(titleOf('7) London   Thumakda.ogg'), 'London Thumakda');
+    assert.deepEqual([nextIndex(-1, 3), nextIndex(0, 3), nextIndex(2, 3), nextIndex(0, 0)], [0, 1, 0, -1]);
   });
 });
 
