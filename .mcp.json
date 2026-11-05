@@ -15,6 +15,26 @@
         "clientId": "1601185624273.8899143856786",
         "callbackPort": 3118
       }
+    },
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@0.0.83",
+        "--headless",
+        "--browser",
+        "chrome",
+        "--isolated",
+        "--image-responses",
+        "omit",
+        "--block-service-workers",
+        "--timeout-navigation",
+        "30000",
+        "--output-dir",
+        "/tmp/panscience-browser",
+        "--blocked-origins",
+        "https://www.linkedin.com;https://linkedin.com;https://x.com;https://twitter.com;https://mobile.twitter.com;https://www.reddit.com;https://old.reddit.com;https://reddit.com;https://peerlist.io;https://www.indiehackers.com;https://indiehackers.com;https://wellfound.com;https://www.facebook.com;https://www.instagram.com;https://accounts.google.com"
+      ]
     }
   }
 }

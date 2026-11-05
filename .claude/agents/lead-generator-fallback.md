@@ -1,7 +1,7 @@
 ---
 name: lead-generator-fallback
 description: Fallback for lead-generator. The coordinator runs it only after lead-generator has failed to return a valid RESULT block three times on a task. Same job, done step by step on a different model.
-tools: Read, Write, Glob, Grep, Bash, WebSearch, WebFetch, mcp__hubspot__get_user_details, mcp__hubspot__get_organization_details, mcp__hubspot__discover_hubspot_schema, mcp__hubspot__search_crm_objects, mcp__hubspot__get_crm_objects, mcp__hubspot__query_crm_data, mcp__hubspot__search_properties, mcp__hubspot__get_properties, mcp__hubspot__search_owners, mcp__hubspot__tool_guidance
+tools: Read, Write, Glob, Grep, Bash, WebSearch, WebFetch, mcp__hubspot__get_user_details, mcp__hubspot__get_organization_details, mcp__hubspot__discover_hubspot_schema, mcp__hubspot__search_crm_objects, mcp__hubspot__get_crm_objects, mcp__hubspot__query_crm_data, mcp__hubspot__search_properties, mcp__hubspot__get_properties, mcp__hubspot__search_owners, mcp__hubspot__tool_guidance, mcp__playwright__browser_navigate, mcp__playwright__browser_snapshot, mcp__playwright__browser_find, mcp__playwright__browser_navigate_back, mcp__playwright__browser_wait_for, mcp__playwright__browser_press_key, mcp__playwright__browser_click, mcp__playwright__browser_tabs, mcp__playwright__browser_close
 model: opus
 color: green
 skills:
@@ -11,6 +11,7 @@ skills:
   - self-review
   - lead-sources
   - buyer-intent-search
+  - browser-research
 fallback_for: lead-generator
 ---
 

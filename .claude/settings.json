@@ -1,11 +1,14 @@
 {
   "agent": "coordinator",
-  "fallbackModel": ["sonnet", "haiku"],
+  "fallbackModel": [
+    "sonnet",
+    "haiku"
+  ],
   "env": {
     "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH": "2"
   },
   "permissions": {
-        "allow": [
+    "allow": [
       "WebSearch",
       "WebFetch",
       "Bash(node scripts/*)",
@@ -22,7 +25,16 @@
       "Bash(npm run test*)",
       "Bash(npm run lint*)",
       "Bash(npm run typecheck*)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_snapshot",
+      "mcp__playwright__browser_find",
+      "mcp__playwright__browser_navigate_back",
+      "mcp__playwright__browser_wait_for",
+      "mcp__playwright__browser_press_key",
+      "mcp__playwright__browser_click",
+      "mcp__playwright__browser_tabs",
+      "mcp__playwright__browser_close"
     ],
     "ask": [
       "Bash(node scripts/kb.mjs confirm *)",
@@ -39,7 +51,17 @@
       "Read(**/.env.staging)",
       "Read(**/.env.test)",
       "Bash(git push --force *)",
-      "Bash(git push -f *)"
+      "Bash(git push -f *)",
+      "mcp__playwright__browser_type",
+      "mcp__playwright__browser_fill_form",
+      "mcp__playwright__browser_file_upload",
+      "mcp__playwright__browser_run_code_unsafe",
+      "mcp__playwright__browser_evaluate",
+      "mcp__playwright__browser_drag",
+      "mcp__playwright__browser_drop",
+      "mcp__playwright__browser_select_option",
+      "mcp__playwright__browser_handle_dialog",
+      "mcp__playwright__browser_take_screenshot"
     ]
   },
   "hooks": {
@@ -95,5 +117,8 @@
         ]
       }
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "playwright"
+  ]
 }

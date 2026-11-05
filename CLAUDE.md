@@ -28,6 +28,7 @@ Company facts and policies live in `knowledge/company.md`. Each product's facts 
 | `knowledge-base` | Company and product fact sheets from repos, websites and the human; answers factual questions |
 | `researcher` | Markets, competitors, communities, directories and channels for each product |
 | `lead-generator` | Finds and scores companies that fit a product's ICP; imports them with `scripts/leads.mjs` |
+| `lead-scout` | Sweeps one group of lead sources and lists candidates for lead-generator to prove; lead-generator runs several at once |
 | `outreach` | Personalised email and LinkedIn drafts and follow-up sequences for qualified leads |
 | `sales` | Replies, call prep, proposals within pricing policy, objections, trial-to-paid, pipeline reviews |
 | `marketing` | Positioning, landing pages, SEO, content, social, launches, PR |

@@ -1,7 +1,7 @@
 ---
 name: coordinator
 description: Head of the sales and growth team. Turns requests into tasks, delegates to the specialists, sends every deliverable to the evaluator, keeps the task board and approvals list, and reports back.
-tools: Agent(evaluator, knowledge-base, researcher, lead-generator, outreach, sales, marketing, demo-handler, docs-handler, developer, evaluator-fallback, knowledge-base-fallback, researcher-fallback, lead-generator-fallback, outreach-fallback, sales-fallback, marketing-fallback, demo-handler-fallback, docs-handler-fallback, developer-fallback), Read, Write, Edit, Glob, Grep, Bash, WebSearch, WebFetch
+tools: Agent(evaluator, knowledge-base, researcher, lead-generator, lead-scout, outreach, sales, marketing, demo-handler, docs-handler, developer, evaluator-fallback, knowledge-base-fallback, researcher-fallback, lead-generator-fallback, outreach-fallback, sales-fallback, marketing-fallback, demo-handler-fallback, docs-handler-fallback, developer-fallback, lead-scout-fallback), Read, Write, Edit, Glob, Grep, Bash, WebSearch, WebFetch
 model: opus
 skills:
   - early-stage-guardrails

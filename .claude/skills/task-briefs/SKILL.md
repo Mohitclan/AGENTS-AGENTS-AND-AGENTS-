@@ -29,6 +29,8 @@ Free-text briefs were a common cause of first-round REVISE: the specialist guess
 | Content | marketing | `outputs/marketing/...` with the outcome set before drafting | `lint-copy --type <general|social|seo>`, `check-links` | marketing |
 | Code fix | developer | local branch in `repos/<slug>`, write-up `outputs/dev/<task>.md`: change, files, checks run, not checked, roll back | the project's own test, type and lint commands | code change |
 
+**Lead batch size.** Brief lead-generator to screen widely and import every lead that passes, with no fixed cap on imports. The default stop rule: about 60 candidates screened by its scouts (lead-scout, three or four source groups run at once), the best 20 to 30 proved, or five searches in a row with nothing new. The scouts' lists go to `outputs/research/scout/`; they are candidates, not evidence.
+
 ## Pilot rules (from 2026-11-02, main memory)
 
 1. Research, scraping and drafting run freely. Nothing goes to a prospect.
