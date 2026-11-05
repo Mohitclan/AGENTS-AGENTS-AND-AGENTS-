@@ -1,7 +1,7 @@
 // The office itself, built from the floor plan in layout.js: floor, walls with a city outside the
 // windows, the two workbenches with ergonomic chairs and monitors, the coffee station, the
-// standing meeting table, the lounge, bookshelves, plants, pendant lamps, violet light strips,
-// the task display and the "Needs you" tray. Everything is simple geometry with physically based
+// standing meeting table, the lounge, bookshelves, plants, warm light strips, the dark base it
+// stands on, the task display and the "Needs you" tray. Everything is simple geometry with physically based
 // materials and canvas textures, so it loads instantly and needs no downloaded scene file. There
 // are no people in it: the agents are added separately (characters.js).
 
@@ -12,7 +12,8 @@ import { ARMCHAIRS, BENCH_BOXES, BOOKSHELVES, COUNTER, DESKS, DISPLAY, LOUNGE_TA
 import { BRAND, drawLogo } from '../gems/logo.js';
 import { makeMug } from './characters.js';
 
-const VIOLET = 0x8b6cff;
+const VIOLET = 0x8b6cff; // a small accent only (the task display's glow)
+const WARM_LED = 0xffe7c4;
 
 function canvasTexture(w, h, draw, { repeat = null, srgb = true } = {}) {
   const c = document.createElement('canvas');
@@ -48,23 +49,23 @@ function plankFloor(ctx, w, h) {
     let x = -rand() * 200;
     while (x < w) {
       const len = 180 + rand() * 220;
-      const tone = 150 + Math.floor(rand() * 26);
-      ctx.fillStyle = `rgb(${tone + 38},${tone + 4},${tone - 40})`;
+      const tone = 150 + Math.floor(rand() * 16);
+      ctx.fillStyle = `rgb(${tone + 42},${tone + 14},${tone - 28})`;
       ctx.fillRect(x, r * rh, len, rh);
       for (let g = 0; g < 7; g++) {
-        ctx.strokeStyle = `rgba(90,55,25,${0.05 + rand() * 0.07})`;
+        ctx.strokeStyle = `rgba(110,75,40,${0.03 + rand() * 0.04})`;
         ctx.beginPath();
         const y = r * rh + rand() * rh;
         ctx.moveTo(x, y);
         ctx.bezierCurveTo(x + len * 0.3, y + (rand() - 0.5) * 6, x + len * 0.7, y + (rand() - 0.5) * 6, x + len, y);
         ctx.stroke();
       }
-      ctx.fillStyle = 'rgba(60,35,15,.35)';
-      ctx.fillRect(x, r * rh, 2, rh);
+      ctx.fillStyle = 'rgba(70,45,20,.18)';
+      ctx.fillRect(x, r * rh, 1.5, rh);
       x += len;
     }
-    ctx.fillStyle = 'rgba(60,35,15,.3)';
-    ctx.fillRect(0, r * rh, w, 2);
+    ctx.fillStyle = 'rgba(70,45,20,.16)';
+    ctx.fillRect(0, r * rh, w, 1.5);
   }
 }
 
@@ -117,17 +118,6 @@ export function drawSkyline(ctx, w, h, hour = new Date().getHours()) {
   }
 }
 
-function lamp(color = 0xfff1d6) {
-  const g = new THREE.Group();
-  const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.9, 6), new THREE.MeshStandardMaterial({ color: 0x222222 }));
-  cord.position.y = 0.45;
-  const shade = new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.24, 24, 1, true), new THREE.MeshStandardMaterial({ color: 0x2d2840, metalness: 0.6, roughness: 0.35, side: THREE.DoubleSide }));
-  const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 8), new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 2.2 }));
-  bulb.position.y = -0.08;
-  g.add(cord, shade, bulb);
-  return g;
-}
-
 // Everything that never moves is merged into one mesh per material and shadow setting: the same
 // picture with a few dozen draw calls instead of well over a thousand.
 function bakeStatic(scene) {
@@ -160,7 +150,8 @@ function bakeStatic(scene) {
 
 export function buildOffice({ seatHeight = 0.45, sitBack = 0.2, deskRise = 0.21, renderer }) {
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x15122a);
+  scene.background = new THREE.Color(0x111114);
+  scene.fog = new THREE.Fog(0x111114, 30, 62); // the backdrop grid fades into the dark
   const pmrem = new THREE.PMREMGenerator(renderer);
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
   scene.environmentIntensity = 0.45;
@@ -172,15 +163,18 @@ export function buildOffice({ seatHeight = 0.45, sitBack = 0.2, deskRise = 0.21,
     darkWood: new THREE.MeshStandardMaterial({ color: 0x7a5236, roughness: 0.6 }),
     metal: new THREE.MeshStandardMaterial({ color: 0xc7cad6, metalness: 0.85, roughness: 0.28 }),
     black: new THREE.MeshStandardMaterial({ color: 0x1d1b26, metalness: 0.3, roughness: 0.45 }),
-    fabric: new THREE.MeshStandardMaterial({ color: 0x3a3352, roughness: 0.92 }),
-    sofa: new THREE.MeshStandardMaterial({ color: 0x7a68a8, roughness: 0.95 }),
-    cushion: new THREE.MeshStandardMaterial({ color: 0xb7a6e3, roughness: 0.95 }),
-    wall: new THREE.MeshStandardMaterial({ color: 0xf1edf7, roughness: 0.9 }),
-    accent: new THREE.MeshStandardMaterial({ color: 0xd9cff3, roughness: 0.85 }),
+    fabric: new THREE.MeshStandardMaterial({ color: 0x2e2d33, roughness: 0.92 }),
+    sofa: new THREE.MeshStandardMaterial({ color: 0x45434b, roughness: 0.95 }),
+    cushion: new THREE.MeshStandardMaterial({ color: 0xe6e0d4, roughness: 0.95 }),
+    wall: new THREE.MeshStandardMaterial({ color: 0xf4f2ef, roughness: 0.9 }),
+    accent: new THREE.MeshStandardMaterial({ color: 0xe4dfd6, roughness: 0.85 }),
+    cap: new THREE.MeshStandardMaterial({ color: 0x2a292e, roughness: 0.7 }),
+    plinth: new THREE.MeshStandardMaterial({ color: 0x1f1e23, roughness: 0.8 }),
     white: new THREE.MeshStandardMaterial({ color: 0xf8f7fb, roughness: 0.4 }),
     glass: new THREE.MeshStandardMaterial({ color: 0xdfe8ff, transparent: true, opacity: 0.18, roughness: 0.05, metalness: 0.1 }),
     tableGlass: new THREE.MeshStandardMaterial({ color: 0xe8e4ff, transparent: true, opacity: 0.55, roughness: 0.08, metalness: 0.2 }),
-    led: new THREE.MeshStandardMaterial({ color: VIOLET, emissive: VIOLET, emissiveIntensity: 2.4 }),
+    led: new THREE.MeshStandardMaterial({ color: WARM_LED, emissive: WARM_LED, emissiveIntensity: 1.3 }),
+    accentLed: new THREE.MeshStandardMaterial({ color: VIOLET, emissive: VIOLET, emissiveIntensity: 2.2 }),
     pot: new THREE.MeshStandardMaterial({ color: 0xf2efe9, roughness: 0.6 }),
     leaf: new THREE.MeshStandardMaterial({ color: 0x4f9a5e, roughness: 0.75, flatShading: true }),
     leaf2: new THREE.MeshStandardMaterial({ color: 0x3f7f4f, roughness: 0.75, flatShading: true }),
@@ -203,7 +197,7 @@ export function buildOffice({ seatHeight = 0.45, sitBack = 0.2, deskRise = 0.21,
   };
 
   // ---- lights ----
-  scene.add(new THREE.HemisphereLight(0xe9e0ff, 0x5a4636, 0.38));
+  scene.add(new THREE.HemisphereLight(0xf3eee6, 0x5a4a3a, 0.42));
   const sun = new THREE.DirectionalLight(0xffe7c7, 2.1);
   sun.position.set(-6, 14, 9);
   sun.castShadow = true;
@@ -219,9 +213,9 @@ export function buildOffice({ seatHeight = 0.45, sitBack = 0.2, deskRise = 0.21,
   sun.shadow.radius = 4;
   scene.add(sun);
   scene.add(sun.target);
-  const violetA = new THREE.PointLight(VIOLET, 9, 13, 2);
+  const violetA = new THREE.PointLight(0xdfe6ff, 6, 13, 2); // cool fill by the windows
   violetA.position.set(-6, 3.1, -7.2);
-  const violetB = new THREE.PointLight(0xb08cff, 7, 12, 2);
+  const violetB = new THREE.PointLight(0xffe6c8, 6, 12, 2); // warm, over the coffee bar
   violetB.position.set(9, 3.0, -1);
   const warm = new THREE.PointLight(0xffd7a8, 5, 9, 2);
   warm.position.set(9.4, 2.4, 3.2);
@@ -233,19 +227,27 @@ export function buildOffice({ seatHeight = 0.45, sitBack = 0.2, deskRise = 0.21,
   floor.rotation.x = -Math.PI / 2;
   floor.receiveShadow = true;
   scene.add(floor);
+  const rw = ROOM.maxX - ROOM.minX;
+  const rd = ROOM.maxZ - ROOM.minZ;
+  box(rw + 0.5, 0.4, rd + 0.5, M.plinth, (ROOM.minX + ROOM.maxX) / 2, -0.205, (ROOM.minZ + ROOM.maxZ) / 2, { cast: false });
+  box(rw + 0.5, 0.02, 0.02, M.led, (ROOM.minX + ROOM.maxX) / 2, -0.01, ROOM.maxZ + 0.25, { cast: false, receive: false });
+  const grid = new THREE.GridHelper(120, 120, 0x2c2b33, 0x1d1c22);
+  grid.position.y = -0.42;
+  scene.add(grid);
   const rugTex = canvasTexture(512, 400, (ctx, w, h) => {
-    ctx.fillStyle = '#5b4a8f';
+    ctx.fillStyle = '#d9d2c5';
     ctx.fillRect(0, 0, w, h);
-    ctx.strokeStyle = '#c9b8ff';
-    ctx.lineWidth = 8;
-    ctx.strokeRect(22, 22, w - 44, h - 44);
-    ctx.strokeStyle = 'rgba(255,255,255,.18)';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(44, 44, w - 88, h - 88);
-    for (let i = 0; i < 2200; i++) {
-      ctx.fillStyle = `rgba(255,255,255,${Math.random() * 0.05})`;
-      ctx.fillRect(Math.random() * w, Math.random() * h, 2, 2);
+    const weave = seeded(7);
+    for (let i = 0; i < 5200; i++) {
+      ctx.fillStyle = weave() < 0.5 ? `rgba(255,255,255,${weave() * 0.08})` : `rgba(60,50,40,${weave() * 0.06})`;
+      ctx.fillRect(weave() * w, weave() * h, 2, 1);
     }
+    ctx.strokeStyle = '#2a292e';
+    ctx.lineWidth = 10;
+    ctx.strokeRect(18, 18, w - 36, h - 36);
+    ctx.strokeStyle = 'rgba(42,41,46,.45)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(40, 40, w - 80, h - 80);
   });
   const rug = new THREE.Mesh(new THREE.PlaneGeometry(RUG.w, RUG.d), new THREE.MeshStandardMaterial({ map: rugTex.tex, roughness: 1 }));
   rug.rotation.x = -Math.PI / 2;
@@ -277,7 +279,10 @@ export function buildOffice({ seatHeight = 0.45, sitBack = 0.2, deskRise = 0.21,
   if (x < ROOM.maxX) box(ROOM.maxX - x, H, 0.1, M.accent, (x + ROOM.maxX) / 2, H / 2, backZ);
   box(0.1, H, ROOM.maxZ - ROOM.minZ, M.wall, ROOM.minX + 0.05, H / 2, 0);
   box(0.1, H, ROOM.maxZ - ROOM.minZ, M.wall, ROOM.maxX - 0.05, H / 2, 0);
-  // skirting and the violet light strip along the top of the walls
+  // dark caps along the top of every wall, so the cut-away edges read as finished
+  box(ROOM.maxX - ROOM.minX + 0.12, 0.06, 0.16, M.cap, 0, H + 0.03, backZ, { cast: false });
+  for (const wx of [ROOM.minX + 0.05, ROOM.maxX - 0.05]) box(0.16, 0.06, ROOM.maxZ - ROOM.minZ, M.cap, wx, H + 0.03, 0, { cast: false });
+  // the warm light strip along the top of the walls
   box(ROOM.maxX - ROOM.minX, 0.04, 0.04, M.led, 0, H - 0.08, backZ + 0.08, { cast: false });
   box(0.04, 0.04, ROOM.maxZ - ROOM.minZ, M.led, ROOM.minX + 0.12, H - 0.08, 0, { cast: false });
   box(0.04, 0.04, ROOM.maxZ - ROOM.minZ, M.led, ROOM.maxX - 0.12, H - 0.08, 0, { cast: false });
@@ -462,14 +467,7 @@ export function buildOffice({ seatHeight = 0.45, sitBack = 0.2, deskRise = 0.21,
   }
 
   // ---- pendant lamps ----
-  for (const b of BENCH_BOXES) for (const lx of [-2.4, 0, 2.4]) {
-    const l = lamp();
-    l.position.set(b.x + lx, 2.75, b.z);
-    scene.add(l);
-  }
-  const ml = lamp(0xe6dcff);
-  ml.position.set(MEETING_TABLE.x, 2.2, MEETING_TABLE.z);
-  scene.add(ml);
+  // (No pendant lamps: with no ceiling their cords hung from nothing. The bench light below gives the same glow.)
   const benchLight = new THREE.PointLight(0xffe6c4, 4, 8, 2);
   benchLight.position.set(-5.2, 2.2, -1);
   scene.add(benchLight);
@@ -481,7 +479,7 @@ export function buildOffice({ seatHeight = 0.45, sitBack = 0.2, deskRise = 0.21,
   const dispMesh = new THREE.Mesh(new THREE.PlaneGeometry(DISPLAY.w, DISPLAY.h), new THREE.MeshBasicMaterial({ map: disp.tex, toneMapped: false }));
   dispMesh.position.set(DISPLAY.x, DISPLAY.y, backZ + 0.115);
   scene.add(dispMesh);
-  box(DISPLAY.w, 0.03, 0.03, M.led, DISPLAY.x, DISPLAY.y - DISPLAY.h / 2 - 0.12, backZ + 0.1, { cast: false });
+  box(DISPLAY.w, 0.03, 0.03, M.accentLed, DISPLAY.x, DISPLAY.y - DISPLAY.h / 2 - 0.12, backZ + 0.1, { cast: false });
 
   // ---- the "Needs you" tray ----
   cyl(0.06, 0.08, 1.0, M.metal, TRAY.x, 0.5, TRAY.z);

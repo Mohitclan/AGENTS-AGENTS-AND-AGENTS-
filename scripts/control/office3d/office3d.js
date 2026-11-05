@@ -44,7 +44,7 @@ const savePrefs = (p) => {
 };
 
 const VIEWS = {
-  overview: { label: 'Overview', pos: [0.5, 9.2, 12.6], target: [0, 0.4, -1.2] },
+  overview: { label: 'Overview', pos: [0.5, 14.4, 19.8], target: [0, 0, 0.8] }, // far enough back to see the room as a whole, on its base
   desks: { label: 'Desks', pos: [-5.2, 6.4, 7.2], target: [-5.2, 0.5, -1.2] },
   coffee: { label: 'Coffee & meeting', pos: [6.2, 5.2, 4.6], target: [8.2, 0.9, -4.4] },
   lounge: { label: 'Lounge', pos: [3.8, 4.6, 9.2], target: [9.6, 0.5, 3.0] },
@@ -71,6 +71,7 @@ export async function createOffice3D(container, { roster = [], immersive = false
     <div class="o3${immersive ? ' o3-immersive' : ''}">
       <canvas class="o3-canvas" aria-label="The 3D office. Drag to look around, scroll to zoom, click an agent to see what it is doing."></canvas>
       <div class="o3-labels" aria-hidden="true"></div>
+      <div class="o3-stats" aria-label="How many agents are in each state"></div>
       <div class="o3-top">
         <div class="o3-mode" role="status"><i></i><span>Loading the office…</span></div>
         <div class="o3-roam" role="status" hidden></div>
@@ -422,12 +423,30 @@ export async function createOffice3D(container, { roster = [], immersive = false
   }
 
   // ---- the mode badge, caption, preview panel ----
+  // The counts along the bottom: working, free, waiting, done, problem (the last three only when there are any).
+  function paintStats() {
+    const n = { work: 0, free: 0, wait: 0, done: 0, bad: 0 };
+    for (const a of world.agents.values()) {
+      const st = a.status;
+      if (st === 'working' || st === 'researching') n.work++;
+      else if (st === 'waiting' || st === 'paused') n.wait++;
+      else if (st === 'success') n.done++;
+      else if (st === 'error') n.bad++;
+      else n.free++;
+    }
+    const parts = [['work', 'working'], ['free', 'free'], ['wait', 'waiting'], ['done', 'done'], ['bad', 'problem']]
+      .filter(([k]) => n[k] || k === 'work' || k === 'free')
+      .map(([k, label]) => `<span class="s-${k}"><i></i><b>${n[k]}</b>${label}</span>`);
+    $('.o3-stats').innerHTML = parts.join('');
+  }
+
   function paintMode() {
     const el = $('.o3-mode');
     const live = latest.running ? `Live · ${clip(latest.running.title || latest.running.id, 60)}` : 'Live · real agent states, no task running';
     const text = { live, sim: 'Simulation · a scripted demo, no agent is running', preview: 'Preview · states you set here, nothing runs' }[mode];
     el.className = `o3-mode m-${mode}${mode === 'live' && latest.running ? ' on' : ''}`;
     el.querySelector('span').textContent = text;
+    paintStats();
   }
   let captionText = '';
   function setCaption(text) {
