@@ -14,3 +14,4 @@
 - [Template form checks](feedback_template_form_checks.md) — mapping rows both ways; simulate copy+parser; enums vs schema; lint-probe names; "default, person can change" vs never-looser
 - [Demo pack checks](feedback_demo_pack_checks.md) — spoken lines vs hypothesis labels; repo-only facts; git show main:; cross-file tag/CTA table
 - [Feature route checks](feedback_feature_route_checks.md) — archive test runs; leftover-file, req 'end' throw, fallback, guard probes; UI enums; confirm-binds-to-review; tie picks
+- 2026-11-05 · New skills: finding-validation (try to disprove each High or Medium finding before keeping it, and tie every finding to a rule) and scoped-re-review (round 2+ and post-PASS wording: verdict per earlier fix, check only changed lines). (source: asked by the human on 2026-11-05; skills from the web research in outputs/research/2026-11-05-agent-skills.md · by: claude-code)

@@ -6,6 +6,8 @@ model: opus
 skills:
   - early-stage-guardrails
   - task-briefs
+  - dispatch-preflight
+  - verify-before-reporting
 color: purple
 memory: project
 ---

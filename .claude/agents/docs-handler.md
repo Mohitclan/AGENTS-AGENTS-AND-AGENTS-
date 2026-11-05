@@ -10,6 +10,8 @@ skills:
   - claim-check
   - self-review
   - comparison-page
+  - help-article-types
+  - timeless-wording
 can_ask:
   - knowledge-base
   - marketing

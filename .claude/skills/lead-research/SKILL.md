@@ -7,6 +7,8 @@ description: How to find companies that fit a product's ICP using free public so
 
 ## Where to look (free sources only)
 
+For the exact sources agents can reach, with the URL to fetch and what each proves, follow the lead-sources skill. The table below is what to look for.
+
 | Signal | Where to find it |
 |---|---|
 | They have the problem | Job posts naming the pain or the tool gap (company careers pages, LinkedIn Jobs, Naukri, Wellfound); complaints in public reviews (G2, Capterra, Play Store, Trustpilot); public forum threads |

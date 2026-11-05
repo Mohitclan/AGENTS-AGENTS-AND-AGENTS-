@@ -87,7 +87,10 @@ export class Agent {
     }
     // idle: ambient, unless the person paused it
     if (!this.world.ambient || this.world.reduced) return this.resolve('desk', deskPlace(this.name), 'idle');
-    if (!this.ambient || now > this.ambient.until) this.chooseAmbient(now);
+    // Time at a place counts from arrival, so a long walk doesn't eat the visit. A trip that never
+    // arrives (blocked for over 90 s) is given up.
+    const amb = this.ambient;
+    if (!amb || (now > amb.until && (amb.arrived || amb.activity === 'desk' || now - (amb.at ?? 0) > 90000))) this.chooseAmbient(now);
     const a = this.ambient;
     return this.resolve(a.activity, a.spot || deskPlace(this.name), 'idle', a);
   }
@@ -105,13 +108,33 @@ export class Agent {
   chooseAmbient(now) {
     const w = this.world;
     const prev = this.ambient;
-    const moving = [...w.agents.values()].filter((a) => a.walking && a.goal?.why === 'idle').length;
-    // Only one new trip every few seconds, and at most three on the move: the office stays calm.
-    // (several agents decide in the same frame, so any two choices are also kept 1.5 s apart)
-    const tooBusy = now - w.lastAmbient < 7000 || now - (w.lastChoice ?? -Infinity) < 1500 || moving >= 3;
+    // on the move: an idle agent that hasn't reached its place yet (standing up counts too)
+    const moving = [...w.agents.values()].filter((a) => a.goal?.why === 'idle' && a.place !== a.goal.place).length;
+    // One new trip every few seconds, and at most four idle agents on the move, so the office is
+    // lively but not busy. (Several agents decide in the same frame, so any two choices are also
+    // kept 1.2 s apart.)
+    const tooBusy = now - w.lastAmbient < 4000 || now - (w.lastChoice ?? -Infinity) < 1200 || moving >= 4;
+    if (prev?.activity === 'stroll' && prev.legs > 1) {
+      // a stroll carries on to its next waypoint, unless the floor is full right now
+      if (moving >= 4) {
+        prev.until = now + 2000;
+        return;
+      }
+      const taken = new Set([...w.claims.keys()]);
+      const next = w.spotsOf('stroll').filter((s) => !taken.has(s.id) && s.id !== prev.spot && !(prev.seen || []).includes(s.id));
+      if (next.length) {
+        // prefer a waypoint that isn't far away, so a stroll wanders instead of crossing the room
+        next.sort((a, b) => Math.hypot(a.x - this.pos.x, a.z - this.pos.z) - Math.hypot(b.x - this.pos.x, b.z - this.pos.z));
+        const s = next[Math.floor(Math.random() * Math.min(3, next.length))];
+        const [lo, hi] = ACTIVITIES.stroll.dwell;
+        const dwell = (lo + Math.random() * (hi - lo)) * 1000;
+        this.ambient = { activity: 'stroll', spot: s.id, legs: prev.legs - 1, seen: [...(prev.seen || []), prev.spot], dwell, until: now + dwell, since: prev.since, at: now };
+        return;
+      }
+    }
     if (!prev) {
-      // first visit: everyone starts at the desk and the first trips are spread out
-      this.ambient = { activity: 'desk', spot: null, until: now + 6000 + Math.random() * 30000, since: now };
+      // first visit: everyone starts at the desk, and the first agents get up within a few seconds
+      this.ambient = { activity: 'desk', spot: null, until: now + 800 + Math.random() * 6000, since: now, first: true };
       return;
     }
     if (tooBusy) {
@@ -120,10 +143,11 @@ export class Agent {
     }
     const taken = new Set([...w.claims.entries()].filter(([, who]) => who !== this.name).map(([id]) => id));
     const partners = [...w.agents.values()].filter((a) => a !== this && a.status === 'idle' && !a.errand && !a.walking && (!a.ambient || a.ambient.activity === 'desk') && now - (a.ambient?.since ?? 0) > 20000);
-    const pick = pickIdle({ agent: this.name, now, memory: this.memory, taken, partners: partners.map((p) => p.name), justMoved: !!prev && prev.activity !== 'desk' });
-    this.ambient = { ...pick, until: now + pick.dwell, since: now };
+    // after sitting since the page loaded, the first choice is always a trip
+    const pick = pickIdle({ agent: this.name, now, memory: this.memory, taken, partners: partners.map((p) => p.name), justMoved: !!prev && prev.activity !== 'desk', noDesk: !!prev?.first });
+    this.ambient = { ...pick, until: now + pick.dwell, since: now, at: now };
     w.lastChoice = now;
-    if (pick.partner && moving >= 2) {
+    if (pick.partner && moving >= 3) {
       // a chat needs two walkers; not now
       this.ambient = { activity: 'desk', spot: null, until: now + 8000, since: now };
       return;
@@ -134,7 +158,7 @@ export class Agent {
     }
     if (pick.partner) {
       const other = w.agents.get(pick.partner);
-      other.ambient = { activity: pick.activity, spot: pick.partnerSpot, until: now + pick.dwell, since: now, partner: this.name };
+      other.ambient = { activity: pick.activity, spot: pick.partnerSpot, dwell: pick.dwell, until: now + pick.dwell, since: now, at: now, partner: this.name };
       other.memory[pick.activity] = now;
       this.ambient.partner = other.name;
     }
@@ -337,7 +361,7 @@ export class Agent {
     const p = this.phase;
     const ch = this.ch;
     const path = p.path;
-    const vmax = 1.05 * this.me.stroll;
+    const vmax = 1.05 * this.me.pace;
     let target = path[p.i];
     while (target && p.i < path.length - 1 && dist(this.pos, target) < 0.15) target = path[++p.i];
     const remaining = dist(this.pos, path[path.length - 1]);
@@ -411,6 +435,10 @@ export class Agent {
     const g = this.goal;
     const a = ACTIVITIES[g.activity];
     const ch = this.ch;
+    if (g.why === 'idle' && this.ambient && !this.ambient.arrived) {
+      this.ambient.arrived = true;
+      if (this.ambient.dwell) this.ambient.until = now + this.ambient.dwell;
+    }
     ch.setFace(a.face || {});
     ch.pace = a.pace || 1;
     this.nextThink = now + 6000 + Math.random() * 6000;
@@ -469,7 +497,15 @@ export class Agent {
       return null;
     }
     if (a.loop === 'gaze') return w.outside(this.pos);
+    if (a.loop === 'browse') return spot(g.spotId)?.look || null;
+    if (a.loop === 'look') return this.glance();
     return null;
+  }
+
+  // Somewhere nearby to look at while pausing on a stroll.
+  glance() {
+    const turn = this.yaw + (Math.random() - 0.5) * 2.4;
+    return { x: this.pos.x + Math.sin(turn) * 3, y: 0.9 + Math.random() * 0.8, z: this.pos.z + Math.cos(turn) * 3 };
   }
 
   loop(dt, now) {
@@ -503,6 +539,9 @@ export class Agent {
     }
     if (g.activity === 'desk' && this.pose === 'sit' && Math.random() < dt * 0.05) ch.look = this.lookPoint(a, g, now);
     if (a.loop === 'gaze' && Math.random() < dt * 0.08) ch.look = this.world.outside(this.pos);
+    if (a.loop === 'look' && Math.random() < dt * 0.6) ch.look = this.glance();
+    // browsing: now and then a hand to the chin, as if reading a spine
+    if (a.loop === 'browse' && Math.random() < dt * 0.05) ch.setLayers({ think: ch.target?.think ? 0 : 1 });
   }
 
   // Put the agent back at its desk at once (the demo's reset).

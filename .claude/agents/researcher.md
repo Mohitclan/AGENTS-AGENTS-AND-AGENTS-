@@ -11,6 +11,9 @@ skills:
   - research-rigor
   - competitive-battlecard
   - self-review
+  - market-sizing
+  - rival-teardown
+  - buyer-intent-search
 can_ask:
   - knowledge-base
 fallback: researcher-fallback

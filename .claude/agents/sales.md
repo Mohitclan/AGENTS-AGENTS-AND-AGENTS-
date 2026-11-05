@@ -16,6 +16,9 @@ skills:
   - proof-library
   - self-review
   - proposal
+  - discovery-call
+  - trial-to-paid
+  - timeless-wording
 can_ask:
   - knowledge-base
   - researcher

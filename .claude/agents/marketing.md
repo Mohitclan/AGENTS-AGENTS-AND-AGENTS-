@@ -18,6 +18,8 @@ skills:
   - directory-listing
   - comparison-page
   - landing-page-audit
+  - press-pitch
+  - timeless-wording
 can_ask:
   - knowledge-base
   - researcher

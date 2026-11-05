@@ -48,6 +48,18 @@ function buildDesks() {
 export const DESKS = buildDesks();
 export const deskFor = (agent) => DESKS.find((d) => d.agent === agent) || null;
 
+// Armchairs in the lounge, west of the low table, facing it. The character stands beside one, then sits.
+export const ARMCHAIRS = [
+  { x: 7.95, z: 2.55 },
+  { x: 7.95, z: 3.95 },
+];
+function ARMCHAIR_SPOTS() {
+  return ARMCHAIRS.map((c, i) => ({
+    id: `armchair-${i + 1}`, kind: 'lounge', x: c.x, z: c.z, yaw: Math.PI / 2, sit: true,
+    approach: { x: c.x, z: c.z + (i === 0 ? -0.85 : 0.85) },
+  }));
+}
+
 // Places agents go to that are not their own desk. `kind` says which activity uses the spot;
 // `cap` is 1 for every spot, so two agents never stand in the same place.
 export const SPOTS = [
@@ -79,6 +91,16 @@ export const SPOTS = [
   { id: 'brief', kind: 'brief', x: 3.7, z: -6.2, yaw: Math.PI - 0.35 },
   // the "Needs you" tray at the front, where approvals are dropped off
   { id: 'tray', kind: 'tray', x: 0.6, z: 5.0, yaw: 0 },
+  // two armchairs facing the lounge table
+  ...ARMCHAIR_SPOTS(),
+  // the bookshelves on the left wall: stand and browse
+  { id: 'shelf-1', kind: 'shelf', x: -10.85, z: -5.9, yaw: -Math.PI / 2, look: { x: -11.6, y: 1.2, z: -5.9 } },
+  { id: 'shelf-2', kind: 'shelf', x: -10.85, z: -4.7, yaw: -Math.PI / 2, look: { x: -11.6, y: 0.9, z: -4.7 } },
+  { id: 'shelf-3', kind: 'shelf', x: -10.85, z: 2.8, yaw: -Math.PI / 2, look: { x: -11.6, y: 1.1, z: 2.8 } },
+  { id: 'shelf-4', kind: 'shelf', x: -10.85, z: 4.0, yaw: -Math.PI / 2, look: { x: -11.6, y: 1.4, z: 4.0 } },
+  // waypoints for a stroll round the office: an idle agent walks a few of these, pausing at each
+  ...[[-9.8, -6.4], [-4.0, -6.3], [0.6, -5.6], [4.3, -5.2], [8.6, -4.6], [4.2, -0.4], [0.4, -0.6], [1.0, 3.6], [4.5, 4.6], [6.5, 6.2], [-2.0, 5.6], [-6.0, 5.4], [-10.0, 0.2], [-9.9, 6.0]]
+    .map(([x, z], i) => ({ id: `stroll-${i + 1}`, kind: 'stroll', x, z, yaw: yawTo(-x, -z) })),
 ];
 export const spot = (id) => SPOTS.find((s) => s.id === id) || null;
 
@@ -115,7 +137,7 @@ export function obstacles() {
   const circles = [];
   for (const b of BENCHES) boxes.push({ x: b.x, z: b.z, w: b.w, d: b.d });
   for (const d of DESKS) boxes.push({ x: d.seat.x, z: d.seat.z, w: 0.6, d: 0.6, chair: d.agent });
-  boxes.push(COUNTER, SOFA, LOUNGE_TABLE, ...BOOKSHELVES);
+  boxes.push(COUNTER, SOFA, LOUNGE_TABLE, ...BOOKSHELVES, ...ARMCHAIRS.map((c) => ({ x: c.x, z: c.z, w: 0.8, d: 0.8, chair: 'armchair' })));
   circles.push(MEETING_TABLE, TRAY, ...PLANTS);
   return { boxes, circles };
 }

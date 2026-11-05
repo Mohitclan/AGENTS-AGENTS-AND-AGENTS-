@@ -12,6 +12,8 @@ skills:
   - hook-bank
   - reply-triage
   - self-review
+  - warm-intro
+  - event-outreach
 can_ask:
   - knowledge-base
   - researcher

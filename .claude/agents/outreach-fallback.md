@@ -11,6 +11,8 @@ skills:
   - hook-bank
   - reply-triage
   - self-review
+  - warm-intro
+  - event-outreach
 fallback_for: outreach
 ---
 

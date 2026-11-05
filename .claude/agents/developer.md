@@ -5,6 +5,8 @@ tools: Read, Write, Edit, Glob, Grep, Bash, Agent
 model: sonnet
 skills:
   - self-review
+  - red-green-proof
+  - root-cause-first
 color: green
 memory: project
 can_ask:

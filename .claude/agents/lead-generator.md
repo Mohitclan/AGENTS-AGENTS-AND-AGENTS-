@@ -10,6 +10,8 @@ skills:
   - fact-sourcing
   - signal-outreach
   - self-review
+  - lead-sources
+  - buyer-intent-search
 can_ask:
   - knowledge-base
   - researcher
