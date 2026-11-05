@@ -175,3 +175,9 @@ Every time one agent started another. Written by `scripts/team-hooks.mjs`.
 | 2026-11-04 15:10 | coordinator | developer | T-20261104-19 | Projects pre-merge fixes |
 | 2026-11-04 15:43 | coordinator | developer | T-20261104-19 | Projects version and list tidy-up |
 | 2026-11-04 16:01 | coordinator | evaluator | T-20261104-19 | Focused review of pre-merge fixes |
+| 2026-11-05 10:23 | coordinator | lead-generator | T-20261105-01 | T-20261105-01 segment-1 lead batch |
+| 2026-11-05 10:32 | coordinator | evaluator | T-20261105-02 | T-20261105-02 review lead batch |
+| 2026-11-05 10:45 | coordinator | outreach | T-20261105-03 | T-20261105-03 mxRaven email sequence |
+| 2026-11-05 10:48 | coordinator | evaluator | T-20261105-04 | T-20261105-04 review mxRaven drafts |
+| 2026-11-05 11:00 | coordinator | outreach | T-20261105-03 | T-20261105-03 revision 1 fixes |
+| 2026-11-05 11:01 | coordinator | evaluator | T-20261105-04 | T-20261105-04 scoped re-review r2 |

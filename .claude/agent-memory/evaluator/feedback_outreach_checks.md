@@ -25,4 +25,8 @@ Matching prices is not enough on outreach. Test how the product is described aga
 - Play each possible reply through the email, stop rules and metric. In T-20261101-09 a yes-or-no Email 1 plus the stock "reply 'no'" opt-out gave "no" several meanings, "yes" hit two conflicting stop rules, and `list --status replied` is current status only.
 - Check the greeting against who the evidence says runs it ("team" on a "made by one person" product), and read subjects cold: "your code" reads as if we hold it.
 - Run scripts as a single relative command (`node scripts/x.mjs ...`), one per call: chained or absolute-path forms ask for approval.
-- `curl` even in a pipe needs approval here; don't work around it, report the limit. Related: [[lead-batch-checks]], [[sales-asset-checks]].
+- Grep a new draft for wording earlier reviews failed in the same slot: in T-20261105-03 the agent copied a layout file but brought back the Email 3 subject T-20261101-09-r1 had failed. Read the subject against the inbox's other uses (a Security/Abuse address makes a "your code" subject worse).
+- Send rows: put each recheck on the row of the email whose sentence can go false, and make a first-person sighting ("I didn't see") true for the sender (recheck on send day, update the date).
+- A brief-mandated line that re-creates an old defect is a coordinator note, not a specialist fix. Score on the rubric's arithmetic, but give a per-email FAIL so a weak email isn't hidden by an 80+ total.
+- On an r2 after an email-body rewrite, the stale echoes sit in four places: the notice's recheck summary, the Claims "claim in the copy" column, "Wording a person must check", and the self-review's quoted opt-out. T-20261105-03 r2 had all four. Grep the old sentence, then read each.
+- `curl` even in a pipe needs approval here; don't work around it, report the limit. Related: [[lead-batch-checks]], [[sales-asset-checks]], [[env-flag-semantics]] (fetch tool echoes "AI instructions").

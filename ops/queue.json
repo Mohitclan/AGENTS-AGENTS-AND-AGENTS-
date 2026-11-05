@@ -163,5 +163,27 @@
     "report": "outputs/reports/J-20261104-01.md",
     "finished": "2026-11-04 10:33",
     "turns": 46
+  },
+  {
+    "id": "J-20261105-01",
+    "task": "Pilot run (real, 2026-11-05), product motionrepo. 1) lead-generator: with the lead-sources and buyer-intent-search skills, find up to 8 new segment-1 leads (launch-active, founder-led software startups, India first), prove each on the company's own site, import them with node scripts/leads.mjs and run the gate. 2) evaluator: review the lead batch. 3) outreach: for each lead that passed review and the gate, draft a short email sequence (drafts only) and list each send in ops/approvals.md as pending. 4) evaluator: review the drafts. Contact no one, send nothing, post nothing. End with a report of what each agent did, the leads found and the drafts made.",
+    "status": "failed",
+    "added": "2026-11-05 10:15",
+    "started": "2026-11-05 10:15",
+    "note": "Claude Code exited (143) without a result. Ignoring 17 permissions.allow entries from .claude/settings.json: this worksp",
+    "report": "outputs/reports/J-20261105-01.md",
+    "finished": "2026-11-05 10:16",
+    "turns": 0
+  },
+  {
+    "id": "J-20261105-02",
+    "task": "Pilot run (real, 2026-11-05), product motionrepo. 1) lead-generator: with the lead-sources and buyer-intent-search skills, find up to 8 new segment-1 leads (launch-active, founder-led software startups, India first), prove each on the company's own site, import them with node scripts/leads.mjs and run the gate. 2) evaluator: review the lead batch. 3) outreach: for each lead that passed review and the gate, draft a short email sequence (drafts only) and list each send in ops/approvals.md as pending. 4) evaluator: review the drafts. Contact no one, send nothing, post nothing. End with a report of what each agent did, the leads found and the drafts made.",
+    "status": "needs_approval",
+    "added": "2026-11-05 10:20",
+    "started": "2026-11-05 10:20",
+    "note": "7 lesson(s) recorded",
+    "report": "outputs/reports/J-20261105-02.md",
+    "finished": "2026-11-05 11:11",
+    "turns": 97
   }
 ]
