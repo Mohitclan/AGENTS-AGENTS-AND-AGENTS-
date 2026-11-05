@@ -1156,7 +1156,7 @@ const home = {
   update(snap) {
     if (!home.office || home.demo.active) return;
     $('#hud-status').classList.toggle('on', !!snap.live);
-    $('#hud-status span').textContent = snap.live ? `Live · ${snap.running?.title || snap.running?.id || 'a task is running'}` : `All quiet · ${snap.agents.length} gems at their desks`;
+    $('#hud-status span').textContent = snap.live ? `Live · ${snap.running?.title || snap.running?.id || 'a task is running'}` : `All quiet · ${snap.agents.length} gems with no work, free to roam`;
     home.office.update({ agents: snap.agents, events: freshEvents(snap, home.first), kpis: snap.kpis, running: snap.running });
     home.first = false;
   },
@@ -1232,7 +1232,7 @@ const working = {
     working.office.update({ agents: snap.agents, events: freshEvents(snap, working.first), kpis: snap.kpis, running: snap.running });
     working.first = false;
     working.paintWho(snap.agents);
-    $('#w-sub').textContent = snap.live ? `${snap.running?.id}: ${snap.running?.title}` : 'No task is running. The gems rest at their desks until you give the team one.';
+    $('#w-sub').textContent = snap.live ? `${snap.running?.id}: ${snap.running?.title}` : 'No task is running. The gems roam the office until you give the team one; whoever gets work goes to its desk.';
     $('#w-feed').innerHTML = snap.feed.slice(0, 20).map((e) => feedItem(e, !store.seen.has(e.id) && store.primed)).join('');
   },
   leave() {

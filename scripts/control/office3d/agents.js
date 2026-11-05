@@ -110,13 +110,13 @@ export class Agent {
     const prev = this.ambient;
     // on the move: an idle agent that hasn't reached its place yet (standing up counts too)
     const moving = [...w.agents.values()].filter((a) => a.goal?.why === 'idle' && a.place !== a.goal.place).length;
-    // One new trip every few seconds, and at most four idle agents on the move, so the office is
-    // lively but not busy. (Several agents decide in the same frame, so any two choices are also
+    // One new trip every couple of seconds, and at most six idle agents on the move, so the office is
+    // lively but not a crowd. (Several agents decide in the same frame, so any two choices are also
     // kept 1.2 s apart.)
-    const tooBusy = now - w.lastAmbient < 4000 || now - (w.lastChoice ?? -Infinity) < 1200 || moving >= 4;
+    const tooBusy = now - w.lastAmbient < 2500 || now - (w.lastChoice ?? -Infinity) < 900 || moving >= 6;
     if (prev?.activity === 'stroll' && prev.legs > 1) {
       // a stroll carries on to its next waypoint, unless the floor is full right now
-      if (moving >= 4) {
+      if (moving >= 6) {
         prev.until = now + 2000;
         return;
       }
@@ -133,23 +133,24 @@ export class Agent {
       }
     }
     if (!prev) {
-      // first visit: everyone starts at the desk, and the first agents get up within a few seconds
-      this.ambient = { activity: 'desk', spot: null, until: now + 800 + Math.random() * 6000, since: now, first: true };
+      // first visit: everyone appears at the desk, and gets up within a few seconds
+      this.ambient = { activity: 'desk', spot: null, until: now + 300 + Math.random() * 3500, since: now, first: true };
       return;
     }
     if (tooBusy) {
-      prev.until = now + 5000; // stay a little longer where you are
+      prev.until = now + 3000; // stay a little longer where you are
       return;
     }
     const taken = new Set([...w.claims.entries()].filter(([, who]) => who !== this.name).map(([id]) => id));
-    const partners = [...w.agents.values()].filter((a) => a !== this && a.status === 'idle' && !a.errand && !a.walking && (!a.ambient || a.ambient.activity === 'desk') && now - (a.ambient?.since ?? 0) > 20000);
-    // after sitting since the page loaded, the first choice is always a trip
-    const pick = pickIdle({ agent: this.name, now, memory: this.memory, taken, partners: partners.map((p) => p.name), justMoved: !!prev && prev.activity !== 'desk', noDesk: !!prev?.first });
+    // Someone to chat with: an idle colleague who is standing somewhere, not already in a chat, and has been there a while.
+    const partners = [...w.agents.values()].filter((a) => a !== this && a.status === 'idle' && !a.errand && !a.walking && !a.ambient?.partner && now - (a.ambient?.since ?? 0) > 12000);
+    const pick = pickIdle({ agent: this.name, now, memory: this.memory, taken, partners: partners.map((p) => p.name), justMoved: !!prev && prev.activity !== 'desk' });
     this.ambient = { ...pick, until: now + pick.dwell, since: now, at: now };
     w.lastChoice = now;
-    if (pick.partner && moving >= 3) {
-      // a chat needs two walkers; not now
-      this.ambient = { activity: 'desk', spot: null, until: now + 8000, since: now };
+    if (pick.partner && moving >= 5) {
+      // a chat needs two walkers; not now: stay where you are a moment and choose again
+      this.ambient = prev;
+      prev.until = now + 2500;
       return;
     }
     if (pick.activity !== 'desk') {

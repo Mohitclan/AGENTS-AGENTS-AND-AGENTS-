@@ -32,6 +32,8 @@
 .o3-mode, .o3-tools { pointer-events: auto; }
 .o3-mode { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 6px 12px; border-radius: 99px; background: rgba(21, 18, 42, .8); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); font-weight: 600; }
 .o3-mode span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.o3-roam { pointer-events: auto; max-width: min(520px, 100%); padding: 6px 12px; border-radius: 14px; background: rgba(60, 40, 8, .86); color: #ffd18f; font-size: 12px; line-height: 1.35; }
+.o3-roam[hidden] { display: none; }
 .o3-mode i { width: 8px; height: 8px; border-radius: 50%; background: #9aa3c4; flex: none; }
 .o3-mode.m-live.on i { background: #2fd27c; box-shadow: 0 0 0 0 rgba(47, 210, 124, .6); animation: o3-ping 1.6s infinite; }
 .o3-mode.m-sim { background: rgba(90, 62, 6, .88); }

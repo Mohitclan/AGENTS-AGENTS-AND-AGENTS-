@@ -3,9 +3,10 @@
 //
 // Real work always comes first. The server works out each agent's state from real events (see
 // avatarStatus in scripts/control.mjs): idle, working, researching, success, waiting, error, paused.
-// Those states pick the activity below. Only an idle agent gets an ambient activity (coffee, the
-// window, the sofa, a chat), chosen with cooldowns so nobody wanders without a reason. An animation
-// never decides anything about a task: a thumbs-up plays because the server said "success".
+// Those states pick the activity below. An agent with no work is not at its desk: a desk is for work. It
+// roams (coffee, the window, the sofa, a chat, a stroll, the bookshelf), moving on when it has had its turn
+// at a place, and goes to its desk only when the server gives it something to do. An animation never decides
+// anything about a task: a thumbs-up plays because the server said "success".
 
 import { DESKS, SPOTS } from './layout.js';
 
@@ -82,24 +83,40 @@ export function personality(agent) {
 
 export const placesOf = (kind) => SPOTS.filter((s) => s.kind === kind);
 
+// The office settings from what was saved. Agents with no work roam unless the person pressed "Reduced motion"
+// (saved as motion: 'reduced'). The computer's own reduce-motion setting only calms the camera, and an older save that
+// held it as `reduced` is ignored, so nobody stays seated because of a setting the person never chose here.
+export const initialPrefs = (saved = {}) => ({ ambient: true, ...saved, reduced: saved?.motion === 'reduced' });
+
+// What to tell the person when their own settings keep agents at their desks, so a seated office is never a mystery.
+// Nothing (an empty string) when agents are free to roam.
+export function roamNote(prefs) {
+  if (prefs?.reduced) return 'Reduced motion is on, so agents with no work stay at their desks. Press Reduced motion to turn it off.';
+  if (prefs?.ambient === false) return 'Roaming is off, so agents with no work stay at their desks. Press Ambient to turn it on.';
+  return '';
+}
+
 // Pick an ambient activity for an idle agent. `memory` holds when it last did each activity;
 // `taken` is the set of spot ids already claimed; `partners` are other idle agents free to join a
-// chat. Returns { activity, spot, dwell, partner?, partnerSpot? }.
-export function pickIdle({ agent, now, memory = {}, taken = new Set(), partners = [], rand = Math.random, justMoved = false, noDesk = false }) {
+// chat. Returns { activity, spot, dwell, partner?, partnerSpot? }. Never the desk, unless there is
+// nowhere at all to go.
+export function pickIdle({ agent, now, memory = {}, taken = new Set(), partners = [], rand = Math.random, justMoved = false }) {
   const p = personality(agent);
-  const options = [];
-  for (const [name, a] of Object.entries(ACTIVITIES)) {
-    if (!a.ambient) continue;
-    if (name === 'desk') {
-      if (!noDesk) options.push({ name, weight: p.desk * (justMoved ? 1.4 : 1) });
-      continue;
-    }
-    if (now - (memory[name] ?? -Infinity) < a.cooldown * 1000) continue;
+  const usable = (a) => {
     const free = placesOf(a.place).filter((s) => !taken.has(s.id));
-    if (a.social ? free.length < 2 || !partners.length : !free.length) continue;
-    options.push({ name, weight: p[name] * (justMoved ? 0.75 : 1) });
+    return a.social ? free.length >= 2 && partners.length > 0 : free.length > 0;
+  };
+  const roaming = Object.entries(ACTIVITIES).filter(([name, a]) => a.ambient && name !== 'desk');
+  const options = [];
+  for (const [name, a] of roaming) {
+    if (now - (memory[name] ?? -Infinity) < a.cooldown * 1000) continue;
+    if (usable(a)) options.push({ name, weight: p[name] * (justMoved ? 0.75 : 1) });
   }
-  if (!options.length) options.push({ name: 'desk', weight: 1 }); // nowhere free: stay at the desk
+  if (!options.length) {
+    // Everything was done recently: repeat what was done longest ago, rather than sit at the desk.
+    const again = roaming.filter(([, a]) => usable(a)).sort((x, y) => (memory[x[0]] ?? -Infinity) - (memory[y[0]] ?? -Infinity))[0];
+    options.push({ name: again ? again[0] : 'desk', weight: 1 });
+  }
   const total = options.reduce((s, o) => s + o.weight, 0);
   let r = rand() * total;
   let choice = options[options.length - 1];

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { Agent } from '../control/office3d/agents.js';
-import { ACTIVITIES, activityFor, pickIdle, ROLE_WORK, stepsTo } from '../control/office3d/behavior.js';
+import { ACTIVITIES, activityFor, initialPrefs, pickIdle, ROLE_WORK, stepsTo } from '../control/office3d/behavior.js';
 import { DESKS, SPOTS, standPoint } from '../control/office3d/layout.js';
 import { blockAround, buildGrid, findPath } from '../control/office3d/nav.js';
 
@@ -68,7 +68,10 @@ describe('3D office behaviour rules', () => {
   it('respects cooldowns, taken places, and needs a partner to chat', () => {
     const now = 1_000_000;
     const recent = { coffee: now - 1000, window: now - 1000, lounge: now - 1000, meeting: now - 1000, huddle: now - 1000, stroll: now - 1000, shelf: now - 1000 };
-    for (let i = 0; i < 20; i++) assert.equal(pickIdle({ agent: 'sales', now, memory: recent }).activity, 'desk');
+    // everything was done a moment ago: it repeats something rather than sit at a desk, which is for work
+    for (let i = 0; i < 20; i++) assert.ok(['coffee', 'window', 'lounge', 'stroll', 'shelf'].includes(pickIdle({ agent: 'sales', now, memory: recent, rand: () => i / 20 }).activity));
+    const everywhere = new Set(SPOTS.filter((s) => s.kind !== 'desk').map((s) => s.id));
+    assert.equal(pickIdle({ agent: 'sales', now, memory: recent, taken: everywhere }).activity, 'desk', 'only when there is nowhere at all to go');
     const taken = new Set(SPOTS.filter((s) => s.kind === 'coffee').map((s) => s.id));
     for (let i = 0; i < 50; i++) {
       const p = pickIdle({ agent: 'sales', now, taken, rand: () => (i % 10) / 10 + 0.05 });
@@ -157,7 +160,7 @@ describe('3D office agents', () => {
       for (const a of w.agents.values()) if (a.goal?.why === 'idle' && a.goal.activity !== 'desk') went.add(a.goal.activity);
     });
     assert.ok(went.size >= 3, `only ${[...went].join(', ')}`);
-    assert.ok(most <= 4, `${most} idle agents walking at once`);
+    assert.ok(most <= 6, `${most} idle agents walking at once`);
   });
 
   it('stays at the desk when ambient movement is off', async () => {
@@ -165,6 +168,65 @@ describe('3D office agents', () => {
     world.ambient = false;
     await run(world, 120);
     for (const a of world.agents.values()) assert.equal(a.goal.key, `desk@desk:${a.name}`);
+  });
+});
+
+describe('3D office: no work means no desk', () => {
+  it('never picks the desk for free time while there is anywhere to go, partner or not', () => {
+    const now = 5_000_000;
+    for (let i = 0; i < 400; i++) {
+      for (const agent of ['sales', 'developer', 'outreach', 'evaluator']) {
+        const p = pickIdle({ agent, now, memory: i % 3 ? {} : { coffee: now, lounge: now }, partners: i % 2 ? ['marketing'] : [], rand: () => ((i * 37) % 100) / 100 });
+        assert.notEqual(p.activity, 'desk', `${agent} chose the desk on draw ${i}`);
+      }
+    }
+  });
+
+  it('has every idle agent away from its desk within a minute, and keeps them out', async () => {
+    const world = office();
+    let atDesk = 0;
+    await run(world, 300, () => ({}), (w, clock) => {
+      if (clock < 60_000) return;
+      for (const a of w.agents.values()) if (a.goal?.why === 'idle' && a.goal.activity === 'desk') atDesk++;
+    });
+    assert.equal(atDesk, 0, `${atDesk} agent-frames at a desk with no work`);
+  });
+
+  it('puts the agents with work at their desks while the others roam, and lets them out again when the work ends', async () => {
+    const world = office();
+    const working = { developer: 'working', researcher: 'researching' };
+    const awayFromDesk = new Set();
+    let developerLeft = false;
+    await run(world, 400, (t) => (t < 200 ? working : {}), (w, clock) => {
+      const t = clock / 1000;
+      const goalOf = (n) => w.agents.get(n).goal;
+      if (t > 60 && t < 200) {
+        assert.equal(goalOf('developer').key, 'coding@desk:developer');
+        assert.equal(goalOf('researcher').key, 'researching@desk:researcher');
+        for (const a of w.agents.values()) if (!working[a.name] && a.goal?.why === 'idle' && a.goal.activity !== 'desk') awayFromDesk.add(a.name);
+      }
+      if (t > 260 && goalOf('developer').why === 'idle' && goalOf('developer').activity !== 'desk') developerLeft = true;
+    });
+    assert.ok(awayFromDesk.size >= 6, `only ${awayFromDesk.size} idle agents went anywhere while two were working`);
+    assert.ok(developerLeft, 'the developer stayed at the desk after its work ended');
+  });
+});
+
+describe('3D office settings', () => {
+  it('lets agents roam by default, and only the person\'s own Reduced motion button seats them', () => {
+    assert.deepEqual(initialPrefs({}), { ambient: true, reduced: false });
+    assert.equal(initialPrefs().reduced, false);
+    assert.equal(initialPrefs({ motion: 'reduced' }).reduced, true);
+    assert.equal(initialPrefs({ motion: 'full' }).reduced, false);
+  });
+
+  it('ignores an older save that held the computer\'s reduce-motion setting as "reduced"', () => {
+    assert.equal(initialPrefs({ reduced: true, cast: 'robot' }).reduced, false);
+    assert.equal(initialPrefs({ reduced: true, cast: 'robot' }).cast, 'robot', 'the rest of the save is kept');
+  });
+
+  it('keeps ambient off when the person turned it off', () => {
+    assert.equal(initialPrefs({ ambient: false }).ambient, false);
   });
 });
 

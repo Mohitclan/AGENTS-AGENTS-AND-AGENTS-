@@ -15,7 +15,7 @@ import { identityFor } from '../gems/identities.js';
 import { BRAND, drawLogo } from '../gems/logo.js';
 import { normalizeState, STATE_LABEL, STATES } from '../gems/status.js';
 import { Agent } from './agents.js';
-import { ACTIVITIES } from './behavior.js';
+import { ACTIVITIES, initialPrefs, roamNote } from './behavior.js';
 import { Character, loadRig } from './characters.js';
 import { DESKS, deskFor, SPOTS } from './layout.js';
 import { buildGrid } from './nav.js';
@@ -36,7 +36,8 @@ const loadPrefs = () => {
 };
 const savePrefs = (p) => {
   try {
-    localStorage.setItem(KEY, JSON.stringify(p));
+    const { reduced, ...saved } = p; // "reduced" is worked out from `motion`, which is what is kept
+    localStorage.setItem(KEY, JSON.stringify(saved));
   } catch {
     // storage refused: the setting lasts for this visit
   }
@@ -60,13 +61,19 @@ export function webglAvailable() {
 }
 
 export async function createOffice3D(container, { roster = [], immersive = false, onFallback, onRebuild } = {}) {
-  const prefs = { ambient: true, reduced: matchMedia('(prefers-reduced-motion: reduce)').matches, ...loadPrefs() };
+  // Agents with no work roam by default. Only the person's own "Reduced motion" button keeps them at their desks:
+  // the computer's reduce-motion setting calms the camera, but no longer stops the agents (an older save held that
+  // setting as "reduced", so it is ignored).
+  const osCalm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const saved = loadPrefs();
+  const prefs = initialPrefs(saved);
   container.innerHTML = `
     <div class="o3${immersive ? ' o3-immersive' : ''}">
       <canvas class="o3-canvas" aria-label="The 3D office. Drag to look around, scroll to zoom, click an agent to see what it is doing."></canvas>
       <div class="o3-labels" aria-hidden="true"></div>
       <div class="o3-top">
         <div class="o3-mode" role="status"><i></i><span>Loading the office…</span></div>
+        <div class="o3-roam" role="status" hidden></div>
         <div class="o3-tools" role="toolbar" aria-label="Office view">
           <div class="o3-seg" data-views>${Object.entries(VIEWS).map(([k, v]) => `<button type="button" data-view="${k}">${v.label}</button>`).join('')}</div>
           <button type="button" class="o3-btn" data-act="ambient" aria-pressed="${prefs.ambient}" title="Let idle agents get coffee, rest or chat">Ambient</button>
@@ -142,6 +149,15 @@ export async function createOffice3D(container, { roster = [], immersive = false
     headOf: (a) => new THREE.Vector3(a.pos.x, a.pose === 'sit' ? rig.sitTop - 0.15 : rig.height - 0.2, a.pos.z),
     outside: (p) => new THREE.Vector3(p.x + (Math.random() - 0.5) * 6, 1.4 + Math.random(), -14),
   };
+  // Says why agents stay seated when the person's own settings are the reason; hidden when they are free to roam.
+  function paintRoamNote() {
+    const note = roamNote({ ambient: world.ambient, reduced: world.reduced });
+    const el = $('.o3-roam');
+    el.textContent = note;
+    el.hidden = !note;
+  }
+  paintRoamNote();
+
   const labels = $('.o3-labels');
   const pickables = [];
   names.forEach((name, index) => {
@@ -482,7 +498,7 @@ export async function createOffice3D(container, { roster = [], immersive = false
       const k = THREE.MathUtils.clamp(1.6 / Math.max(0.5, camera.aspect), 1.05, 2.2);
       to.pos.sub(to.target).multiplyScalar(k).add(to.target);
     }
-    if (world.reduced) {
+    if (world.reduced || osCalm) {
       camera.position.copy(to.pos);
       controls.target.copy(to.target);
       tween = null;
@@ -503,12 +519,15 @@ export async function createOffice3D(container, { roster = [], immersive = false
       world.ambient = !world.ambient;
       prefs.ambient = world.ambient;
       savePrefs(prefs);
+      paintRoamNote();
       e.target.setAttribute('aria-pressed', String(world.ambient));
     }
     if (act === 'reduced') {
       world.reduced = !world.reduced;
       prefs.reduced = world.reduced;
+      prefs.motion = world.reduced ? 'reduced' : 'full';
       savePrefs(prefs);
+      paintRoamNote();
       e.target.setAttribute('aria-pressed', String(world.reduced));
     }
     if (act === 'preview') setPreview(mode !== 'preview');

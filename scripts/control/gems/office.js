@@ -3,11 +3,13 @@
 // colleague it asks, the evaluator stamps reviews; web lookups, files, checks and leads float up from
 // the desk that made them; mail leaves through the window and sends wait in the approval tray.
 // The demo (simulator.js) drives the same room through the same calls, always labelled.
-// Movement is CSS transitions and the Web Animations API; nothing loops in JavaScript except two
-// slow timers (the clock, and a gentle idle fidget now and then).
+// An agent with no work does not sit at its desk: it wanders the floor (roam.js) and goes back when given work.
+// Movement is CSS transitions and the Web Animations API; nothing loops in JavaScript except three
+// slow timers (the clock, a gentle idle fidget now and then, and the roam).
 import { avatarHTML, mountAvatars, setAvatarStatus } from './avatar.js';
 import { identityFor } from './identities.js';
 import { logoSvg } from './logo.js';
+import { planRoam, ROAM_SPOTS } from './roam.js';
 import { normalizeState, STATE_LABEL } from './status.js';
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -181,7 +183,7 @@ export function createOffice(container, { onOpen, roster, immersive = false }) {
     el.addEventListener('click', () => onOpen?.(name, el));
     room.append(el);
     const [x, y] = seatOf(name);
-    const actor = { name, el, gem: el.querySelector('.gem'), home: [x, y - SIT], pos: [x, y - SIT], queue: Promise.resolve(), status: 'idle', doing: '' };
+    const actor = { name, el, gem: el.querySelector('.gem'), home: [x, y - SIT], pos: [x, y - SIT], queue: Promise.resolve(), status: 'idle', doing: '', pending: 0, spot: null, roamUntil: 0 };
     el.style.zIndex = String(Math.round(y * 10));
     place(el, ...actor.pos);
     el.classList.add('o-enter');
@@ -227,7 +229,10 @@ export function createOffice(container, { onOpen, roster, immersive = false }) {
   const enqueue = (name, steps) => {
     const actor = actors.get(name);
     if (!actor) return;
-    actor.queue = actor.queue.then(() => steps(actor)).catch(() => undefined);
+    actor.pending += 1; // the agent is busy until this step is done
+    actor.queue = actor.queue.then(() => steps(actor)).catch(() => undefined).then(() => {
+      actor.pending -= 1;
+    });
   };
   const standBy = (name, [x, y]) => {
     const [hx] = actors.get(name)?.home ?? [x];
@@ -405,6 +410,12 @@ export function createOffice(container, { onOpen, roster, immersive = false }) {
       const st = normalizeState(a.status);
       actor.status = st;
       actor.doing = a.doing || '';
+      // Given work (or anything but idle): back to the desk. Idle agents roam instead.
+      if (st !== 'idle' && actor.spot !== null) {
+        actor.spot = null;
+        actor.roamUntil = 0;
+        enqueue(a.name, goHome);
+      }
       setAvatarStatus(actor.gem, st, { agentLabel: a.name, doing: a.doing });
       actor.el.dataset.status = st;
       actor.el.setAttribute('aria-label', `${identityFor(a.name).name}, ${a.name}: ${STATE_LABEL[st]}${a.doing ? `. ${a.doing}` : ''}`);
@@ -460,6 +471,23 @@ export function createOffice(container, { onOpen, roster, immersive = false }) {
     pulse(a.el, `fidget-${FIDGETS[Math.floor(Math.random() * FIDGETS.length)]}`, 2600);
   }, 3800);
 
+  // An agent with no work does not sit at its desk: every couple of seconds one of them gets up and wanders to a spot on
+  // the floor, stays a while, then moves on. The agent that gets work is sent back to its desk (see setStates).
+  const roam = setInterval(() => {
+    if (document.hidden) return;
+    const now = Date.now();
+    const plan = planRoam({ actors: [...actors.values()].map((a) => ({ name: a.name, status: a.status, busy: a.pending > 0, spot: a.spot, roamUntil: a.roamUntil })), now });
+    if (!plan) return;
+    const actor = actors.get(plan.name);
+    actor.spot = plan.spot;
+    actor.roamUntil = now + plan.dwell;
+    enqueue(plan.name, async (a) => {
+      if (a.status !== 'idle') return; // given work while waiting its turn
+      a.el.classList.remove('o-carry');
+      await walk(a, ROAM_SPOTS[plan.spot]);
+    });
+  }, 2200);
+
   const clock = () => {
     const d = new Date();
     const c = room.querySelector('#o-clock');
@@ -510,6 +538,9 @@ export function createOffice(container, { onOpen, roster, immersive = false }) {
         actor.queue = Promise.resolve();
         actor.el.style.transitionDuration = '0ms';
         actor.pos = [...actor.home];
+        actor.pending = 0;
+        actor.spot = null;
+        actor.roamUntil = 0;
         place(actor.el, ...actor.home);
         actor.el.classList.add('seated');
         actor.el.classList.remove('o-carry', 'o-left');
@@ -519,6 +550,7 @@ export function createOffice(container, { onOpen, roster, immersive = false }) {
     destroy() {
       clearInterval(clockTimer);
       clearInterval(fidget);
+      clearInterval(roam);
     },
   };
 }
