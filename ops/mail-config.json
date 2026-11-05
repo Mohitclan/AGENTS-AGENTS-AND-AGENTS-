@@ -1,31 +1,44 @@
 {
   "_note": "Non-secret mail settings for scripts/send-email.mjs and scripts/replies.mjs. The password lives only in the SMTP_PASS environment variable or the git-ignored .env file, never here. replies.mjs signs in to IMAP with smtp.user and the same password.",
   "pilot": {
-    "_note": "Pilot from 2026-11-02 (told by suryanshu): only these addresses can receive emails from send-email.mjs. Empty the list to end the pilot.",
+    "_note": "Pilot (changed 2026-11-05 by the human in chat): only these three team members can receive emails from send-email.mjs, and only as [TEST] copies; Sushant is no longer used to send or receive. auto_test_sends (set 2026-11-05, the human said to send without asking): after each Jarvis task, every email of each draft that passed review goes to these three as a [TEST] copy (scripts/send-tests.mjs); set it to false to stop that. Empty both lists to end the pilot.",
+    "auto_test_sends": true,
+    "test_names": {
+      "1609purab@gmail.com": "Purab",
+      "tanvinishad.official@gmail.com": "Tanvi",
+      "mohitkumar.sep08@gmail.com": "Mohit"
+    },
     "allow_only": [
-      "sushant.789.mishra@gmail.com"
+      "1609purab@gmail.com",
+      "tanvinishad.official@gmail.com",
+      "mohitkumar.sep08@gmail.com"
+    ],
+    "test_recipients": [
+      "1609purab@gmail.com",
+      "tanvinishad.official@gmail.com",
+      "mohitkumar.sep08@gmail.com"
     ]
   },
   "smtp": {
     "host": "smtp.gmail.com",
     "port": 587,
-    "user": "sushant.789.mishra@gmail.com"
+    "user": "launch@panscience.xyz"
   },
   "imap": {
     "host": "imap.gmail.com",
     "port": 993
   },
   "sender": {
-    "name": "Sushant Mishra",
-    "role": "Intern",
+    "name": "PanScience Launch",
+    "role": "Launch team",
     "company": "PanScience Innovations",
-    "email": "sushant.789.mishra@gmail.com"
+    "email": "launch@panscience.xyz"
   },
   "report_to": {
-    "_note": "Pilot: reports go to Sushant until suryanshu changes it (2026-11-02). Was Raj (rajgupta.connects@gmail.com).",
-    "name": "Sushant",
-    "role": "Developer",
-    "email": "sushant.789.mishra@gmail.com"
+    "_note": "From 2026-11-05: send reports go to Mohit, one of the three test recipients (the human said to send only to them). Was Sushant, before that Raj.",
+    "name": "Mohit",
+    "role": "Team",
+    "email": "mohitkumar.sep08@gmail.com"
   },
   "daily_limit": 20
 }

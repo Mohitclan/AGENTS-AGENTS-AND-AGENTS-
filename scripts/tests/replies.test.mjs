@@ -146,10 +146,14 @@ describe('send-email refuses a live send after an answer', () => {
   const repo = makeCopy();
   after(() => repo.remove());
 
+  // The pilot list and the sender change as the pilot goes on, so read them from the copy's settings.
+  const config = () => JSON.parse(readFileSync(repo.path('ops', 'mail-config.json'), 'utf8'));
+
   it('refuses anyone outside the pilot list', () => {
+    const first = config().pilot.allow_only[0];
     const out = repo.run('send-email.mjs', '--draft', 'outputs/outreach/L-ab940a31.md', '--email', '2', '--to', 'hello@usepippin.com', '--dry-run');
     assert.equal(out.code, 1);
-    assert.match(out.stderr, /pilot mode: only sushant\.789\.mishra@gmail\.com/);
+    assert.ok(out.stderr.includes(`pilot mode: only ${first}`), out.stderr);
   });
 
   it('stops the sequence', () => {
@@ -164,7 +168,7 @@ describe('send-email refuses a live send after an answer', () => {
   });
 
   it('still allows a demo send to the sender', () => {
-    const out = repo.run('send-email.mjs', '--draft', 'outputs/outreach/L-ab940a31.md', '--email', '2', '--to', 'sushant.789.mishra@gmail.com', '--dry-run');
+    const out = repo.run('send-email.mjs', '--draft', 'outputs/outreach/L-ab940a31.md', '--email', '2', '--to', config().sender.email, '--dry-run');
     assert.equal(out.code, 0, out.stderr);
     assert.match(out.stdout, /Dry run: nothing sent/);
   });

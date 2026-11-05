@@ -14,7 +14,10 @@
 // Usage guard: Claude Code reports the plan's usage windows in its stream (rate_limit_event). The
 // last report is kept in ops/runs/plan-limits.json, and no task starts while a window is at or over
 // JARVIS_STOP_AT (default 0.85), since a task cut off by the limit loses its work.
-import { spawn } from 'node:child_process';
+// Pilot test emails: after each task, scripts/send-tests.mjs sends [TEST] copies of every outreach
+// draft that passed review during it to the pilot test recipients only (never a lead), and the
+// result is added to the task's report. On while ops/mail-config.json has pilot.auto_test_sends.
+import { spawn, spawnSync } from 'node:child_process';
 import {
   appendFileSync, closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync, writeSync,
 } from 'node:fs';
@@ -29,6 +32,7 @@ const REPORTS = join(ROOT, 'outputs', 'reports');
 const PLAN_LIMITS = join(RUNS, 'plan-limits.json');
 const RUN_LOCK = join(RUNS, 'jarvis.lock');
 const QUEUE_LOCK = join(RUNS, 'queue.lock');
+const MAIL_CONFIG = join(OPS, 'mail-config.json');
 const STOP_AT = Number(process.env.JARVIS_STOP_AT || 0.85);
 const CLAUDE_BIN = process.env.CLAUDE_BIN || 'claude';
 const DEFAULT_TIMEOUT_MIN = 120;
@@ -307,10 +311,35 @@ function memoryEntries() {
   return files.reduce((n, f) => n + (existsSync(f) ? readFileSync(f, 'utf8').split('\n').filter((l) => l.startsWith('- ')).length : 0), 0);
 }
 
+const readText = (f) => (existsSync(f) ? readFileSync(f, 'utf8') : '');
+
+// Sends the pilot test emails for drafts that passed review during the task. The mail settings hold
+// the recipient list, so if they changed during the task nothing is sent and a person checks them.
+// Returns null when there is nothing to say.
+function testSends(startedMs, mailConfigBefore) {
+  const config = readText(MAIL_CONFIG);
+  let pilot;
+  try {
+    pilot = JSON.parse(config).pilot || {};
+  } catch {
+    return null;
+  }
+  if (!pilot.auto_test_sends) return null;
+  const since = new Date(startedMs).toISOString();
+  if (config !== mailConfigBefore) {
+    return { ok: false, sent: 0, text: `Not sent: ops/mail-config.json changed during the task, and it holds the recipient list. A person checks the change, then runs: node scripts/send-tests.mjs --since ${since}` };
+  }
+  const r = spawnSync(process.execPath, [join(ROOT, 'scripts', 'send-tests.mjs'), '--since', since], { cwd: ROOT, encoding: 'utf8' });
+  const text = `${r.stdout || ''}${r.stderr || ''}`.trim();
+  if (r.status === 0 && /^Nothing to send: no outreach draft changed/.test(text)) return null;
+  return { ok: r.status === 0, sent: Number(/: (\d+) sent,/.exec(text)?.[1] || 0), text: text || `send-tests.mjs exited ${r.status}` };
+}
+
 async function runTask(t, timeoutMs) {
   console.log(`\n${t.id} started: ${t.task}`);
   update(t.id, { status: 'running', started: now(), note: '' });
   const startedMs = Date.now() - 1000; // file times can be coarser than a millisecond
+  const mailConfigBefore = readText(MAIL_CONFIG);
   const lessonsBefore = memoryEntries();
   const out = await runSession(t, timeoutMs);
   const lessons = memoryEntries() - lessonsBefore;
@@ -334,10 +363,16 @@ async function runTask(t, timeoutMs) {
       `# ${t.id}\n\n**Task:** ${t.task}\n\n**Status:** ${status}. The coordinator didn't write a report, so this is its final reply.\n\n${out.resultText || '(no reply)'}\n`,
     );
   }
+  const sends = testSends(startedMs, mailConfigBefore);
+  if (sends) {
+    appendFileSync(join(ROOT, report), `\n## Test emails (sent by Jarvis after the task)\n\n${sends.text}\n`);
+    console.log(sends.text);
+  }
   const note = [
     out.isError ? out.resultText.slice(0, 120) : '',
     status === 'check' ? 'no JARVIS block; read the report' : '',
     lessons > 0 ? `${lessons} lesson(s) recorded` : '',
+    sends ? (sends.ok ? `${sends.sent} test email(s) sent` : 'test emails had a problem; see the report') : '',
   ]
     .filter(Boolean)
     .join('; ');

@@ -3,9 +3,12 @@
 // reporting founder (ops/mail-config.json → report_to).
 //
 //   node scripts/send-email.mjs --draft <file> --email <n> --to <address> [--to-name <name>]
-//                               [--lead <id>] [--approval <A-id>] [--dry-run]
+//                               [--lead <id>] [--approval <A-id>] [--no-report] [--dry-run]
 //
 // Demo mode: --to is the sender's own address. Nothing reaches a prospect, so no approval is needed.
+// Test mode: --to is on pilot.test_recipients (team members a person named). The subject says
+// [TEST], the lead is untouched and the send is logged as a test, so it never counts as outreach.
+// --no-report skips the report email for a demo or test send (scripts/send-tests.mjs reports the batch).
 // Live mode: any other --to. Needs --approval <id> whose row in ops/approvals.md says Yes/Approved
 // and names the recipient. Live sends are refused when the recipient is suppressed, the copy fails
 // lint-copy, today's live sends have reached the daily limit, or the person or company has answered
@@ -31,10 +34,11 @@ const REVIEWS = join(ROOT, 'outputs', 'reviews');
 // ---------- pure helpers (tested in scripts/tests/send-email.test.mjs) ----------
 
 export function parseArgs(argv) {
-  const out = { dryRun: false };
+  const out = { dryRun: false, noReport: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--dry-run') out.dryRun = true;
+    else if (a === '--no-report') out.noReport = true;
     else if (a.startsWith('--')) out[a.slice(2).replace(/-(\w)/g, (_, c) => c.toUpperCase())] = argv[++i];
   }
   return out;
@@ -108,7 +112,7 @@ export function buildReport(r) {
     '',
     `An email just went out from the sales pipeline. Details below.`,
     '',
-    `Mode:        ${r.demo ? "DEMO: sent to the sender's own inbox; no prospect was contacted" : 'LIVE: sent to a prospect'}`,
+    `Mode:        ${r.demo ? "DEMO: sent to the sender's own inbox; no prospect was contacted" : r.test ? 'TEST: sent to a pilot test recipient; no prospect was contacted' : 'LIVE: sent to a prospect'}`,
     `Sent at:     ${r.sentAt}`,
     `From:        ${r.from}`,
     `To:          ${r.to}`,
@@ -144,13 +148,16 @@ export function buildReport(r) {
 
 // ---------- side effects ----------
 
+// Google shows app passwords as four groups of four letters; Gmail wants the 16 letters without the spaces.
+const unspaceAppPassword = (p) => (/^[a-z]{4}( [a-z]{4}){3}$/i.test(p) ? p.replace(/ /g, '') : p);
+
 function loadSecret() {
-  if (process.env.SMTP_PASS) return process.env.SMTP_PASS;
+  if (process.env.SMTP_PASS) return unspaceAppPassword(process.env.SMTP_PASS.trim());
   const file = join(ROOT, '.env');
   if (!existsSync(file)) return '';
   for (const line of readFileSync(file, 'utf8').split(/\r?\n/)) {
     const m = line.match(/^\s*SMTP_PASS\s*=\s*(.*)$/);
-    if (m) return m[1].trim().replace(/^["']|["']$/g, '');
+    if (m) return unspaceAppPassword(m[1].trim().replace(/^["']|["']$/g, ''));
   }
   return '';
 }
@@ -187,14 +194,16 @@ function die(msg) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  if (!args.draft || !args.email || !args.to) die('usage: node scripts/send-email.mjs --draft <file> --email <n> --to <address> [--to-name <name>] [--lead <id>] [--approval <A-id>] [--dry-run]');
+  if (!args.draft || !args.email || !args.to) die('usage: node scripts/send-email.mjs --draft <file> --email <n> --to <address> [--to-name <name>] [--lead <id>] [--approval <A-id>] [--no-report] [--dry-run]');
   const config = JSON.parse(readFileSync(CONFIG, 'utf8'));
   const n = Number(args.email);
   const to = args.to.trim().toLowerCase();
   const demo = to === config.sender.email.toLowerCase();
+  const testers = (config.pilot?.test_recipients || []).map((a) => a.toLowerCase());
+  const test = !demo && testers.includes(to);
   // Pilot: while pilot.allow_only lists anyone, nobody else can receive an email from this script,
   // whatever ops/approvals.md says. The send report still goes to report_to.
-  const allowed = (config.pilot?.allow_only || []).map((a) => a.toLowerCase());
+  const allowed = [...new Set([...(config.pilot?.allow_only || []), ...(config.pilot?.test_recipients || [])].map((a) => a.toLowerCase()))];
   if (allowed.length && !allowed.includes(to)) die(`pilot mode: only ${allowed.join(', ')} may receive emails (ops/mail-config.json pilot.allow_only). Drafts for ${to} wait for people to approve the wording and end the pilot rule`);
   const draftPath = join(ROOT, args.draft);
   if (!existsSync(draftPath)) die(`${args.draft} not found`);
@@ -209,23 +218,26 @@ async function main() {
   let body;
   try { body = fillPlaceholders(parsed.body, config.sender); } catch (e) { die(e.message); }
   if (demo) body = regreet(body, args.toName || config.sender.name.split(' ')[0]);
-  const subject = demo ? `[DEMO] ${parsed.subject}` : parsed.subject;
+  if (test && args.toName) body = regreet(body, args.toName);
+  const subject = demo ? `[DEMO] ${parsed.subject}` : test ? `[TEST] ${parsed.subject}` : parsed.subject;
 
   // Checks.
   const suppressed = isSuppressed(to, readJsonl(SUPPRESSION));
   if (suppressed) die(`${to} is on the opt-out list (${suppressed.reason})`);
-  if (!demo) {
+  if (!demo && !test) {
     const answered = replyStop(to, readJsonl(REPLY_LOG));
     const when = (answered?.received || answered?.at || '').slice(0, 10);
     if (answered?.kind === 'bounce') die(`${answered.sent_to} bounced on ${when} (${answered.file}). Find another published contact`);
     if (answered) die(`${answered.from} answered on ${when} (${answered.kind}, ${answered.file}), so the sequence has stopped. A person decides what goes next`);
   }
+  // A live send is always reported: the report is the record of a person's decision.
+  if (args.noReport && !demo && !test) die('--no-report is only for demo and test sends');
   const lint = lintEmail(parsed.subject, body);
   const log = readJsonl(SEND_LOG);
   const today = new Date().toISOString().slice(0, 10);
   const liveToday = log.filter((e) => e.mode === 'live' && e.kind === 'outreach' && e.at.startsWith(today)).length;
-  let approval = 'not needed (demo: sent to the sender only)';
-  if (!demo) {
+  let approval = demo ? 'not needed (demo: sent to the sender only)' : 'not needed (test: sent to a pilot test recipient; the lead is untouched)';
+  if (!demo && !test) {
     if (!args.approval) die('a live send needs --approval <A-id> from ops/approvals.md');
     const ok = approvalAllows(readFileSync(APPROVALS, 'utf8'), args.approval, to);
     if (!ok.ok) die(ok.why);
@@ -236,19 +248,19 @@ async function main() {
     approval = `${args.approval}: ${ok.decision} (${ok.by}, ${ok.date})`;
   }
   const next = nextInSequence(text, n);
-  const nextText = demo
-    ? `none. Demo send; the lead's status is unchanged${next ? ` (in a live run, Email ${next.email} would follow on working day ${next.day} if there is no reply)` : ''}.`
+  const nextText = demo || test
+    ? `none. ${demo ? 'Demo' : 'Test'} send; the lead's status is unchanged${next ? ` (in a live run, Email ${next.email} would follow on working day ${next.day} if there is no reply)` : ''}.`
     : `${lead ? `${leadId} is marked contacted by this script (the approval above is the person's decision). ` : ''}${next ? `Email ${next.email} on working day ${next.day}, only if there is no reply.` : 'This was the last email in the sequence.'}`;
 
   const from = `${config.sender.name} <${config.sender.email}>`;
   const reportBase = {
-    reportTo: config.report_to, demo, from, to, subject, body, n, total: parsed.total,
+    reportTo: config.report_to, demo, test, from, to, subject, body, n, total: parsed.total,
     draft: relative(ROOT, draftPath).replace(/\\/g, '/'), product: fm.product, lead: leadId, company: lead?.company || fm.company,
     leadStatus: lead?.status, task: fm.task, review: latestReview(fm.task), approval, suppressed: null,
-    lint: lint.text, liveToday: liveToday + (demo ? 0 : 1), dailyLimit: config.daily_limit, next: nextText,
+    lint: lint.text, liveToday: liveToday + (demo || test ? 0 : 1), dailyLimit: config.daily_limit, next: nextText,
   };
 
-  console.log(`Mode: ${demo ? 'DEMO' : 'LIVE'}\nFrom: ${from}\nTo: ${to}\nSubject: ${subject}\nLint: ${lint.text}\nApproval: ${approval}\nReport to: ${config.report_to.name} <${config.report_to.email}>\n`);
+  console.log(`Mode: ${demo ? 'DEMO' : test ? 'TEST' : 'LIVE'}\nFrom: ${from}\nTo: ${to}\nSubject: ${subject}\nLint: ${lint.text}\nApproval: ${approval}\nReport to: ${config.report_to.name} <${config.report_to.email}>\n`);
   if (args.dryRun) {
     console.log('--- email ---\n' + body + '\n--- report preview ---\n' + buildReport({ ...reportBase, sentAt: '(dry run)', messageId: '(dry run)', response: '(dry run)' }));
     console.log('\nDry run: nothing sent, nothing logged.');
@@ -262,13 +274,13 @@ async function main() {
 
   const info = await transport.sendMail({ from, to, subject, text: body });
   const sentAt = istNow();
-  const entry = { at: new Date().toISOString(), kind: 'outreach', mode: demo ? 'demo' : 'live', to, subject, draft: reportBase.draft, email: n, lead: leadId || null, approval: demo ? null : args.approval, message_id: info.messageId };
+  const entry = { at: new Date().toISOString(), kind: 'outreach', mode: demo ? 'demo' : test ? 'test' : 'live', to, subject, draft: reportBase.draft, email: n, lead: leadId || null, approval: demo || test ? null : args.approval, message_id: info.messageId };
   appendFileSync(SEND_LOG, JSON.stringify(entry) + '\n');
   console.log(`Sent. Message ID ${info.messageId} (${info.response})`);
 
   // A live send under a Yes row is the person's decision to contact this lead, so record it, so that
   // replies.mjs can move the lead on when they answer.
-  if (!demo && lead) {
+  if (!demo && !test && lead) {
     const steps = ['drafted', 'approved', 'contacted'];
     const at = steps.indexOf(lead.status);
     const todo = lead.status === 'qualified' ? steps : at >= 0 ? steps.slice(at + 1) : [];
@@ -283,8 +295,9 @@ async function main() {
     if (reportBase.leadStatus === 'contacted') console.log(`${leadId} is now contacted.`);
   }
 
+  if (args.noReport) return;
   const report = buildReport({ ...reportBase, sentAt, messageId: info.messageId, response: info.response });
-  const reportSubject = `[Send report] ${demo ? 'DEMO' : 'LIVE'} · ${subject} → ${to}`;
+  const reportSubject = `[Send report] ${demo ? 'DEMO' : test ? 'TEST' : 'LIVE'} · ${subject} → ${to}`;
   try {
     const r = await transport.sendMail({ from, to: `${config.report_to.name} <${config.report_to.email}>`, subject: reportSubject, text: report });
     appendFileSync(SEND_LOG, JSON.stringify({ at: new Date().toISOString(), kind: 'report', mode: entry.mode, to: config.report_to.email, subject: reportSubject, for: info.messageId, message_id: r.messageId }) + '\n');

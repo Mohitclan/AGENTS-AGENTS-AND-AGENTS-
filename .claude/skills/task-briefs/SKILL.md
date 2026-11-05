@@ -33,5 +33,5 @@ Free-text briefs were a common cause of first-round REVISE: the specialist guess
 
 1. Research, scraping and drafting run freely. Nothing goes to a prospect.
 2. Every outreach draft goes to people for a wording review. Put each email of a reviewed (PASS) sequence in `ops/approvals.md` as `pending`, with the file and line, and say in the report that the wording must be checked first.
-3. A test send may go only to Sushant Mishra (`sushant.789.mishra@gmail.com`). `ops/mail-config.json` (`pilot.allow_only`) refuses everyone else, whatever approvals say. Suggest a demo send in the report (`node scripts/send-email.mjs --draft <file> --email 1 --to sushant.789.mishra@gmail.com`); a person runs it.
+3. Test emails go only to the pilot test recipients (Purab, Tanvi and Mohit: `pilot.test_recipients` in `ops/mail-config.json`), from launch@panscience.xyz; the script refuses everyone else, whatever approvals say. After each Jarvis task, Jarvis sends every email of each sequence that passed review to them as [TEST] copies (`scripts/send-tests.mjs`) and adds the result to the report. The human allowed this without asking (2026-11-05). Nobody runs a send to a lead, and no agent runs `send-email.mjs`.
 4. Agent runs use the shared Max plan: keep chains short, reuse earlier outputs, and don't start optional work.

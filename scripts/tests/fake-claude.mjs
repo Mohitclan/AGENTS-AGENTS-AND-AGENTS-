@@ -5,6 +5,8 @@
 //   "no report"        replies without writing a report or a JARVIS block
 //   "needs approval"   finishes with status needs_approval
 //   "add a lesson"     adds an entry to main memory, as the after-task review would
+//   "passed draft"     writes an outreach draft and a PASS review of it
+//   "mail settings"    changes ops/mail-config.json
 // FAKE_UTIL sets the 5-hour window's reported utilization (default 0.2).
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -32,6 +34,13 @@ process.stdin.on('end', () => {
   if (/add a lesson/i.test(input)) {
     appendFileSync(join(process.cwd(), 'memory', 'MAIN.md'), `- 2026-10-30 · Fake lesson for ${id} (source: test · by: coordinator)\n`);
   }
+  if (/passed draft/i.test(input)) {
+    const draft = `outputs/outreach/${id}.md`;
+    mkdirSync(join(process.cwd(), 'outputs', 'reviews'), { recursive: true });
+    writeFileSync(join(process.cwd(), draft), '## Email 1\n\nSubject: Fake launch note\n\nHi Asha,\n\nA fake email.\n\nReply "stop" and I won\'t write again.\n');
+    writeFileSync(join(process.cwd(), 'outputs', 'reviews', `${id}-r1.md`), `# Review\n\n- Reviewed: \`${draft}\`\n\n**Verdict: PASS, 90/100.**\n`);
+  }
+  if (/mail settings/i.test(input)) appendFileSync(join(process.cwd(), 'ops', 'mail-config.json'), '\n');
   if (/no report/i.test(input)) {
     emit({ type: 'result', is_error: false, result: 'I did the thing but forgot the block.', num_turns: 3 });
     return;

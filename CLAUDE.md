@@ -97,7 +97,7 @@ Company facts and policies live in `knowledge/company.md`. Each product's facts 
 
 ## Hard rules
 
-1. **Drafts only.** Don't send emails or messages, post, publish, book meetings, push code, open or merge PRs, deploy, or write to a CRM unless the human approves that specific action in this session. Record the request in `ops/approvals.md` and ask.
+1. **Drafts only.** Don't send emails or messages, post, publish, book meetings, push code, open or merge PRs, deploy, or write to a CRM unless the human approves that specific action in this session. Record the request in `ops/approvals.md` and ask. The one standing exception is the pilot's test emails: after each Jarvis task, Jarvis (not an agent) sends [TEST] copies of drafts that passed review to the pilot test recipients only (`ops/mail-config.json`), as the human allowed on 2026-11-05.
 2. **Never invent** customers, quotes, metrics, features, prices, discounts, email addresses or buying intent. Never guess email addresses from name patterns.
 3. **Public business information only** for leads. No personal data beyond a person's published professional contact details.
 4. **Prices, discounts and commitments** come only from confirmed knowledge. Anything else goes to the human.

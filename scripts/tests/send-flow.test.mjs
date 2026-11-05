@@ -2,10 +2,11 @@
 // report, the lead marked contacted, a reply read from saved messages, and the follow-up refused.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createServer } from 'node:net';
 import { after, before, describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { ROOT } from '../_shared.mjs';
 import { makeCopy } from './_helpers.mjs';
 
@@ -113,5 +114,102 @@ describe('the live send path', () => {
     const code = await run('send-email.mjs', '--draft', 'outputs/outreach/test-sendflow.md', '--email', '2', '--to', 'asha@testco.test', '--approval', 'A-T2', '--lead', id);
     assert.equal(code, 1);
     assert.equal(received.length, 2);
+  });
+});
+
+describe('the test send path', () => {
+  it('sends a [TEST] copy of a real lead\'s draft to a named team member, leaving the lead alone', async () => {
+    const id = JSON.parse(readFileSync(repo.path('pipeline', 'leads.jsonl'), 'utf8').trim().split('\n').pop()).id;
+    const before = show(id).status;
+    const config = JSON.parse(readFileSync(repo.path('ops', 'mail-config.json'), 'utf8'));
+    config.pilot = { allow_only: ['sender@ourco.test'], test_recipients: ['mohit@ourco.test'] };
+    writeFileSync(repo.path('ops', 'mail-config.json'), JSON.stringify(config));
+    const start = received.length;
+    // no approval row is needed: the test list is the person's decision
+    const code = await run('send-email.mjs', '--draft', 'outputs/outreach/test-sendflow.md', '--email', '1', '--to', 'mohit@ourco.test', '--to-name', 'Mohit', '--lead', id);
+    assert.equal(code, 0);
+    const mail = received.slice(start);
+    assert.deepEqual(mail.map((m) => m.rcpt[0]), ['<mohit@ourco.test>', '<founder@ourco.test>']);
+    assert.match(mail[0].text, /Subject: \[TEST\] /);
+    assert.ok(mail[0].text.includes('Hi Mohit,'));
+    assert.match(mail[1].text, /TEST: sent to a pilot test recipient/);
+    assert.equal(show(id).status, before);
+    const log = readFileSync(repo.path('ops', 'send-log.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+    assert.equal(log.find((e) => e.to === 'mohit@ourco.test').mode, 'test');
+  });
+
+  it('still refuses anyone not on the pilot lists', async () => {
+    const start = received.length;
+    const code = await run('send-email.mjs', '--draft', 'outputs/outreach/test-sendflow.md', '--email', '1', '--to', 'someone@else.test', '--approval', 'A-T1');
+    assert.equal(code, 1);
+    assert.equal(received.length, start);
+  });
+});
+
+describe('pilot test emails after a review (send-tests.mjs, run by Jarvis)', () => {
+  const draftFile = 'outputs/outreach/test-sendflow.md';
+  const review = (name, verdict) => writeFileSync(repo.path('outputs', 'reviews', name), `# Review\n\n- Reviewed: \`${draftFile}\`\n\n**Verdict: ${verdict}, 90/100.**\n`);
+  const setDraftTime = (ms) => utimesSync(repo.path(draftFile), new Date(ms), new Date(ms));
+  const FAKE = fileURLToPath(new URL('./fake-claude.mjs', import.meta.url));
+  const jarvis = (...args) => new Promise((done) => {
+    const child = spawn(process.execPath, ['scripts/jarvis.mjs', ...args], { cwd: repo.dir, env: { ...process.env, CLAUDE_PROJECT_DIR: repo.dir, CLAUDE_BIN: FAKE, JARVIS_TASK_ID: '' } });
+    child.on('close', (code) => done(code));
+  });
+  const lastReport = () => {
+    const q = JSON.parse(readFileSync(repo.path('ops', 'queue.json'), 'utf8'));
+    return readFileSync(repo.path(q[q.length - 1].report), 'utf8');
+  };
+
+  before(() => {
+    const config = JSON.parse(readFileSync(repo.path('ops', 'mail-config.json'), 'utf8'));
+    config.pilot = {
+      allow_only: ['sender@ourco.test'],
+      test_recipients: ['mohit@ourco.test', 'tanvi@ourco.test'],
+      test_names: { 'mohit@ourco.test': 'Mohit', 'tanvi@ourco.test': 'Tanvi' },
+      auto_test_sends: true,
+    };
+    writeFileSync(repo.path('ops', 'mail-config.json'), JSON.stringify(config));
+    writeFileSync(repo.path('ops', 'send-log.jsonl'), ''); // the copy sent above would count as already sent
+    setDraftTime(Date.now() - 60000); // older than every review below
+  });
+
+  it('sends each email of a passed draft to every test recipient, greeted by name, with no report emails', async () => {
+    review('T-auto-r1.md', 'PASS');
+    const start = received.length;
+    assert.equal(await run('send-tests.mjs', draftFile), 0);
+    const mail = received.slice(start);
+    // 2 emails x 2 testers; the lead (asha@testco.test) and the report address get nothing
+    assert.deepEqual(mail.map((m) => m.rcpt[0]).sort(), ['<mohit@ourco.test>', '<mohit@ourco.test>', '<tanvi@ourco.test>', '<tanvi@ourco.test>']);
+    assert.ok(mail.every((m) => /Subject: \[TEST\] /.test(m.text)));
+    assert.ok(mail.some((m) => m.text.includes('Hi Tanvi,')));
+  });
+
+  it('does not send the same copies twice', async () => {
+    const start = received.length;
+    assert.equal(await run('send-tests.mjs', draftFile), 0);
+    assert.equal(received.length, start);
+  });
+
+  it('sends nothing while the newest review asks for changes, or the draft changed after its PASS', () => {
+    setDraftTime(Date.now() - 30000);
+    review('T-auto-r2.md', 'REVISE');
+    assert.match(repo.run('send-tests.mjs', draftFile).stdout, /not sent, its newest review says REVISE/);
+    review('T-auto-r3.md', 'PASS');
+    setDraftTime(Date.now() + 60000);
+    assert.match(repo.run('send-tests.mjs', draftFile).stdout, /not sent, it changed after its last review/);
+  });
+
+  it('Jarvis sends the copies after a task and adds them to its report', async () => {
+    const start = received.length;
+    assert.equal(await jarvis('do', 'Write a passed draft'), 0);
+    assert.deepEqual(received.slice(start).map((m) => m.rcpt[0]).sort(), ['<mohit@ourco.test>', '<tanvi@ourco.test>']);
+    assert.match(lastReport(), /## Test emails \(sent by Jarvis after the task\)[\s\S]*2 sent, 0 failed/);
+  });
+
+  it('Jarvis sends nothing when the mail settings changed during the task', async () => {
+    const start = received.length;
+    await jarvis('do', 'Write a passed draft and touch the mail settings');
+    assert.equal(received.length, start);
+    assert.match(lastReport(), /Not sent: ops\/mail-config\.json changed during the task/);
   });
 });

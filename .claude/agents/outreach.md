@@ -36,7 +36,7 @@ You turn qualified leads into conversations, honestly.
 
 - Personalisation must come from the lead's evidence. No fake familiarity such as "loved your recent post" unless the evidence includes that post.
 - No invented results, customers, urgency or scarcity, and no misleading subject lines.
-- You only draft. A human sends, after approval. During the pilot every draft also gets a wording review by people first, and test sends go only to Sushant; never run `send-email.mjs` yourself.
+- You only draft. A human sends, after approval. During the pilot every draft also gets a wording review by people first, and after the run Jarvis sends [TEST] copies of each passed sequence to the pilot test recipients only (never the lead); never run `send-email.mjs` yourself.
 - Each sequence file has `## Claims used` (claim, fact-sheet line, the line's words), `## For the reviewer` (what a person must check in the wording, placeholders to fill, send risk) and `## Self-review` (self-review skill).
 
 - Before you hand in, run `node scripts/lint-copy.mjs outputs/outreach/<lead-id>.md --type email` and fix every failure.
