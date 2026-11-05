@@ -12,6 +12,7 @@
 import * as THREE from '/vendor/three/build/three.module.js';
 import { OrbitControls } from '/vendor/three/examples/jsm/controls/OrbitControls.js';
 import { identityFor } from '../gems/identities.js';
+import { BRAND, drawLogo } from '../gems/logo.js';
 import { normalizeState, STATE_LABEL, STATES } from '../gems/status.js';
 import { Agent } from './agents.js';
 import { ACTIVITIES } from './behavior.js';
@@ -252,9 +253,10 @@ export async function createOffice3D(container, { roster = [], immersive = false
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, c.width, c.height);
     ctx.textBaseline = 'top';
-    ctx.fillStyle = '#b49cff';
-    ctx.font = '700 26px ui-rounded, system-ui, sans-serif';
-    ctx.fillText('panscience · task display', 40, 30);
+    const markWidth = drawLogo(ctx, 40, 22, 42, BRAND.paper);
+    ctx.fillStyle = BRAND.paper;
+    ctx.font = '600 26px system-ui, -apple-system, "Helvetica Neue", sans-serif';
+    ctx.fillText('panscience · task display', 40 + markWidth + 16, 30);
     const chip = { live: ['LIVE', '#3ddc97'], sim: ['SIMULATION', '#ffb020'], preview: ['PREVIEW', '#8fd3ff'] }[mode];
     ctx.font = '700 20px system-ui, sans-serif';
     const cw = ctx.measureText(chip[0]).width + 28;

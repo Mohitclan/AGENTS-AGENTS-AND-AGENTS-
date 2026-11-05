@@ -39,7 +39,7 @@ textarea { width: 100%; resize: vertical; min-height: 76px; }
 .side { position: sticky; top: 0; height: 100vh; overflow-y: auto; background: rgba(10, 15, 30, .85); border-right: 1px solid var(--line); padding: 18px 14px; display: flex; flex-direction: column; gap: 6px; backdrop-filter: blur(8px); }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; color: var(--text); margin: 0 6px 12px; }
 .brand:hover { text-decoration: none; }
-.brand-mark { width: 26px; height: 26px; border-radius: 8px; background: conic-gradient(from 200deg, #8b7bff, #4c8dff, #34d27b, #ffb020, #ff5fb0, #8b7bff); box-shadow: 0 0 18px rgba(139, 123, 255, .5); }
+.brand-mark { height: 28px; width: auto; flex: none; color: #f4f2ef; }
 .nav, .agents-nav { display: flex; flex-direction: column; gap: 2px; }
 .nav a, .agents-nav a { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 10px; color: var(--muted); }
 .nav a:hover, .agents-nav a:hover { background: var(--panel); color: var(--text); text-decoration: none; }

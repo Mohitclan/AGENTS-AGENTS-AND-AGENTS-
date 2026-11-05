@@ -28,10 +28,9 @@
 .dusk .o-city-back { fill: #e9a99a; } .dusk .o-city-front { fill: #d78f86; }
 .o-frame { position: absolute; inset: 0; background: linear-gradient(90deg, transparent 48.6%, #fff 48.6% 51.4%, transparent 51.4%), linear-gradient(0deg, transparent 48.6%, #fff 48.6% 51.4%, transparent 51.4%); }
 .o-sill { position: absolute; left: -2%; right: -2%; bottom: 0; height: 4%; background: #fff; }
-.o-sign { position: absolute; z-index: 500; left: 22.5%; top: 7%; padding: 0.55cqw 1.2cqw; border-radius: 0.9cqw; background: #fff; color: #6d58c9; font: 800 1.55cqw/1 ui-rounded, system-ui, sans-serif; letter-spacing: .02em; box-shadow: 0 0.4cqw 1.2cqw rgba(110, 80, 200, .2); }
-.o-sign span { color: #ff7fa8; } .o-sign small { font-size: .62em; color: #9a8bd0; margin-left: .2em; }
-.night .o-sign { background: #2a2554; color: #e3dcff; text-shadow: 0 0 0.6cqw #b49cff, 0 0 1.4cqw #8b7bff; box-shadow: 0 0 2cqw rgba(180, 156, 255, .45); }
-.night .o-sign span { color: #ffb3cf; text-shadow: 0 0 0.6cqw #ff7fa8; }
+.o-sign { position: absolute; z-index: 500; left: 22.5%; top: 7%; display: flex; align-items: center; gap: 0.7cqw; padding: 0.6cqw 1.3cqw; border-radius: 0.9cqw; background: #f4f2ef; color: #1c1c1c; font: 600 1.5cqw/1 system-ui, -apple-system, "Helvetica Neue", sans-serif; letter-spacing: .04em; box-shadow: 0 0.4cqw 1.4cqw rgba(28, 28, 28, .16); }
+.o-sign-mark { height: 2.1cqw; width: auto; flex: none; color: #1c1c1c; } .o-sign b { font-weight: 600; } .o-sign span { font-weight: 300; color: #8a867f; } .o-sign small { font-size: .62em; color: #8a867f; margin-left: .2em; }
+.night .o-sign { background: #1c1c1c; color: #f4f2ef; box-shadow: 0 0 2cqw rgba(244, 242, 239, .18); } .night .o-sign-mark { color: #f4f2ef; } .night .o-sign span, .night .o-sign small { color: #b9b4ab; }
 .o-poster { position: absolute; left: 25%; top: 14%; width: 5.4%; aspect-ratio: .78; padding: 0.4cqw; border-radius: 0.4cqw; background: #fff; box-shadow: 0 0.4cqw 1cqw rgba(90, 60, 140, .18); }
 .o-poster i { display: block; width: 100%; height: 100%; border-radius: 0.2cqw; background: linear-gradient(160deg, #ffd6e7, #d8ccff 60%, #c6ecff); }
 .o-poster i::after { content: ""; position: absolute; left: 30%; top: 26%; width: 40%; height: 46%; background: linear-gradient(160deg, #fff, #b49cff); clip-path: polygon(50% 0, 100% 30%, 80% 100%, 20% 100%, 0 30%); }

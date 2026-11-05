@@ -7,6 +7,7 @@
 // slow timers (the clock, and a gentle idle fidget now and then).
 import { avatarHTML, mountAvatars, setAvatarStatus } from './avatar.js';
 import { identityFor } from './identities.js';
+import { logoSvg } from './logo.js';
 import { normalizeState, STATE_LABEL } from './status.js';
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -114,7 +115,7 @@ export function createOffice(container, { onOpen, roster, immersive = false }) {
     <div class="o-room" id="o-room">
       <div class="o-wall"><div class="o-wall-trim"></div></div>
       <div class="o-window"><div class="o-sky"></div><span class="o-sun"></span><span class="o-cloud c1"></span><span class="o-cloud c2"></span><span class="o-cloud c3"></span>${SKYLINE}<div class="o-frame"></div><div class="o-sill"></div></div>
-      <div class="o-sign"><span>pan</span>science <small>HQ</small></div>
+      <div class="o-sign">${logoSvg('o-sign-mark')}<b>pan<span>science</span></b> <small>HQ</small></div>
       <div class="o-poster"><i></i></div>
       <div class="o-board" id="o-board"></div>
       <div class="o-clock" id="o-clock"><i class="o-h"></i><i class="o-m"></i><b></b></div>

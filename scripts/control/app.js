@@ -6,6 +6,7 @@ import { createDock } from './gems/dock.js';
 import { createGallery } from './gems/gallery.js';
 import { identityFor } from './gems/identities.js';
 import { playIntro } from './gems/intro.js';
+import { logoSvg } from './gems/logo.js';
 import { createDemo } from './gems/simulator.js';
 import { normalizeState, STATE_LABEL } from './gems/status.js';
 import { createVoice } from './gems/voice.js';
@@ -92,7 +93,7 @@ function setMeters(root = document) {
 function shell() {
   $('#app').innerHTML = `
   <aside class="side" id="side">
-    <a class="brand" href="#/"><span class="brand-mark" aria-hidden="true"></span><span>panscience</span></a>
+    <a class="brand" href="#/">${logoSvg('brand-mark', 'panscience')}<span>panscience</span></a>
     <nav class="nav" aria-label="Pages">
       <a href="#/" data-nav="home">Home</a>
       <a href="#/working" data-nav="working">Working</a>

@@ -9,6 +9,7 @@ import * as THREE from '/vendor/three/build/three.module.js';
 import { RoomEnvironment } from '/vendor/three/examples/jsm/environments/RoomEnvironment.js';
 import { mergeGeometries } from '/vendor/three/examples/jsm/utils/BufferGeometryUtils.js';
 import { ARMCHAIRS, BENCH_BOXES, BOOKSHELVES, COUNTER, DESKS, DISPLAY, LOUNGE_TABLE, MEETING_TABLE, PLANTS, ROOM, RUG, SOFA, SPOTS, TRAY, WINDOWS } from './layout.js';
+import { BRAND, drawLogo } from '../gems/logo.js';
 import { makeMug } from './characters.js';
 
 const VIOLET = 0x8b6cff;
@@ -517,14 +518,17 @@ export function buildOffice({ seatHeight = 0.45, sitBack = 0.2, deskRise = 0.21,
   // ---- wall logo ----
   const logo = canvasTexture(1024, 256, (ctx, w, h) => {
     ctx.clearRect(0, 0, w, h);
-    ctx.font = '800 150px ui-rounded, system-ui, sans-serif';
+    // The mark, then the name: "pan" heavy, "science" light.
+    const markWidth = drawLogo(ctx, 20, 28, 200, BRAND.ink);
+    const x = 20 + markWidth + 44;
     ctx.textBaseline = 'middle';
-    const g = ctx.createLinearGradient(0, 0, w, 0);
-    g.addColorStop(0, '#ffb3cf');
-    g.addColorStop(0.5, '#b49cff');
-    g.addColorStop(1, '#8fd3ff');
-    ctx.fillStyle = g;
-    ctx.fillText('panscience', 20, h / 2);
+    ctx.font = '600 128px system-ui, -apple-system, "Helvetica Neue", sans-serif';
+    ctx.fillStyle = BRAND.ink;
+    ctx.fillText('pan', x, h / 2 + 4);
+    const panWidth = ctx.measureText('pan').width;
+    ctx.font = '300 128px system-ui, -apple-system, "Helvetica Neue", sans-serif';
+    ctx.fillStyle = BRAND.stone;
+    ctx.fillText('science', x + panWidth, h / 2 + 4);
   });
   const logoMesh = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 0.8), new THREE.MeshBasicMaterial({ map: logo.tex, transparent: true, toneMapped: false }));
   logoMesh.position.set(ROOM.minX + 0.12, 2.75, -0.8);
