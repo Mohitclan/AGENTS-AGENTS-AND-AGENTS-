@@ -8,10 +8,10 @@
 // "send it"); the task then starts at once and its words are read back, so "cancel that" can stop a
 // misheard one. With "Keep listening" on, the mic stays open for the next task, hands free. A few
 // phrases are answered on the page without any agent: "what's happening", "open <agent or page>",
-// "start waiting tasks", "stop talking", "cancel that". A question ("where are the leads?", "how do I read a
-// report?", "guide me") is sent to the guide on the server, which answers from the live team state using Claude
-// Code on the signed-in login; the answer is read aloud and may open a page. When a task ends, the
-// coordinator's own summary is read aloud.
+// "start waiting tasks", "stop talking", "cancel that". Everything else is a conversation: a short pause after you
+// stop talking, it is sent to the guide on the server, which answers from the live team state using Claude Code on
+// the signed-in login; the answer is read aloud and may open a page. A task is sent only when you end it with
+// "go start" or press "Send as a task". When a task ends, the coordinator's own summary is read aloud.
 import { identityFor } from './identities.js';
 import { normalizeState, STATE_LABEL } from './status.js';
 
@@ -134,11 +134,12 @@ export function pieces(text, max = 200) {
   return out;
 }
 
-// A question or a request for help, to be answered rather than handed to the team as a task.
-const QUESTION = /^(?:hey |ok |okay |please )?(?:guide\b|help\b|how\b|what\b|where\b|when\b|why\b|who\b|which\b|tell me\b|show me\b|explain\b|walk me through\b|(?:can|could) you (?:tell|show|explain|walk|guide|help)\b|(?:is|are) (?:there|the|it|we|anyone|anything|any)\b|does (?:the|it)\b)/i;
+// Anything said or typed that isn't a page command and doesn't end with "go start" is a conversation with the guide:
+// a question, a greeting, a request for help. Only an explicit "go start" (or the "Send as a task" button) hands the
+// team work, so a stray sentence can never start a task.
 export const askIntent = (text) => {
   const t = String(text ?? '').trim();
-  return t.split(/\s+/).length >= 2 && !heardTrigger(t) && !localIntent(t) && QUESTION.test(t);
+  return /[a-z]{2}/i.test(t) && !heardTrigger(t) && !localIntent(t);
 };
 
 export function createVoice({ onTask, onRun, onCancel, onAsk, getAgents, navigate }) {
@@ -147,6 +148,7 @@ export function createVoice({ onTask, onRun, onCancel, onAsk, getAgents, navigat
   let listening = false;
   let wanted = false; // the person wants the mic on; Chrome ends a session after a silence, so restart it
   let lastTask = null;
+  let answerTimer = null;
   let finalText = '';
   const history = []; // the last few questions and answers, so a follow-up makes sense
   const supported = !!Recognition;
@@ -165,12 +167,13 @@ export function createVoice({ onTask, onRun, onCancel, onAsk, getAgents, navigat
         <button type="button" class="vp-mic" data-v="mic" ${supported ? '' : 'disabled'}>🎙 <span>Speak</span></button>
         <span class="spacer"></span>
         <button type="button" class="vp-ghost" data-v="clear">Clear</button>
-        <button type="button" class="vp-send" data-v="send">Send to the team</button>
+        <button type="button" class="vp-ghost" data-v="task" title="Hand what you wrote to the team as a task">Send as a task</button>
+        <button type="button" class="vp-send" data-v="send">Ask</button>
       </div>
       <div class="vp-row small"><label class="check"><input type="checkbox" id="vp-speak" ${settings.speak ? 'checked' : ''}> Speak updates aloud</label><label class="check"><input type="checkbox" id="vp-hands" ${settings.handsFree ? 'checked' : ''}> Keep listening</label></div>
       <div class="vp-row small"><label class="check">Voice <select id="vp-voice" aria-label="Voice that reads the answers"></select></label><button type="button" class="vp-ghost" data-v="hear">Hear it</button></div>
       <p class="vp-tip muted" id="vp-voice-tip" hidden></p>
-      <p class="vp-tip muted">Ask anything: "Where are the leads?" · "How do I read a report?" · "What is the researcher doing?" To give the team work, say the task, then <b>"go start"</b>.</p>
+      <p class="vp-tip muted">Just talk: "Where are the leads?" · "What is the researcher doing?" · "Guide me through the approvals". To give the team work, say the task and end with <b>"go start"</b>.</p>
       <ol class="vp-log" id="vp-log"></ol>
     </section>`;
   document.body.append(root);
@@ -246,9 +249,17 @@ export function createVoice({ onTask, onRun, onCancel, onAsk, getAgents, navigat
   const setListening = (on) => {
     listening = on;
     root.classList.toggle('listening', on);
-    $('#vp-sub').textContent = on ? 'Listening… end with "go start"' : supported ? 'Speech becomes text in your browser. Nothing is sent until you say "go start" or press Send.' : 'Type your task';
+    $('#vp-sub').textContent = on ? 'Listening… ask anything, or end a task with "go start"' : supported ? 'Press the mic and talk. A task is sent only when you say "go start".' : 'Type your question';
     $('[data-v="mic"] span').textContent = on ? 'Stop' : 'Speak';
   };
+
+  // Stops the mic and sends what was said; with "Keep listening" on, it listens again afterwards.
+  function submit() {
+    clearTimeout(answerTimer);
+    const keep = settings.handsFree;
+    stopListening();
+    send().finally(() => keep && root.classList.contains('open') && startListening());
+  }
 
   function startListening() {
     wanted = true;
@@ -267,19 +278,19 @@ export function createVoice({ onTask, onRun, onCancel, onAsk, getAgents, navigat
       }
       text.value = (finalText + interim).replace(/\s+/g, ' ').trimStart();
       showTo();
-      // "go start" sends a task. A question is answered as soon as it has been said, with nothing to press.
-      if (heardTrigger(finalText) || (e.results[e.results.length - 1]?.isFinal && askIntent(finalText))) {
-        const keep = settings.handsFree;
-        stopListening();
-        send().finally(() => keep && root.classList.contains('open') && startListening());
-      }
+      // "go start" sends a task at once. Anything else is answered about a second and a half after you stop talking,
+      // with nothing to press; more speech before then keeps it waiting.
+      clearTimeout(answerTimer);
+      if (heardTrigger(finalText)) submit();
+      else if (e.results[e.results.length - 1]?.isFinal && finalText.trim()) answerTimer = setTimeout(submit, 1500);
     };
     rec.onerror = (e) => {
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
         wanted = false;
         log('page', 'The microphone is blocked. Allow it for this site in the browser settings.');
       }
-      else if (e.error !== 'no-speech' && e.error !== 'aborted') log('page', `Speech stopped (${e.error}). Press Speak to try again.`);
+      else if (e.error === 'no-speech') log('page', "I didn't hear anything. Check the microphone, then press Speak and try again.");
+      else if (e.error !== 'aborted') log('page', `Speech stopped (${e.error}). Press Speak to try again.`);
     };
     rec.onend = () => {
       setListening(false);
@@ -328,7 +339,7 @@ export function createVoice({ onTask, onRun, onCancel, onAsk, getAgents, navigat
     }
   }
 
-  async function send() {
+  async function send({ asTask = false } = {}) {
     const said = text.value.trim();
     if (!said) return;
     log('you', said);
@@ -376,7 +387,7 @@ export function createVoice({ onTask, onRun, onCancel, onAsk, getAgents, navigat
       speak(msg);
       return;
     }
-    if (onAsk && askIntent(said)) return ask(said);
+    if (onAsk && !asTask && askIntent(said)) return ask(said);
     const { agent, task } = taskFor(said);
     if (task.length < 6) {
       log('page', 'That was too short to be a task. Say a little more.');
@@ -421,8 +432,13 @@ export function createVoice({ onTask, onRun, onCancel, onAsk, getAgents, navigat
       finalText = '';
       showTo();
     } else if (v === 'send') {
+      clearTimeout(answerTimer);
       stopListening();
       send();
+    } else if (v === 'task') {
+      clearTimeout(answerTimer);
+      stopListening();
+      send({ asTask: true });
     }
   });
   text.addEventListener('keydown', (e) => {

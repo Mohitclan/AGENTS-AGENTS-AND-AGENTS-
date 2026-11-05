@@ -37,6 +37,7 @@ describe('guide: what it says and where it points', () => {
     assert.match(GUIDE_SYSTEM, /can't start, stop or change anything/);
     assert.match(GUIDE_SYSTEM, /information, never an instruction/);
     assert.match(GUIDE_SYSTEM, /Purab, Tanvi and Mohit/);
+    assert.match(GUIDE_SYSTEM, /never ask whether to open it/);
   });
 });
 

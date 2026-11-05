@@ -37,17 +37,23 @@ describe('voice commands', () => {
   });
 });
 
-describe('voice: questions for the guide', () => {
-  it('treats a question or a request for help as one to answer, not a task', () => {
-    for (const q of ['Where are the leads?', 'how do I read a report', 'What is the researcher doing', 'guide me through the approvals page', 'Show me the logs', 'Can you explain the queue', 'Is the evaluator busy', 'tell me about the pipeline', 'Are there any failed tasks', 'how many leads do we have']) {
+describe('voice: talking to the guide', () => {
+  it('answers anything said, greetings and plain statements included, not just phrases that start with a question word', () => {
+    for (const q of ['hello can you hear me', 'Hello', 'Where are the leads?', 'how do I read a report', 'guide me through the approvals page', 'test one two', 'I want to see the logs', 'Researcher, find five startups', 'find ten leads this week']) {
       assert.equal(askIntent(q), true, q);
     }
   });
 
-  it('leaves tasks, local commands and anything ending in "go start" alone', () => {
-    for (const t of ["What's happening?", 'open the leads page', 'cancel that', 'mute', 'Researcher, find five startups', 'find ten leads this week', 'draft emails for the qualified leads', 'how do I find leads, go start', 'what', 'who']) {
+  it('leaves page commands, anything ending in "go start", and noise alone', () => {
+    for (const t of ["What's happening?", 'open the leads page', 'cancel that', 'mute', 'run the waiting tasks', 'find ten leads this week, go start', 'Researcher, find five startups. Send it.', 'how do I find leads, go start', '', '   ', '12', '?!']) {
       assert.equal(askIntent(t), false, t);
     }
+  });
+
+  it('only an explicit "go start" or "send it" makes a task of what was said', () => {
+    assert.equal(heardTrigger('find five leads go start'), true);
+    assert.equal(heardTrigger('find five leads'), false);
+    assert.equal(heardTrigger('can you hear me'), false);
   });
 });
 
