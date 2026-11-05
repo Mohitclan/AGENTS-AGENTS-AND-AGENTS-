@@ -181,3 +181,5 @@ Every time one agent started another. Written by `scripts/team-hooks.mjs`.
 | 2026-11-05 10:48 | coordinator | evaluator | T-20261105-04 | T-20261105-04 review mxRaven drafts |
 | 2026-11-05 11:00 | coordinator | outreach | T-20261105-03 | T-20261105-03 revision 1 fixes |
 | 2026-11-05 11:01 | coordinator | evaluator | T-20261105-04 | T-20261105-04 scoped re-review r2 |
+| 2026-11-05 12:31 | coordinator | lead-generator | T-20261105-05 | T-20261105-05 lead batch |
+| 2026-11-05 12:42 | coordinator | evaluator | T-20261105-06 | T-20261105-06 review lead batch |

@@ -185,5 +185,27 @@
     "report": "outputs/reports/J-20261105-02.md",
     "finished": "2026-11-05 11:11",
     "turns": 97
+  },
+  {
+    "id": "J-20261105-03",
+    "task": "MotionRepo lead chain, every step without questions. 1) lead-generator: find up to 6 NEW segment-1 leads that are not already in the pipeline (India first), prove each on the company's own site, import them and run the gate. 2) evaluator: review the batch. 3) outreach: draft a 3-email sequence for each new lead that passes review and the gate. 4) evaluator: review the drafts. Nobody is contacted; the test copies go out automatically after the task.",
+    "status": "failed",
+    "added": "2026-11-05 12:29",
+    "started": "2026-11-05 12:29",
+    "note": "Claude Code exited (143) without a result. ; 0 test email(s) sent",
+    "report": "outputs/reports/J-20261105-03.md",
+    "finished": "2026-11-05 12:48",
+    "turns": 0
+  },
+  {
+    "id": "J-20261105-04",
+    "task": "Where can I see the leads, and what is the lead generator doing right now?",
+    "status": "failed",
+    "added": "2026-11-05 13:30",
+    "started": "2026-11-05 13:30",
+    "note": "Claude Code exited (143) without a result. ",
+    "report": "outputs/reports/J-20261105-04.md",
+    "finished": "2026-11-05 13:30",
+    "turns": 0
   }
 ]
