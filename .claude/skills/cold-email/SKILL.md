@@ -5,6 +5,8 @@ description: How to write honest, short cold emails, LinkedIn notes and follow-u
 
 # Cold email
 
+For outreach and sales emails, the `email-template` skill sets the subject, length, structure, wording and follow-up beats, and wins where this skill differs. The links, send-risk, nurture, Never and Compliance sections here still apply.
+
 ## Shape of a first email
 
 1. **Subject:** six words or fewer, specific, lowercase is fine. Never "Re:" or "Fwd:" on a first email.

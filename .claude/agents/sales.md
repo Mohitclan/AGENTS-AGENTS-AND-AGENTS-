@@ -19,6 +19,7 @@ skills:
   - discovery-call
   - trial-to-paid
   - timeless-wording
+  - email-template
 can_ask:
   - knowledge-base
   - researcher

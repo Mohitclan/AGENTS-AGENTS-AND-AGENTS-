@@ -1,0 +1,147 @@
+=== PAGE 1 ===
+ Peelpress
+THE A4 LABEL DESIGNER
+Plarbint perfect els, straight from your spreadsheet.
+Design a sticker sheet, fill it from your data, and print at the exact
+physical size.
+Sample names and addresses are for illustration only
+Priya
+Sharma
+12 MG Road
+Pune 411001 Order #1042
+Arjun
+Mehta
+8 Park Street Kolkata
+700016
+Order #1043
+       Neha
+Sam
+Rao
+D'Souza
+44 Hill Road
+Mumbai Goa 403 ne
+3 Beach La 400050001 Order #1044
+Order #1045
+         01
+
+=== PAGE 2 ===
+ THE EVERYDAY HEADACHE
+Labels shouldn't mean retyping every address.
+Shipping stickers, product tags, address labels. The sheet is misaligned, the data is in a spreadsheet, and half the sheet is already used.
+   Peelpress
+02
+Retyping
+Copying names and addresses from a spreadsheet into a document, one label at a time.
+Misaligned prints
+Labels that drift off the sticker edges because the size isn't exact.
+Wasted stickers
+Partly used sheets thrown away because there's no way to skip the used labels.
+
+=== PAGE 3 ===
+ MEET PEELPRESS
+Three steps from blank sheet to
+printed labels.
+123
+   Layout
+Choose how the A4 sheet is divided: 4, 6, 8, 10 labels or a custom mix.
+Design
+Place text, a logo, a QR code, shapes and data fields on the label.
+Data
+Optional. Add a CSV, Excel file, PDF or photo. Each row fills one label.
+Skip step 3 to print identical labels with no data.
+03
+
+=== PAGE 4 ===
+ 1 · LAYOUT
+Any sheet, any label size.
+Ready presets: 4 labels (the default), 2 wide, 2 tall, 6, 8 or 10.
+Exact sizes in millimetres, with common sticker- sheet sizes to choose from.
+Custom layouts with mixed label sizes, snapping and alignment guides.
+                 Peelpress 04
+
+=== PAGE 5 ===
+ 2 · DESIGN
+Design once. Data fields fill the rest.
+Write {{Name}} or {{Order ID}} inside any text box or QR code. Each row of your data fills in its own label.
+     Peelpress
+05
+Everything you need
+Text, data fields, images and logos, QR codes, boxes, circles, lines and your company info.
+Starter templates
+Click one to load it, such as Address Label, or save your own design as a template.
+Built-in checks
+Warns about text running past the edge, blurry images, QR codes too small to scan and characters that can't print.
+
+=== PAGE 6 ===
+              3·DATA
+Drop in your file. One row, one label.
+Works with CSV and Excel files, PDFs, photos and pasted text.
+Columns are matched to fields automatically. Customer Name becomes Name, Mobile becomes Phone, Pincode becomes PIN.
+Pages are added for you as the rows grow.
+Customer Name
+Priya Sharma Arjun Mehta Neha Rao Sam D'Souza
+Mobile
+98xxxxxx01
+98xxxxxx02
+98xxxxxx03
+98xxxxxx04
+Pincode
+411001
+700016
+400050
+403001
+             Sample data for illustration only
+06
+Fix values, untick rows so they don't print, add or delete rows before you download.
+
+=== PAGE 7 ===
+ READING MESSY SOURCES
+PDFs, photos and pasted text become clean rows.
+An order export, a scanned list of addresses or an email. AI turns it into rows, and you check them before anything prints.
+   Many sources
+Spreadsheets, PDFs, photos of lists and plain pasted text all work.
+You stay in control
+AI data is marked and you are asked to review it. Nothing prints unchecked.
+Passcode protected
+A passcode can protect the AI feature so only your team uses it.
+CSV and Excel files are read right in the browser.
+07
+
+=== PAGE 8 ===
+ PRINT WITH CONFIDENCE
+Exact size, every time. An exact-size A4 vector PDF. Labels are never
+stretched.
+Start at label to skip stickers already used on a partly used sheet.
+Copies of each to print every row more than once.
+   Used
+skipped
+Priya Sharma
+12 MG Road Pune 411001
+  Arjun Mehta
+8 Park Street Kolkata 700016
+Neha Rao
+44 Hill Road Mumbai 400050
+  Print at 100% / "Actual size".
+08
+Download 120 labels
+
+=== PAGE 9 ===
+ WORKS WHERE YOU DO
+On your laptop, or your phone.
+   Peelpress
+09
+Phone friendly
+Pinch to zoom, double-tap a label to design it, and print from the phone's share sheet.
+Saved for you
+Your designs and layouts are kept in your browser. Export a backup to move them to another device.
+Reusable work
+Save layouts with every label's design, and save your own templates to reuse.
+
+=== PAGE 10 ===
+ Peelpress
+Your first sheet, ready in minutes.
+Pick a layout, drop in your spreadsheet and download labels that print at exactly the right size.
+Layout Design Data Print
+    Print perfect labels, straight from your spreadsheet.
+10
+

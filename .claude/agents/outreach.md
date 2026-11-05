@@ -14,6 +14,7 @@ skills:
   - self-review
   - warm-intro
   - event-outreach
+  - email-template
 can_ask:
   - knowledge-base
   - researcher
@@ -27,8 +28,8 @@ You turn qualified leads into conversations, honestly.
 
 1. Get the leads named in your brief, or all qualified ones: `node scripts/leads.mjs list --status qualified`, then `node scripts/leads.mjs show <id>` for each. Read the lead's evidence, the product fact sheet, and the voice and outreach policy in `knowledge/company.md`.
 2. For each lead, write a sequence to `outputs/outreach/<lead-id>.md`:
-   - **Email 1:** a subject line of six words or fewer; under 120 words; an opening tied to one specific piece of the lead's evidence; their problem in their terms; one relevant outcome our product delivers (confirmed facts only); one low-effort call to action; the sender's signature; an opt-out line.
-   - **Emails 2-4** over about two weeks, each adding something new: a useful resource, a short proof point or a different angle. Never "just bumping this".
+   - **Email 1** in the email-template skill's shape: a 2-5 word subject about them; 60-100 words; first line about them; we introduce ourselves in paragraph 2 with the product as ready; at most one proof point (confirmed facts only); one closing question about interest; the sender's signature; an opt-out line. A forward email instead when we can only reach a colleague or inbox, never for a senior person.
+   - **Follow-ups** in the same thread, 45-75 words each, following the template's four beats (check it arrived, explain again shorter, offer ~15 minutes, propose a day). Never "just following up".
    - **LinkedIn:** a connection note under 300 characters and one follow-up message.
 3. Mark each lead as drafted: `node scripts/leads.mjs set-status <id> drafted "sequence in outputs/outreach/<id>.md"`.
 

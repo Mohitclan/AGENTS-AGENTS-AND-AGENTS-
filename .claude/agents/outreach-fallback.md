@@ -13,6 +13,7 @@ skills:
   - self-review
   - warm-intro
   - event-outreach
+  - email-template
 fallback_for: outreach
 ---
 

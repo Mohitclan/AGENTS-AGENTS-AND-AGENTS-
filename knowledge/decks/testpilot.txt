@@ -1,0 +1,199 @@
+=== PAGE 1 ===
+ TestPilot
+Know it broke
+before your
+customers do.
+Automated end-to-end testing that explores a website, writes the tests, runs them in a real browser every day and reports what is really broken.
+[Your name] · [Team] · October 2026
+
+=== PAGE 2 ===
+ The problem
+Websites break quietly, and customers find it first.
+It breaks without warning
+A contact form stops sending, a search returns nothing, a menu link leads to an error page. The site still looks fine.
+Checking by hand doesn’t scale
+Clicking through every page, every day, on every site takes hours, and people skip the dull parts.
+Test scripts need a developer
+Automated tests are written in code, and they break whenever the site’s design changes.
+
+=== PAGE 3 ===
+ What TestPilot does
+Give it a web address. It does the whole testing job.
+1234
+Explore
+Reads every page, form, button and list, like a visitor would.
+Write
+Claude writes simple tests: one feature each, in plain words.
+Run
+In real Chrome, on demand or every day, and finds moved buttons again.
+Report
+Real problems with screenshots, a health score, and a PDF
+by email.
+
+=== PAGE 4 ===
+ Who it’s for
+Anyone who runs a website that must keep working
+In-house QA teams Teams shipping daily Owners of many websites Web apps behind a login AI and document apps
+Cover every site without writing the test suite by hand.
+Find out what broke on the page nobody touched.
+Agencies and brands: one place to watch every site they run.
+SaaS products: test the dashboard customers pay for, not just the homepage. Check the summary or answer the product actually produces.
+Works on any site: WordPress, Webflow, Wix, React, Next.js and hand-built pages alike.
+
+=== PAGE 5 ===
+ How it works
+From an address to a daily report
+Crawl
+Pages, forms, menus, lists and search boxes, signed in if needed
+Auto-Test
+Claude writes the tests from what the crawl really saw
+Run
+Playwright drives real Chrome, step by step, with a screenshot each step
+Verify
+Evidence first: the page, its network answers. AI vision only where rules can’t decide
+Report
+Run report, project health over time, PDF emailed after scheduled runs
+Scheduled projects rerun the same tests every day, so a test checks that a feature works, never today’s data.
+
+=== PAGE 6 ===
+ What gets tested
+Simple tests, one feature each
+Test
+Page loads
+Links
+Navigation Forms
+Search and filters Widgets
+What it proves
+Every page opens with real content, no error page
+Every menu and footer link answers; privacy and terms open the right page Each main menu item leads to its page
+Every field filled with test data, sent, and the site confirms it
+Results really contain the word or the value chosen
+Tabs, accordions, switches and carousels do what they show
+
+=== PAGE 7 ===
+ Honest results
+Only real site bugs count against a site’s health
+Site bug
+A check that ran and failed. Counts against health.
+Blocked
+A CAPTCHA stopped it. Reported, never bypassed.
+Warning
+Works, but isn’t what it says: a Privacy link opening Contact.
+Tool error
+TestPilot’s own trouble. Never blamed on the site.
+Test issue
+The test is wrong, not the site: needs maintenance.
+Not run
+Site down or login failed: the run stops and says why.
+Rule one: a false pass is worse than a false fail. A test never passes unless its main check really ran.
+
+=== PAGE 8 ===
+ Safe on live sites
+It tests real websites
+without harming them
+Tests run every day on production sites, so they are careful by design.
+ Never a real email or phone: test addresses only  Never changes or deletes the account it signs in with  Never bypasses a CAPTCHA or bot protection
+ Passwords go only to the site, never shown again
+
+=== PAGE 9 ===
+ The product today
+A complete product, not a demo 
+Schedules
+Daily runs, with the report emailed as a PDF; a short alert when a site is down
+Reports
+Per run, with step screenshots, plus a health score per project over time
+Self-healing
+A moved or renamed button is found again; Regenerate rewrites a test that no longer fits
+
+Signed-in sites
+Login forms, Google/Microsoft, sessions, tokens, 2FA codes; proven before every run
+Accounts and plans
+Sign-up with email codes, plan limits, add- ons, and an admin area
+Public website
+Ten marketing pages, pricing and a Book a demo form
+
+=== PAGE 10 ===
+ Getting started
+What a customer needs to start 
+The address
+The website’s home page. Nothing to install on
+the site.
+A test login
+Only if the site has one: a test account, plus its 2FA key if it uses one.
+Report emails
+Who gets the daily PDF report, and how often runs happen.
+A plan
+Free to try one site; Basic or Pro for daily schedules.
+Then TestPilot does the rest: one Auto-Test explores the site and writes its tests in minutes, and the first run can start straight away.
+
+=== PAGE 11 ===
+ Plans
+Start free, grow by websites tested
+Price a month
+Paid yearly, two months free
+Websites
+Auto-Tests a month (TestPilot writes the tests)
+Regenerates a month (rewrite one test) Test runs a month
+Scheduled runs
+Screenshots
+Run history kept
+PDF report by email
+“Site down” and “login failed” alerts
+Free
+₹0
+Free for good 1
+2
+5
+30
+By hand only Failed steps
+7 days
+In the app only Yes
+Basic
+₹1,499 ₹14,990 a year 3
+6
+30
+200
+Once a day Every step 30 days
+1 address Yes
+Pro
+₹4,999 ₹49,990 a year 10
+20
+100
+1,000
+Up to 4 a day Every step + video 90 days
+5 addresses
+Yes
+Add-ons: +5 Auto-Tests [₹__], +500 runs [₹__] · More than 10 websites: a custom plan on request · Paid plans set up by hand for now
+
+=== PAGE 12 ===
+ Where it stands
+Checked, not just built
+155
+automated checks of TestPilot itself, all passing
+100
+SEO score on all 10 website pages
+100
+accessibility score on the same pages
+~90
+speed score, tested as a slow phone
+Scores: Google Lighthouse, mobile, on a production build. Checks: TestPilot’s own test suite (node:test).
+
+=== PAGE 13 ===
+ What comes next
+Live today. Three steps to grow.
+01
+02
+03
+Decision needed: [who owns payments, and the first customers to approach]
+Get found on Google
+Live at testpilot.panscience.ai: set that address on the server and connect Search Console.
+Paid plans are set up by hand today; customers should be able to pay and upgrade on their own.
+Online payments
+First customers
+[Who we start with, and how we reach them]
+
+=== PAGE 14 ===
+ Thank you.
+Questions? See it live: testpilot.panscience.ai
+TestPilot · testpilot.testing@gmail.com
+

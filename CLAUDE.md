@@ -13,8 +13,11 @@ The team's shared memory: decisions, preferences and lessons. Add to it with `no
 | Slug | Product | Website | Repo |
 |---|---|---|---|
 | motionrepo | MotionRepo | https://motionrepo.panscience.ai | PanScienceInnovation/Collateral-Pipeline |
+| testpilot | TestPilot | https://testpilot.panscience.ai | unknown |
+| pitchlight | Pitchlight | https://pitchlight.panscience.ai | unknown |
+| peelpress | Peelpress | https://peelpress.panscience.ai | unknown |
 
-Company facts and policies live in `knowledge/company.md`. Each product's facts live in `knowledge/products/<slug>.md`. Read the file for the product you're working on; don't load every product file for a single-product task.
+Company facts and policies live in `knowledge/company.md`. Each product's facts live in `knowledge/products/<slug>.md`. Pitch decks are in `knowledge/decks/` (see its README). Read the file for the product you're working on; don't load every product file for a single-product task.
 
 ## Team
 

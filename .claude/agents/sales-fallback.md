@@ -18,6 +18,7 @@ skills:
   - discovery-call
   - trial-to-paid
   - timeless-wording
+  - email-template
 fallback_for: sales
 ---
 
