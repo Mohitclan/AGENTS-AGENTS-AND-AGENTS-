@@ -6,6 +6,7 @@
 //
 //   node scripts/control.mjs              serve it at http://127.0.0.1:4318
 //   node scripts/control.mjs --port 5000  on another port
+//   node scripts/control.mjs --open       serve it and open it in a browser, together (npm start does this)
 //   node scripts/control.mjs --state      print the state as JSON and exit
 //
 // Online: the same sign-in as the team page. TEAM_PAGE_PASSWORD_HASH turns it on (make one with
@@ -17,6 +18,7 @@
 // page fetch, file write and failure is credited to the agent that made it.
 import { createHash } from 'node:crypto';
 import { closeSync, existsSync, fstatSync, openSync, readdirSync, readFileSync, readSync, statSync } from 'node:fs';
+import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { ROOT, frontmatter, isMain } from './_shared.mjs';
@@ -32,6 +34,29 @@ const MAX_BODY = 16 * 1024;
 const MAX_UPLOAD_BODY = 1024 * 1024; // a project form is up to 300 KB; JSON escaping adds a little
 const MAX_LOG = 8 * 1024 * 1024;
 const TICK_MS = 1500;
+
+// The command that opens a page in a browser. Chrome first on a Mac, because its speech recognition is what the voice
+// panel needs; otherwise the computer's own default. MISSION_OPEN_CMD replaces it ("open -a Safari", or a test's recorder).
+export function browserCommand(url, { platform = process.platform, env = process.env, has = existsSync } = {}) {
+  if (env.MISSION_OPEN_CMD) {
+    const [cmd, ...args] = env.MISSION_OPEN_CMD.trim().split(/\s+/);
+    return [cmd, [...args, url]];
+  }
+  if (platform === 'darwin') return has('/Applications/Google Chrome.app') ? ['open', ['-a', 'Google Chrome', url]] : ['open', [url]];
+  if (platform === 'win32') return ['cmd', ['/c', 'start', '', url]];
+  return ['xdg-open', [url]];
+}
+
+function openBrowser(url) {
+  const [cmd, args] = browserCommand(url);
+  try {
+    const child = spawn(cmd, args, { detached: true, stdio: 'ignore' });
+    child.on('error', () => console.error(`Could not open a browser. Open ${url} yourself.`));
+    child.unref();
+  } catch {
+    console.error(`Could not open a browser. Open ${url} yourself.`);
+  }
+}
 
 // The order agents appear in. Others found in .claude/agents/ follow.
 export const ORDER = ['coordinator', 'evaluator', 'knowledge-base', 'researcher', 'lead-generator', 'outreach', 'sales', 'marketing', 'demo-handler', 'docs-handler', 'developer'];
@@ -510,7 +535,7 @@ function main() {
   const flag = args.indexOf('--port');
   const port = flag >= 0 ? Number(args[flag + 1]) : DEFAULT_PORT;
   if (!Number.isInteger(port) || port < 0) {
-    console.error('Usage: node scripts/control.mjs [--port <number>] [--state]');
+    console.error('Usage: node scripts/control.mjs [--port <number>] [--open] [--state]');
     process.exit(1);
   }
 
@@ -696,11 +721,23 @@ function main() {
       return json(res, 500, { message: `That didn't work: ${error.message}` });
     }
   });
+  const wantOpen = args.includes('--open');
   server.on('error', (error) => {
+    if (error.code === 'EADDRINUSE' && wantOpen) {
+      // Already running (started earlier): just show it.
+      console.log(`Mission control is already running at http://127.0.0.1:${port}. Opening it.`);
+      openBrowser(`http://127.0.0.1:${port}`);
+      setTimeout(() => process.exit(0), 300); // let the opener start first
+      return;
+    }
     console.error(error.code === 'EADDRINUSE' ? `Port ${port} is in use. Pick another with --port.` : error.message);
     process.exit(1);
   });
-  server.listen(port, '127.0.0.1', () => console.log(`Mission control: http://127.0.0.1:${server.address().port}${auth ? ' (sign-in on)' : ''}`));
+  server.listen(port, '127.0.0.1', () => {
+    const url = `http://127.0.0.1:${server.address().port}`;
+    console.log(`Mission control: ${url}${auth ? ' (sign-in on)' : ''}`);
+    if (wantOpen) openBrowser(url);
+  });
 }
 
 if (isMain(import.meta.url)) main();
