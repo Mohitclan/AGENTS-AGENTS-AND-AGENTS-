@@ -236,11 +236,21 @@ function writeCsv(leads) {
   writeFileSync(CSV, [cols.join(','), ...rows.map((r) => cols.map((c) => cell(r[c])).join(','))].join('\n') + '\n');
 }
 
-function contactQuality(contact) {
+// An inbox named for the company or its product (mxRaven@ for mxRaven) is a shared inbox, not a person.
+const squash = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+function companyInbox(contact, lead) {
+  const local = squash(String(contact.value).split('@')[0]);
+  if (!local || !lead) return false;
+  // The company's name without a legal name in brackets, or the first part of its site's address.
+  const names = [String(lead.company || '').split('(')[0], String(lead.website || '').replace(/^https?:\/\/(www\.)?/i, '').split(/[./]/)[0]];
+  return names.some((n) => squash(n).length > 2 && squash(n) === local);
+}
+
+function contactQuality(contact, lead) {
   if (!contact?.value) return 'none';
   if (contact.channel !== 'email') return 'direct';
   if (SUPPORT_INBOX.test(contact.value)) return 'support';
-  return GENERAL_INBOX.test(contact.value) ? 'general' : 'direct';
+  return GENERAL_INBOX.test(contact.value) || companyInbox(contact, lead) ? 'general' : 'direct';
 }
 
 function suppressions() {
@@ -317,7 +327,7 @@ const CRITICAL_SIGNALS = [
     return PERSONAL_MAIL.has(host) && `personal email address (${host})`;
   },
   // memory/MAIN.md, 2026-10-30: a support-only inbox never gets a Go. A support desk isn't a sales route.
-  (lead) => contactQuality(lead.contact) === 'support' && 'support-only inbox',
+  (lead) => contactQuality(lead.contact, lead) === 'support' && 'support-only inbox',
 ];
 
 // The last check before outreach is drafted or sent. Conditional means a person decides.
@@ -356,7 +366,7 @@ function gate(args) {
     console.log('No leads match.');
     return;
   }
-  const rows = leads.map((l) => ({ id: l.id, tier: l.tier, contact: contactQuality(l.contact), company: l.company, ...gateOf(l, list) }));
+  const rows = leads.map((l) => ({ id: l.id, tier: l.tier, contact: contactQuality(l.contact, l), company: l.company, ...gateOf(l, list) }));
   printTable(rows, ['id', 'tier', 'verdict', 'contact', 'company', 'why']);
   const counts = rows.reduce((c, r) => ({ ...c, [r.verdict]: (c[r.verdict] || 0) + 1 }), {});
   console.log(`\n${Object.entries(counts).map(([v, n]) => `${n} ${v}`).join(', ')}. Fix a Stop at the source, then run the gate again.`);
@@ -391,7 +401,7 @@ function importBatch(file) {
       errors.push(`score ${lead.score} doesn't match the breakdown total ${totalOf(lead.score_breakdown)}`);
     }
     if (suppressedBy(lead, blocklist)) errors.push('this company or contact is on the suppression list');
-    const quality = contactQuality(lead.contact);
+    const quality = contactQuality(lead.contact, lead);
     if (lead.score_breakdown?.reachability > (REACHABILITY_CAP[quality] ?? 10)) {
       errors.push(`score_breakdown.reachability can be at most ${REACHABILITY_CAP[quality]} for a ${quality} inbox`);
     }

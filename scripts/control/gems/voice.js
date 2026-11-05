@@ -8,8 +8,10 @@
 // "send it"); the task then starts at once and its words are read back, so "cancel that" can stop a
 // misheard one. With "Keep listening" on, the mic stays open for the next task, hands free. A few
 // phrases are answered on the page without any agent: "what's happening", "open <agent or page>",
-// "start waiting tasks", "stop talking", "cancel that". When a task ends, the coordinator's own
-// summary is read aloud.
+// "start waiting tasks", "stop talking", "cancel that". A question ("where are the leads?", "how do I read a
+// report?", "guide me") is sent to the guide on the server, which answers from the live team state using Claude
+// Code on the signed-in login; the answer is read aloud and may open a page. When a task ends, the
+// coordinator's own summary is read aloud.
 import { identityFor } from './identities.js';
 import { normalizeState, STATE_LABEL } from './status.js';
 
@@ -35,7 +37,7 @@ const PAGES = { home: '#/', office: '#/', working: '#/working', overview: '#/ove
 
 function load() {
   try {
-    return { speak: true, handsFree: false, ...JSON.parse(localStorage.getItem(KEY) || '{}') };
+    return { speak: true, handsFree: false, voice: null, ...JSON.parse(localStorage.getItem(KEY) || '{}') };
   } catch {
     return { speak: true, handsFree: false };
   }
@@ -92,13 +94,61 @@ export function localIntent(text) {
   return null;
 }
 
-export function createVoice({ onTask, onRun, onCancel, getAgents, navigate }) {
+// Which voice reads the answers. A browser lists every voice on the computer, joke voices and old compact ones
+// included; taking the first English one, or forcing Indian English (on a Mac that is only the basic "Rishi"),
+// sounded poor. So voices are ranked: natural, neural, enhanced and premium ones first, then Chrome's and Edge's
+// online ones, then the clear everyday system voices, and the joke voices never.
+const NOVELTY = /^(Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Deranged|Eddy|Flo|Fred|Good News|Grandma|Grandpa|Hysterical|Jester|Junior|Kathy|Organ|Princess|Ralph|Reed|Rocko|Sandy|Shelley|Superstar|Trinoids|Whisper|Wobble|Zarvox)\b/i;
+export function voiceScore(v) {
+  const name = v?.name || '';
+  if (!/^en/i.test(v?.lang || '')) return -Infinity;
+  let score = 0;
+  if (/premium|enhanced|natural|neural|siri/i.test(name)) score += 100;
+  if (/online/i.test(name)) score += 70;
+  if (/^google/i.test(name)) score += 60;
+  if (/^(samantha|ava|allison|susan|zoe|evan|nicky|serena|daniel|oliver|stephanie|catherine|karen|moira)\b/i.test(name)) score += 30;
+  if (/^rishi/i.test(name)) score -= 20;
+  if (NOVELTY.test(name)) score -= 1000;
+  if (/^en[-_](US|GB|IN|AU)/i.test(v.lang)) score += 5;
+  return score;
+}
+export const rankVoices = (voices) => [...voices]
+  .map((v) => [v, voiceScore(v)])
+  .filter(([, score]) => score > -Infinity)
+  .sort((a, b) => b[1] - a[1] || a[0].name.localeCompare(b[0].name))
+  .map(([v]) => v);
+export const goodVoice = (v) => voiceScore(v) >= 100; // natural, neural, enhanced or premium
+
+// Text split into pieces of about a sentence: browsers cut off a long utterance partway.
+export function pieces(text, max = 200) {
+  const out = [];
+  let cur = '';
+  for (const sentence of String(text).match(/[^.!?]+[.!?]*\s*/g) || [String(text)]) {
+    if (cur && (cur + sentence).length > max) {
+      out.push(cur.trim());
+      cur = '';
+    }
+    cur += sentence;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+}
+
+// A question or a request for help, to be answered rather than handed to the team as a task.
+const QUESTION = /^(?:hey |ok |okay |please )?(?:guide\b|help\b|how\b|what\b|where\b|when\b|why\b|who\b|which\b|tell me\b|show me\b|explain\b|walk me through\b|(?:can|could) you (?:tell|show|explain|walk|guide|help)\b|(?:is|are) (?:there|the|it|we|anyone|anything|any)\b|does (?:the|it)\b)/i;
+export const askIntent = (text) => {
+  const t = String(text ?? '').trim();
+  return t.split(/\s+/).length >= 2 && !heardTrigger(t) && !localIntent(t) && QUESTION.test(t);
+};
+
+export function createVoice({ onTask, onRun, onCancel, onAsk, getAgents, navigate }) {
   const settings = load();
   let rec = null;
   let listening = false;
   let wanted = false; // the person wants the mic on; Chrome ends a session after a silence, so restart it
   let lastTask = null;
   let finalText = '';
+  const history = []; // the last few questions and answers, so a follow-up makes sense
   const supported = !!Recognition;
 
   const root = document.createElement('div');
@@ -118,7 +168,9 @@ export function createVoice({ onTask, onRun, onCancel, getAgents, navigate }) {
         <button type="button" class="vp-send" data-v="send">Send to the team</button>
       </div>
       <div class="vp-row small"><label class="check"><input type="checkbox" id="vp-speak" ${settings.speak ? 'checked' : ''}> Speak updates aloud</label><label class="check"><input type="checkbox" id="vp-hands" ${settings.handsFree ? 'checked' : ''}> Keep listening</label></div>
-      <p class="vp-tip muted">Say the task, then <b>"go start"</b>. Try: "Researcher, find 5 launch-active startups, go start" · "What's happening?" · "Cancel that"</p>
+      <div class="vp-row small"><label class="check">Voice <select id="vp-voice" aria-label="Voice that reads the answers"></select></label><button type="button" class="vp-ghost" data-v="hear">Hear it</button></div>
+      <p class="vp-tip muted" id="vp-voice-tip" hidden></p>
+      <p class="vp-tip muted">Ask anything: "Where are the leads?" · "How do I read a report?" · "What is the researcher doing?" To give the team work, say the task, then <b>"go start"</b>.</p>
       <ol class="vp-log" id="vp-log"></ol>
     </section>`;
   document.body.append(root);
@@ -128,19 +180,51 @@ export function createVoice({ onTask, onRun, onCancel, getAgents, navigate }) {
   const log = (who, msg) => {
     const li = document.createElement('li');
     li.className = `vl-${who}`;
-    li.innerHTML = `<b>${who === 'you' ? 'You' : who === 'team' ? 'Team' : 'Page'}</b> ${esc(msg)}`;
+    li.innerHTML = `<b>${who === 'you' ? 'You' : who === 'team' ? 'Team' : who === 'guide' ? 'Guide' : 'Page'}</b> ${esc(msg)}`;
     $('#vp-log').prepend(li);
     while ($('#vp-log').children.length > 8) $('#vp-log').lastChild.remove();
+    return li;
   };
 
-  const speak = (msg) => {
-    if (!settings.speak || !('speechSynthesis' in window) || !msg) return;
-    const u = new SpeechSynthesisUtterance(msg);
-    const voices = speechSynthesis.getVoices();
-    u.voice = voices.find((v) => /en-IN/i.test(v.lang)) || voices.find((v) => /^en/i.test(v.lang)) || null;
-    u.rate = 1.03;
-    speechSynthesis.speak(u);
+  // The voice to use: the one the person picked, else the best-sounding English voice on this computer.
+  const pickVoice = () => {
+    const all = 'speechSynthesis' in window ? speechSynthesis.getVoices() : [];
+    return all.find((v) => v.voiceURI === settings.voice) || rankVoices(all)[0] || null;
   };
+
+  // Resolves when the speech has ended (or at once when nothing is spoken), so the mic isn't reopened on top of it.
+  const speak = (msg, force = false) => new Promise((resolve) => {
+    if ((!settings.speak && !force) || !('speechSynthesis' in window) || !msg) return resolve();
+    const voice = pickVoice();
+    const queue = pieces(msg);
+    const next = () => {
+      const part = queue.shift();
+      if (!part) return resolve();
+      const u = new SpeechSynthesisUtterance(part);
+      if (voice) {
+        u.voice = voice;
+        u.lang = voice.lang;
+      }
+      u.rate = 1;
+      u.onend = next;
+      u.onerror = next;
+      speechSynthesis.speak(u);
+    };
+    next();
+    setTimeout(resolve, Math.max(8000, msg.length * 90)); // never wait forever
+  });
+
+  // The picker lists the voices best first, and says how to get a better one when none of them is.
+  function fillVoices() {
+    if (!('speechSynthesis' in window)) return;
+    const list = rankVoices(speechSynthesis.getVoices());
+    const current = pickVoice();
+    $('#vp-voice').innerHTML = list.map((v) => `<option value="${esc(v.voiceURI)}"${current && v.voiceURI === current.voiceURI ? ' selected' : ''}>${esc(v.name)} (${esc(v.lang)}${v.localService ? '' : ', online'})</option>`).join('') || '<option>No English voice found</option>';
+    const tip = $('#vp-voice-tip');
+    tip.hidden = !list.length || list.some(goodVoice);
+    tip.textContent = 'These voices are basic. For a much better one on a Mac: System Settings, Accessibility, Spoken Content, System Voice, Manage Voices. Download an Enhanced or Premium English voice (Ava, Zoe and Evan sound good), then reload this page. In Edge, the Natural online voices are already good.';
+  }
+  if ('speechSynthesis' in window) speechSynthesis.addEventListener?.('voiceschanged', fillVoices);
 
   const showTo = () => {
     const t = text.value.trim();
@@ -183,7 +267,8 @@ export function createVoice({ onTask, onRun, onCancel, getAgents, navigate }) {
       }
       text.value = (finalText + interim).replace(/\s+/g, ' ').trimStart();
       showTo();
-      if (heardTrigger(finalText)) {
+      // "go start" sends a task. A question is answered as soon as it has been said, with nothing to press.
+      if (heardTrigger(finalText) || (e.results[e.results.length - 1]?.isFinal && askIntent(finalText))) {
         const keep = settings.handsFree;
         stopListening();
         send().finally(() => keep && root.classList.contains('open') && startListening());
@@ -223,6 +308,24 @@ export function createVoice({ onTask, onRun, onCancel, getAgents, navigate }) {
     const busy = agents.filter((a) => ['working', 'researching'].includes(normalizeState(a.status)));
     if (!busy.length) return 'Everyone is at their desk. No task is running.';
     return busy.map((a) => `${identityFor(a.name).name} is ${STATE_LABEL[normalizeState(a.status)].toLowerCase()}${a.doing ? `: ${a.doing.replace(/https?:\/\/(www\.)?/g, '').slice(0, 70)}` : ''}`).join('. ');
+  }
+
+  // A question for the guide: the server answers from the live team state; the answer is shown, spoken, and may open a page.
+  async function ask(question) {
+    const thinking = log('guide', 'Thinking…');
+    try {
+      const r = await onAsk(question, history.slice(-6));
+      const answer = String(r.answer || '').trim() || "I couldn't get an answer just now.";
+      thinking.innerHTML = `<b>Guide</b> ${esc(answer)}`;
+      if (r.ok) {
+        history.push({ q: question, a: answer });
+        if (r.open) navigate(r.open);
+      }
+      await speak(plain(answer));
+    } catch (error) {
+      thinking.innerHTML = `<b>Page</b> ${esc(error.message)}`;
+      await speak('I could not get an answer just now.');
+    }
   }
 
   async function send() {
@@ -273,6 +376,7 @@ export function createVoice({ onTask, onRun, onCancel, getAgents, navigate }) {
       speak(msg);
       return;
     }
+    if (onAsk && askIntent(said)) return ask(said);
     const { agent, task } = taskFor(said);
     if (task.length < 6) {
       log('page', 'That was too short to be a task. Say a little more.');
@@ -308,6 +412,10 @@ export function createVoice({ onTask, onRun, onCancel, getAgents, navigate }) {
     const v = e.target.closest('[data-v]')?.dataset.v;
     if (v === 'close') open(false);
     else if (v === 'mic') (listening ? stopListening : startListening)();
+    else if (v === 'hear') {
+      speechSynthesis?.cancel();
+      speak('Hello, this is how I sound. The leads are on the Leads page.', true);
+    }
     else if (v === 'clear') {
       text.value = '';
       finalText = '';
@@ -324,6 +432,12 @@ export function createVoice({ onTask, onRun, onCancel, getAgents, navigate }) {
     }
     if (e.key === 'Escape') open(false);
   });
+  $('#vp-voice').addEventListener('change', (e) => {
+    settings.voice = e.target.value;
+    save(settings);
+    speechSynthesis?.cancel();
+    speak('Hello, this is how I sound.', true);
+  });
   $('#vp-hands').addEventListener('change', (e) => {
     settings.handsFree = e.target.checked;
     save(settings);
@@ -339,6 +453,7 @@ export function createVoice({ onTask, onRun, onCancel, getAgents, navigate }) {
     $('#voice-fab').click();
   });
   setListening(false);
+  fillVoices();
 
   // Spoken updates from real events: a task starts or ends, an agent finishes or fails.
   function announce(events) {

@@ -20,7 +20,7 @@ import { spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
-import { ROOT, isMain, suppressionMatch } from './_shared.mjs';
+import { ROOT, isMain, loadMailSecret, suppressionMatch } from './_shared.mjs';
 import { replyStop } from './replies.mjs';
 
 const CONFIG = join(ROOT, 'ops', 'mail-config.json');
@@ -148,20 +148,6 @@ export function buildReport(r) {
 
 // ---------- side effects ----------
 
-// Google shows app passwords as four groups of four letters; Gmail wants the 16 letters without the spaces.
-const unspaceAppPassword = (p) => (/^[a-z]{4}( [a-z]{4}){3}$/i.test(p) ? p.replace(/ /g, '') : p);
-
-function loadSecret() {
-  if (process.env.SMTP_PASS) return unspaceAppPassword(process.env.SMTP_PASS.trim());
-  const file = join(ROOT, '.env');
-  if (!existsSync(file)) return '';
-  for (const line of readFileSync(file, 'utf8').split(/\r?\n/)) {
-    const m = line.match(/^\s*SMTP_PASS\s*=\s*(.*)$/);
-    if (m) return unspaceAppPassword(m[1].trim().replace(/^["']|["']$/g, ''));
-  }
-  return '';
-}
-
 const readJsonl = (f) => (existsSync(f) ? readFileSync(f, 'utf8').split('\n').filter((l) => l.trim()).map((l) => JSON.parse(l)) : []);
 
 function latestReview(task) {
@@ -267,7 +253,7 @@ async function main() {
     return;
   }
 
-  const pass = loadSecret();
+  const pass = loadMailSecret();
   if (!pass) die('no SMTP password: set SMTP_PASS or add it to .env');
   const nodemailer = (await import('nodemailer')).default;
   const transport = nodemailer.createTransport({ host: config.smtp.host, port: config.smtp.port, secure: config.smtp.port === 465, auth: { user: config.smtp.user, pass } });

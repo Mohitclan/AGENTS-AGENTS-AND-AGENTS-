@@ -1,4 +1,9 @@
 {
+  "scripts": {
+    "start": "node scripts/control.mjs",
+    "check": "node scripts/pilot-check.mjs --online",
+    "test": "node scripts/test.mjs"
+  },
   "dependencies": {
     "imapflow": "2.5.2",
     "nodemailer": "^10.3.1"

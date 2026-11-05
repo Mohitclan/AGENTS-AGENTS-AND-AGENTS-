@@ -20,7 +20,8 @@ import { closeSync, existsSync, fstatSync, openSync, readdirSync, readFileSync, 
 import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { ROOT, frontmatter, isMain } from './_shared.mjs';
-import { act, collect, createAuth, parseApprovals, renderMarkdown, sameSite } from './dashboard.mjs';
+import { act, collect, createAuth, parseApprovals, planUsage, renderMarkdown, sameSite } from './dashboard.mjs';
+import { askGuide, guideContext } from './guide.mjs';
 import { projectsApi } from './projects.mjs';
 
 const DEFAULT_PORT = 4318;
@@ -390,8 +391,16 @@ export function snapshot(root = ROOT) {
   const leads = base.leads;
   const by = (s) => leads.filter((l) => l.status === s).length;
   const approvals = parseApprovals(read(root, 'ops/approvals.md'));
+  // While the pilot lists addresses, no send to a lead can go out, so a pending send isn't something to act on yet.
+  // Other pending actions (a push, a listing, a booking) still are.
+  let pilot = false;
+  try {
+    pilot = (JSON.parse(read(root, 'ops/mail-config.json')).pilot?.allow_only || []).length > 0;
+  } catch {
+    // no readable mail settings: treat the pilot as off
+  }
   const flags = [
-    ...base.pending.map((p) => ({ kind: 'approval', id: p.id, text: clip(p.action, 140), ref: /outputs\/[\w/.-]+\.md/.exec(p.files || '')?.[0] || 'ops/approvals.md', risk: clip(p.risk, 160) })),
+    ...(pilot ? base.others : base.pending).map((p) => ({ kind: 'approval', id: p.id, text: clip(p.action, 140), ref: /outputs\/[\w/.-]+\.md/.exec(p.files || '')?.[0] || 'ops/approvals.md', risk: clip(p.risk, 160) })),
     ...base.tasks.filter((t) => ['needs_approval', 'needs_input', 'blocked', 'failed'].includes(t.status)).map((t) => ({ kind: 'task', id: t.id, text: `${t.status.replace('_', ' ')}: ${clip(t.title, 120)}`, ref: t.report || null })),
     ...events.filter((e) => ['fallback', 'blocked'].includes(e.kind)).slice(0, 10).map((e) => ({ kind: e.kind, id: e.task, text: `${e.agent}: ${e.text}`, ref: e.ref || null })),
     // A "-changes.md" review list belongs to its replacement sheet: a person reads it in the update dialog, so it is not a second item to confirm.
@@ -416,6 +425,7 @@ export function snapshot(root = ROOT) {
     tasks: base.tasks.map((t) => ({ id: t.id, title: t.title, status: t.status, added: t.added, started: t.started, finished: t.finished, report: t.report, note: t.note })),
     leads: leads.map((l) => ({ id: l.id, company: l.company, status: l.status, tier: l.tier, score: l.score, segment: l.segment, contact: l.contact?.channel || null, evidence: (l.evidence || []).filter((e) => !e.superseded).length, next: l.next_action, sequence: l.sequence, review: l.review, hold: l.hold?.reason || null, updated: l.updated_at, reason: l.disqualify_reason || null })),
     approvals: approvals.length,
+    pilot,
   };
 }
 
@@ -649,6 +659,20 @@ function main() {
           }
         }
         if (!signedIn) return json(res, 401, { message: 'Sign in first.' });
+        // A spoken or typed question for the guide: answered by Claude Code on the signed-in login, read-only.
+        if (path === '/api/ask') {
+          let ask;
+          try {
+            ask = JSON.parse(body || '{}');
+          } catch {
+            return json(res, 400, { message: 'That request could not be read.' });
+          }
+          const full = planUsage(ROOT)?.full;
+          if (full) return json(res, 200, { ok: false, answer: `The plan's ${full} window is full, so I can't answer until it resets.` });
+          askGuide(ROOT, { question: ask.question, history: Array.isArray(ask.history) ? ask.history : [], context: guideContext(snapshot(ROOT)) })
+            .then((result) => json(res, 200, result), () => json(res, 500, { message: "I couldn't get an answer just now." }));
+          return undefined;
+        }
         // This runs after the request's try/catch has returned, so a file error here (a folder that can't be
         // made, a file another program holds open) has to be caught here or it would stop the server.
         let project;

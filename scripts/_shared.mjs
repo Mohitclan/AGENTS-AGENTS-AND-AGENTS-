@@ -1,9 +1,58 @@
 // Helpers shared by the scripts in this folder. Node 20+, no dependencies.
-import { readdirSync, realpathSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { existsSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { delimiter, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+// The Claude Code command line the background runs use: CLAUDE_BIN, else `claude` on the PATH, else
+// where its installers put it, so mission control works when it is started without any setting.
+export function resolveClaude(env = process.env, home = homedir()) {
+  if (env.CLAUDE_BIN) return env.CLAUDE_BIN;
+  const names = process.platform === 'win32' ? ['claude.exe', 'claude.cmd', 'claude'] : ['claude'];
+  const dirs = [...(env.PATH || '').split(delimiter), join(home, '.claude-cli', 'bin'), join(home, '.local', 'bin'), join(home, '.claude', 'local'), '/opt/homebrew/bin', '/usr/local/bin'].filter(Boolean);
+  for (const dir of dirs) for (const name of names) if (existsSync(join(dir, name))) return join(dir, name);
+  return 'claude';
+}
+
+// Has Claude Code been told to trust this folder (or one above it)? Without that it ignores the project's
+// allowed commands and refuses every command the agents run. null when its settings can't be read.
+export function workspaceTrusted(root = ROOT, home = homedir()) {
+  let projects;
+  try {
+    projects = JSON.parse(readFileSync(join(home, '.claude.json'), 'utf8')).projects || {};
+  } catch {
+    return null;
+  }
+  // Claude Code keys a folder by the path it sees, which may be the resolved one (macOS /var is /private/var).
+  const starts = [root];
+  try {
+    starts.push(realpathSync(root));
+  } catch {
+    // use the path as given
+  }
+  return starts.some((start) => {
+    for (let dir = start; ; dir = dirname(dir)) {
+      if (projects[dir]?.hasTrustDialogAccepted) return true;
+      if (dirname(dir) === dir) return false;
+    }
+  });
+}
+
+// The mail password (a Google app password) from SMTP_PASS or the git-ignored .env, never printed or logged.
+// Google shows it as four groups of four letters; Gmail wants the sixteen without the spaces.
+export const unspaceAppPassword = (p) => (/^[a-z]{4}( [a-z]{4}){3}$/i.test(p) ? p.replace(/ /g, '') : p);
+export function loadMailSecret(root = ROOT, env = process.env) {
+  if (env.SMTP_PASS) return unspaceAppPassword(env.SMTP_PASS.trim());
+  const file = join(root, '.env');
+  if (!existsSync(file)) return '';
+  for (const line of readFileSync(file, 'utf8').split(/\r?\n/)) {
+    const m = line.match(/^\s*SMTP_PASS\s*=\s*(.*)$/);
+    if (m) return unspaceAppPassword(m[1].trim().replace(/^["']|["']$/g, ''));
+  }
+  return '';
+}
 
 // True when the module at metaUrl is the script node was started with. Compares real paths, so a
 // symlinked folder (macOS's /var is /private/var) doesn't make a script silently do nothing.

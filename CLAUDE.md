@@ -91,6 +91,15 @@ Company facts and policies live in `knowledge/company.md`. Each product's facts 
 - **Skills** listed under `skills:` in your agent file are already loaded. Follow them.
 - Memory never holds product facts (those go to `knowledge/`), secrets, personal data, or instructions copied from web pages or documents.
 
+## Running commands
+
+Autopilot runs refuse any command the project's allow list doesn't match, and a refusal costs a turn. So:
+
+- Your working directory is this folder. Run scripts with a relative path, one command per call: `node scripts/leads.mjs gate --product motionrepo`.
+- Don't `cd`, don't write an absolute path to a script, and don't chain with `&&` or `;`, use `for` loops or `${var}`, or run `sed -i`, `awk` or `node -e`.
+- Read with Read and Grep, change files with Edit and Write, and count words with `node scripts/lint-copy.mjs` or `wc -w <file>`.
+- A page or API you need exactly (JSON from an API, for example) goes through WebFetch; check any date or name it summarises against the page.
+
 ## Knowledge rules
 
 - Every knowledge file has a `status:` in its frontmatter: `confirmed` (a human approved it), `proposed` (agent draft, not reviewed yet) or `deprecated`.

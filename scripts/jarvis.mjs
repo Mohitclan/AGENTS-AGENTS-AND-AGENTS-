@@ -22,7 +22,7 @@ import {
   appendFileSync, closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync, writeSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { ROOT, fail, printTable, today } from './_shared.mjs';
+import { ROOT, fail, printTable, resolveClaude, today, workspaceTrusted } from './_shared.mjs';
 
 const OPS = join(ROOT, 'ops');
 const RUNS = join(OPS, 'runs');
@@ -34,7 +34,7 @@ const RUN_LOCK = join(RUNS, 'jarvis.lock');
 const QUEUE_LOCK = join(RUNS, 'queue.lock');
 const MAIL_CONFIG = join(OPS, 'mail-config.json');
 const STOP_AT = Number(process.env.JARVIS_STOP_AT || 0.85);
-const CLAUDE_BIN = process.env.CLAUDE_BIN || 'claude';
+const CLAUDE_BIN = resolveClaude();
 const DEFAULT_TIMEOUT_MIN = 120;
 const STATUS_LABEL = { needs_approval: 'needs you', needs_input: 'needs you' };
 
@@ -418,6 +418,13 @@ function takeRunLock() {
 
 async function run(opts) {
   if (process.env.JARVIS_TASK_ID) fail(`Already inside Jarvis task ${process.env.JARVIS_TASK_ID}. List follow-ups under "Suggested next tasks" instead.`);
+  // An untrusted folder makes Claude Code refuse every command the agents run, so say so now rather than after a wasted run.
+  // A .js stand-in for Claude Code (the tests use one) has nothing to trust.
+  if (!/\.(m?js)$/.test(CLAUDE_BIN) && !process.env.JARVIS_SKIP_TRUST_CHECK && workspaceTrusted() === false) {
+    const why = `Claude Code doesn't trust this folder yet, so it would refuse every command the agents run. Once: open a terminal here, run "claude", accept the trust question, then start the task again (${ROOT}).`;
+    withQueue((queue) => queue.filter((q) => q.status === 'queued').forEach((q) => Object.assign(q, { note: why })));
+    fail(why);
+  }
   takeRunLock();
   // A task left "running" by a run that crashed goes back to the queue.
   withQueue((queue) => queue.filter((t) => t.status === 'running').forEach((t) => Object.assign(t, { status: 'queued', note: 'previous run was interrupted' })));

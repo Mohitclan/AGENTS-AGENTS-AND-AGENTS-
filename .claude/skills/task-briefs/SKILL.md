@@ -32,6 +32,6 @@ Free-text briefs were a common cause of first-round REVISE: the specialist guess
 ## Pilot rules (from 2026-11-02, main memory)
 
 1. Research, scraping and drafting run freely. Nothing goes to a prospect.
-2. Every outreach draft goes to people for a wording review. Put each email of a reviewed (PASS) sequence in `ops/approvals.md` as `pending`, with the file and line, and say in the report that the wording must be checked first.
+2. Every outreach draft goes to people for a wording review before any send to a lead. Put each email of a reviewed (PASS) sequence in `ops/approvals.md` as `pending`, with the file and line, and list them in the report under "Parked until the pilot ends" (they can't be sent while the pilot lists addresses, so the task still ends `done`).
 3. Test emails go only to the pilot test recipients (Purab, Tanvi and Mohit: `pilot.test_recipients` in `ops/mail-config.json`), from launch@panscience.xyz; the script refuses everyone else, whatever approvals say. After each Jarvis task, Jarvis sends every email of each sequence that passed review to them as [TEST] copies (`scripts/send-tests.mjs`) and adds the result to the report. The human allowed this without asking (2026-11-05). Nobody runs a send to a lead, and no agent runs `send-email.mjs`.
 4. Agent runs use the shared Max plan: keep chains short, reuse earlier outputs, and don't start optional work.

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, beforeEach, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -160,5 +160,30 @@ describe('safety', () => {
     writeFileSync(repo.path('ops', 'queue.json'), JSON.stringify(q));
     jarvis(['run']);
     assert.equal(byTask('Interrupted').status, 'done');
+  });
+});
+
+describe('trust check', () => {
+  const home = (projects) => {
+    const dir = join(repo.dir, 'fake-home');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, '.claude.json'), JSON.stringify({ projects }));
+    return { HOME: dir, USERPROFILE: dir, CLAUDE_BIN: process.execPath };
+  };
+  it('refuses to start in a folder Claude Code does not trust, and says why on the waiting task', () => {
+    jarvis(['add', 'Waiting task'], { CLAUDE_BIN: FAKE });
+    const r = jarvis(['run'], home({}));
+    assert.equal(r.code, 1);
+    assert.match(r.out, /doesn't trust this folder yet/);
+    assert.match(byTask('Waiting').note, /run "claude", accept the trust question/);
+    assert.equal(byTask('Waiting').status, 'queued');
+  });
+  it('starts once the folder is trusted', () => {
+    const r = jarvis(['run'], home({ [realpathSync(repo.dir)]: { hasTrustDialogAccepted: true } }));
+    assert.equal(r.code, 0, r.out);
+  });
+  it('does not check a stand-in script, or when the settings file is missing', () => {
+    assert.equal(jarvis(['run'], { HOME: join(repo.dir, 'no-such-home'), CLAUDE_BIN: process.execPath }).code, 0);
+    assert.equal(jarvis(['run'], { ...home({}), CLAUDE_BIN: FAKE }).code, 0);
   });
 });

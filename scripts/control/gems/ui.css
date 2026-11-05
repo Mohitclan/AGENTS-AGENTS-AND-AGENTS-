@@ -100,7 +100,7 @@ html.float-mode body { background: linear-gradient(180deg, #f6f0ff, #ffeef4); }
 .vp-send { background: linear-gradient(135deg, #8b7bff, #ff8fb8); color: #fff; box-shadow: 0 6px 16px rgba(139, 123, 255, .35); }
 .vp-log { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 150px; overflow-y: auto; }
 .vp-log li { padding: 6px 9px; border-radius: 10px; background: #f3effd; font-size: 12.5px; animation: vp-in .3s ease-out; }
-.vp-log li b { margin-right: 4px; color: #4c3d8a; } .vp-log .vl-you { background: #fff; border: 1px solid #ece6ff; } .vp-log .vl-team { background: #e9f8f0; } .vp-log .vl-team b { color: #2f7a5c; }
+.vp-log li b { margin-right: 4px; color: #4c3d8a; } .vp-log .vl-you { background: #fff; border: 1px solid #ece6ff; } .vp-log .vl-team { background: #e9f8f0; } .vp-log .vl-team b { color: #2f7a5c; } .vp-log .vl-guide { background: #eef3ff; } .vp-log .vl-guide b { color: #3558a8; }
 html.float-mode .voice { display: none; }
 html.immersive.nav-open .voice-fab { top: 70px; }
 @keyframes vf-ring { from { transform: scale(1); opacity: .9; } to { transform: scale(1.7); opacity: 0; } }

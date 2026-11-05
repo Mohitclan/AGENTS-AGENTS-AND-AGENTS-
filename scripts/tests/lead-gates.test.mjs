@@ -95,6 +95,20 @@ describe('contact quality', () => {
     assert.equal(repo.run('leads.mjs', 'set-status', byCompany('generalok').id, 'qualified').code, 0);
     assert.match(gate().stdout.split('\n').find((l) => l.includes('generalok')), /\bGo\s+general\b/);
   });
+  it('counts an inbox named for the company or its site as general, so reachability is capped at 5', () => {
+    // mxRaven@ and graphite@ were shown as "direct" before: the name was the product's, not a person's
+    const r = importLeads('cap-company', [lead('Ravenly (Ravenly Labs Pvt Ltd)', 'https://ravenly.example', {
+      contact: { channel: 'email', value: 'ravenly@ravenly.example', source_url: 'https://ravenly.example/contact' },
+      score_breakdown: { icp_fit: 32, need_evidence: 24, timing: 15, reachability: 6 },
+    })]);
+    assert.equal(r.code, 1);
+    assert.match(r.stderr, /at most 5 for a general inbox/);
+  });
+  it('still counts a named person at the company as direct', () => {
+    assert.equal(importLeads('ok-person', [lead('Personly', 'https://personly.example', {
+      contact: { name: 'Asha', channel: 'email', value: 'asha@personly.example', source_url: 'https://personly.example/team' },
+    })]).code, 0);
+  });
   // Changed by T-20261103-09a: a support-only inbox is a critical signal, so it is a Stop, not a Conditional.
   it('never gives a support-only inbox a Go', () => {
     assert.equal(importLeads('ok-support', [inbox('supportok', 'support', 3)]).code, 0);
@@ -566,14 +580,14 @@ describe('critical signals', () => {
       assert.ok(suppressionMatch([{ value: '<asha@acme.example>' }, { value: 'bob@acme.example.' }], { contact: 'asha@acme.example' }));
       assert.ok(suppressionMatch([{ value: 'bob@acme.example.' }], { contact: 'bob@acme.example' }));
       const wrapLead = (name, email) => strong(name, { contact: { channel: 'email', value: email, source_url: `https://${name.toLowerCase()}.example/contact` } });
-      qualified(wrapLead('Wrapone', 'wrap-one@wrapone.example'));
-      qualified(wrapLead('Wraptwo', 'wrap-two@wraptwo.example'));
-      const r = repo.run('leads.mjs', 'suppress', '<wrap-one@wrapone.example>', 'asked not to be contacted');
+      qualified(wrapLead('Wrapone', 'asha-one@wrapone.example'));
+      qualified(wrapLead('Wraptwo', 'asha-two@wraptwo.example'));
+      const r = repo.run('leads.mjs', 'suppress', '<asha-one@wrapone.example>', 'asked not to be contacted');
       assert.equal(r.code, 0, r.stderr);
-      assert.match(r.stdout, /Suppressed wrap-one@wrapone\.example\. 1 open lead\(s\) disqualified\./);
-      assert.equal(entries().at(-1).value, 'wrap-one@wrapone.example');
+      assert.match(r.stdout, /Suppressed asha-one@wrapone\.example\. 1 open lead\(s\) disqualified\./);
+      assert.equal(entries().at(-1).value, 'asha-one@wrapone.example');
       assert.equal(byCompany('Wrapone').status, 'disqualified');
-      assert.equal(repo.run('leads.mjs', 'suppress', '(wrap-two@wraptwo.example),', 'asked not to be contacted').code, 0);
+      assert.equal(repo.run('leads.mjs', 'suppress', '(asha-two@wraptwo.example),', 'asked not to be contacted').code, 0);
       assert.equal(byCompany('Wraptwo').status, 'disqualified');
       const before = entries().length;
       const refused = repo.run('leads.mjs', 'suppress', 'Asha <asha@acme.example>', 'asked not to be contacted');

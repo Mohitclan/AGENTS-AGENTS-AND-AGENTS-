@@ -276,7 +276,8 @@ export async function createOffice3D(container, { roster = [], immersive = false
       ctx.fillText(`${p.done ? '✓' : '○'}  ${clip(p.text, 52)}`, 44, 148 + i * 34);
     });
     const k = latest.kpis || {};
-    const tiles = board ? [['leads', board.leads], ['drafts', board.drafts], ['to approve', board.approvals]] : [['leads found', k.found], ['drafted', k.drafted], ['to approve', k.sendsWaiting]];
+    const waiting = latest.pilot ? 'parked (pilot)' : 'to approve'; // in the pilot no send to a lead can go out yet
+    const tiles = board ? [['leads', board.leads], ['drafts', board.drafts], [waiting, board.approvals]] : [['leads found', k.found], ['drafted', k.drafted], [waiting, k.sendsWaiting]];
     tiles.forEach(([label, v], i) => {
       const x = 40 + i * 320;
       ctx.fillStyle = ['#3b2f73', '#2f3f73', '#5a3d2a'][i];

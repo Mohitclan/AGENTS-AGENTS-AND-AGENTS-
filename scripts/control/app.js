@@ -36,7 +36,7 @@ const TASK_STATUS = { queued: 'Queued', running: 'Running', done: 'Done', needs_
 const LEAD_ORDER = ['replied', 'contacted', 'approved', 'drafted', 'qualified', 'new', 'disqualified', 'lost', 'won', 'meeting', 'trial'];
 const EXAMPLES = [
   ['Lead sprint', 'Find 10 new MotionRepo leads among founder-led Indian software startups with a launch this month, with evidence, and review them.'],
-  ['Draft emails', 'Draft an email sequence for every qualified MotionRepo lead with a Go, have the evaluator review them, and list the sends for my approval.'],
+  ['Draft emails', 'Draft an email sequence for every qualified MotionRepo lead with a Go, and have the evaluator review them.'],
   ['Competitor check', 'Check what changed at RepoClip and other MotionRepo competitors in the last 30 days and update the battlecard as a proposal.'],
   ['Weekly review', 'Run the weekly review: pipeline, board, knowledge, failures and what the team should do next.'],
 ];
@@ -681,7 +681,7 @@ const overview = {
     ${projects.shell()}
     <section class="command card">
       <form id="command">
-        <div class="command-h"><h1>Give the team a task</h1><p class="muted">Research, scraping and drafting run on their own. Every email waits for your review, and only Sushant can receive test sends.</p></div>
+        <div class="command-h"><h1>Give the team a task</h1><p class="muted">Everything runs on its own, with no questions. Test emails go out automatically, only to Purab, Tanvi and Mohit; no prospect is contacted.</p></div>
         <label class="sr" for="task">Task</label>
         <textarea id="task" rows="3" maxlength="2000" placeholder="For example: find 10 MotionRepo leads among Indian dev-tool startups launching this month, and draft emails for the best 3"></textarea>
         <div class="command-row">
@@ -1364,6 +1364,7 @@ const dock = createDock({ onOpen: (name) => { location.hash = `#/agent/${name}`;
 const voice = createVoice({
   onTask: (task) => api('/api/tasks', { task }),
   onCancel: async (id) => (await api(`/api/tasks/${id}/cancel`, {})).message,
+  onAsk: (question, history) => api('/api/ask', { question, history }),
   onRun: async () => (await api('/api/run', {})).message,
   getAgents: () => store.snap?.agents,
   navigate: (hash) => {

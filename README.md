@@ -76,6 +76,18 @@ coordinator ◀── FALLBACK note ──▶ outreach-fallback ──▶ evalua
 
 The instruction-based rules depend on the agents following them, and Claude Code's normal permission prompts are the backstop. Keep the default permission mode so actions outside the allow list ask you first.
 
+## Run it from the browser (the pilot)
+
+Once per machine: install Claude Code, run `claude` once in this folder and accept the trust question, and save the mail password in `.env` (`SMTP_PASS=...`, a Google app password for the sending mailbox). Then:
+
+```bash
+npm install            # once
+npm run check          # what is ready and what is not, including a mailbox sign-in test (sends nothing)
+npm start              # mission control at http://127.0.0.1:4318
+```
+
+Ask the page anything out loud, in Chrome, Edge or Safari (not an app's built-in browser, which blocks the microphone): press the mic button at the top right of mission control, allow the microphone, and say "where are the leads?" or "what is the researcher doing?". A question is answered as soon as you stop talking: the guide (`scripts/guide.mjs`) reads the live team state with Claude Code on your Claude login, read-only, so it counts against your plan's usage limits and costs nothing else. The answer is spoken, and the page may open the right tab. Nothing listens unless the panel is open. To give the team work, say the task and end with "go start", or type it in the box on the Overview page and press **Send to the team**. The agents run it start to finish without asking anything. While `pilot.allow_only` in `ops/mail-config.json` lists addresses, the only emails that go out are [TEST] copies of drafts that passed review, sent to the people in `pilot.test_recipients` after each task; no prospect can be emailed.
+
 ## Setup
 
 1. **Open this folder in Claude Code**: in the Claude desktop app's Code tab, or with the `claude` CLI in a terminal. The CLI installs with:

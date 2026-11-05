@@ -170,7 +170,7 @@ function taskTitle(root, task) {
   return title[0].toUpperCase() + title.slice(1);
 }
 
-function planUsage(root) {
+export function planUsage(root) {
   const data = readJson(root, 'ops/runs/plan-limits.json', null);
   if (!data?.windows) return null;
   const line = (w) => (w ? { used: Math.round((w.utilization ?? 0) * 100), reset: w.resetsAt * 1000 < Date.now() } : null);

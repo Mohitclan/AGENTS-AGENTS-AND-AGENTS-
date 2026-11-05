@@ -371,6 +371,7 @@ describe('projects: updates', () => {
 describe('projects: the list', () => {
   it('lists every sheet but the template, with status, version, history, pending update and what work is allowed', () => {
     const repo = fresh();
+    const real = listProjects(repo.dir).map((p) => p.slug); // the products already in the team's folder, whatever they are
     up(repo, form()); // a new project: the conversion task is queued
     writeFileSync(repo.path('knowledge', 'products', 'acme-tool.md'), sheet('proposed')); // then the agent writes the sheet
     mkdirSync(repo.path('knowledge', 'history', 'acme-tool'), { recursive: true });
@@ -379,7 +380,7 @@ describe('projects: the list', () => {
     writeFileSync(repo.path('knowledge', 'proposals', '2026-11-04-acme-tool-v10.md'), sheet('proposed'));
     writeFileSync(repo.path('knowledge', 'proposals', '2026-11-04-acme-v3.md'), sheet('proposed'));
     const all = listProjects(repo.dir);
-    assert.deepEqual(all.map((p) => p.slug), ['acme-tool', 'motionrepo']);
+    assert.deepEqual(all.map((p) => p.slug), [...real, 'acme-tool'].sort());
     const acme = all.find((p) => p.slug === 'acme-tool');
     assert.deepEqual(Object.keys(acme).sort(), ['canWork', 'history', 'inbox', 'lastUpdated', 'name', 'pendingUpdate', 'path', 'sha256', 'slug', 'stage', 'status', 'tasks', 'version', 'website'].sort());
     assert.equal(acme.sha256, sha(sheet('proposed')), 'the sheet hash');
@@ -413,13 +414,14 @@ describe('projects: the list', () => {
 describe('projects: the list, odd files and old proposals', () => {
   it('skips product files whose name is not a slug, and one odd name does not break the list', () => {
     const repo = fresh();
+    const real = listProjects(repo.dir).map((p) => p.slug);
     for (const odd of ['a(b.md', 'Upper.md', 'with space.md', '.hidden.md', 'x.md', 'a+b.md', 'inbox.md']) writeFileSync(repo.path('knowledge', 'products', odd), sheet('proposed'));
     writeFileSync(repo.path('knowledge', 'products', 'acme-tool.md'), sheet('proposed'));
     let all;
     assert.doesNotThrow(() => {
       all = listProjects(repo.dir);
     });
-    assert.deepEqual(all.map((p) => p.slug), ['acme-tool', 'motionrepo']);
+    assert.deepEqual(all.map((p) => p.slug), [...real, 'acme-tool'].sort());
   });
 
   it('a slug that starts another slug does not take its proposal, history or tasks', () => {

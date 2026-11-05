@@ -25,7 +25,7 @@
 import { spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { ROOT, isMain, printTable, today } from './_shared.mjs';
+import { ROOT, isMain, loadMailSecret, printTable, today } from './_shared.mjs';
 
 const CONFIG = join(ROOT, 'ops', 'mail-config.json');
 const SEND_LOG = join(ROOT, 'ops', 'send-log.jsonl');
@@ -228,17 +228,6 @@ export function describe(a) {
 
 const readJsonl = (f) => (existsSync(f) ? readFileSync(f, 'utf8').split('\n').filter((l) => l.trim()).map((l) => JSON.parse(l)) : []);
 
-function loadSecret() {
-  if (process.env.SMTP_PASS) return process.env.SMTP_PASS;
-  const file = join(ROOT, '.env');
-  if (!existsSync(file)) return '';
-  for (const line of readFileSync(file, 'utf8').split(/\r?\n/)) {
-    const m = line.match(/^\s*SMTP_PASS\s*=\s*(.*)$/);
-    if (m) return m[1].trim().replace(/^["']|["']$/g, '');
-  }
-  return '';
-}
-
 function die(msg) {
   console.error(msg);
   process.exit(1);
@@ -347,7 +336,7 @@ async function check(args) {
 
   const config = JSON.parse(readFileSync(CONFIG, 'utf8'));
   const f = args.indexOf('--from');
-  const pass = f >= 0 ? '' : loadSecret();
+  const pass = f >= 0 ? '' : loadMailSecret();
   if (f < 0 && !pass) die('No mailbox password: set SMTP_PASS or add it to .env (a Gmail app password works for IMAP too).');
   const seen = new Set(readJsonl(REPLY_LOG).map((r) => r.message_id));
   const leads = readJsonl(LEADS);

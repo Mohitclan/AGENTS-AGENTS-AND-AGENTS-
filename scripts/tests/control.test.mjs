@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { get } from 'node:http';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { after, describe, it } from 'node:test';
 import { agentDetail, avatarStatus, loadRoster, ownerOf, parseRun, readFile, snapshot } from '../control.mjs';
 import { hashPassword } from '../dashboard.mjs';
@@ -81,6 +81,23 @@ describe('control: the whole picture', () => {
     assert.equal(s.agents.find((a) => a.name === 'researcher').status, 'error');
     assert.ok(s.feed.length > 0);
     assert.equal(typeof s.kpis.found, 'number');
+  });
+
+  it('does not list a pending send as something to act on while the pilot is on', () => {
+    const cfgPath = repo.path('ops', 'mail-config.json');
+    const cfg = JSON.parse(readFileSync(cfgPath, 'utf8'));
+    writeFileSync(repo.path('ops', 'approvals.md'), '| ID | Task | Action | Files | Risk | Decision | By | Date |\n|---|---|---|---|---|---|---|---|\n| A-20261105-91 | T | Send Email 1 to a@b.test | outputs/outreach/x.md | r | pending | | |\n| A-20261105-92 | T | Push branch x to origin | ops/board.md | r | pending | | |\n');
+    writeFileSync(cfgPath, JSON.stringify({ ...cfg, pilot: { allow_only: ['p@q.test'] } }));
+    const on = snapshot(repo.dir);
+    assert.equal(on.pilot, true);
+    assert.equal(on.approvals, 2, 'both rows are still counted and viewable');
+    assert.equal(on.kpis.sendsWaiting, 1);
+    assert.deepEqual(on.flags.filter((f) => f.kind === 'approval').map((f) => f.id), ['A-20261105-92'], 'only the push still needs a person');
+    writeFileSync(cfgPath, JSON.stringify({ ...cfg, pilot: { allow_only: [] } }));
+    const off = snapshot(repo.dir);
+    assert.equal(off.pilot, false);
+    assert.deepEqual(off.flags.filter((f) => f.kind === 'approval').map((f) => f.id), ['A-20261105-91', 'A-20261105-92']);
+    writeFileSync(cfgPath, JSON.stringify(cfg));
   });
 
   it("gives an agent's page its outputs, failures and memory", () => {
