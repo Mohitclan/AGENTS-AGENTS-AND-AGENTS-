@@ -1,8 +1,10 @@
 // Picks the office for a page: the 3D one when the browser has WebGL 2 and the person hasn't chosen
 // the flat one, else the 2D office (gems/office.js). The returned object works at once: calls made
 // while the 3D office is still loading are kept and replayed, and if loading fails the 2D office
-// takes over with the same calls.
+// takes over with the same calls. Switching from the 2D office to the 3D one goes through the panscience gate
+// (gems/gate.js), which covers the office while it builds and opens once it is ready.
 
+import { playGate } from '../gems/gate.js';
 import { createOffice } from '../gems/office.js';
 
 const KEY = 'panscience.office3d';
@@ -43,13 +45,14 @@ export function mountOffice(container, opts) {
     back.textContent = '3D office';
     back.addEventListener('click', () => {
       setView('3d');
-      go3d();
+      go3d({ gate: true });
     });
     container.append(back);
     impl.setSpeed?.(speed);
     if (lastUpdate) impl.update(lastUpdate);
   };
-  const go3d = async () => {
+  const go3d = async ({ gate = false } = {}) => {
+    const entrance = gate ? playGate() : null;
     impl?.destroy?.();
     impl = null;
     container.innerHTML = '';
@@ -64,6 +67,8 @@ export function mountOffice(container, opts) {
     } catch (error) {
       console.warn('3D office:', error);
       if (!dead) flat(error.message || 'an error');
+    } finally {
+      entrance?.ready(); // the doors open on the office, or on the flat one if the 3D office couldn't load
     }
   };
   if (wants3d()) go3d();
