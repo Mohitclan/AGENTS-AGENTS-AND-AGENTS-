@@ -9,6 +9,9 @@
 //   node scripts/jarvis.mjs list                    the queue
 //   node scripts/jarvis.mjs cancel <id>             take a queued task off the queue
 //   node scripts/jarvis.mjs usage                   how full the plan windows were at the last run
+//   node scripts/jarvis.mjs archive <id>... --reason "<why>"
+//                                                   take finished tasks (test runs, failed runs) off the queue and
+//                                                   out of mission control; nothing is deleted (see archive below)
 //
 // The queue lives in ops/queue.json (readable copy: ops/queue.md); reports in outputs/reports/.
 // Usage guard: Claude Code reports the plan's usage windows in its stream (rate_limit_event). The
@@ -28,6 +31,8 @@ const OPS = join(ROOT, 'ops');
 const RUNS = join(OPS, 'runs');
 const QUEUE = join(OPS, 'queue.json');
 const QUEUE_MD = join(OPS, 'queue.md');
+const ARCHIVE = join(OPS, 'archive');
+const ARCHIVED = join(ARCHIVE, 'archived.json');
 const REPORTS = join(ROOT, 'outputs', 'reports');
 const PLAN_LIMITS = join(RUNS, 'plan-limits.json');
 const RUN_LOCK = join(RUNS, 'jarvis.lock');
@@ -127,7 +132,8 @@ function add(task) {
   if (!task) fail('Usage: node scripts/jarvis.mjs add "<task>"');
   const entry = withQueue((queue) => {
     const prefix = `J-${today().replace(/-/g, '')}-`;
-    const n = queue.filter((t) => t.id.startsWith(prefix)).length + 1;
+    // the next number after any task of today's, archived ones included, so an ID is never used twice
+    const n = Math.max(0, ...[...queue, ...loadArchived()].filter((t) => t.id.startsWith(prefix)).map((t) => Number(t.id.slice(prefix.length)) || 0)) + 1;
     const created = { id: `${prefix}${String(n).padStart(2, '0')}`, task, status: 'queued', added: now() };
     queue.push(created);
     return created;
@@ -158,6 +164,47 @@ function cancel(id) {
   });
   if (result) fail(result);
   console.log(`Cancelled ${id}.`);
+}
+
+// Archiving: a person takes finished tasks they don't want counted (test runs, smoke tests, failed runs) off the
+// queue. Each task's run log and report move to ops/archive/<id>/, and ops/archive/archived.json keeps the task with
+// its start and finish times. Jarvis runs one task at a time, so mission control leaves out every step stamped inside
+// an archived task's window. Nothing is deleted: move the files back and return the entry to ops/queue.json to undo.
+function loadArchived() {
+  try {
+    return JSON.parse(readFileSync(ARCHIVED, 'utf8'));
+  } catch {
+    return [];
+  }
+}
+
+function archive(ids, reason) {
+  if (!ids.length || !reason) fail('Usage: node scripts/jarvis.mjs archive <id>... --reason "<why>"');
+  for (const id of ids) {
+    const t = loadQueue().find((x) => x.id === id);
+    if (!t) fail(`No task ${id} in the queue.`);
+    if (['queued', 'running'].includes(t.status)) fail(`${id} is ${t.status}; only finished tasks can be archived.`);
+  }
+  const moved = withQueue((queue) => {
+    const picked = queue.filter((t) => ids.includes(t.id));
+    const archived = loadArchived();
+    for (const t of picked) {
+      const dir = join(ARCHIVE, t.id);
+      mkdirSync(dir, { recursive: true });
+      const files = [];
+      for (const from of [join(RUNS, `${t.id}.log`), t.report && join(ROOT, t.report)].filter(Boolean)) {
+        if (!existsSync(from)) continue;
+        const to = join(dir, from.split('/').pop());
+        renameSync(from, to);
+        files.push(to.slice(ROOT.length + 1));
+      }
+      archived.push({ ...t, archived: now(), reason, files });
+      queue.splice(queue.indexOf(t), 1);
+    }
+    writeFileSync(ARCHIVED, `${JSON.stringify(archived, null, 2)}\n`);
+    return picked.map((t) => t.id);
+  });
+  console.log(`Archived ${moved.join(', ')} to ops/archive/. Mission control no longer shows them.`);
 }
 
 // ---- plan usage guard ----------------------------------------------------------------------
@@ -485,6 +532,10 @@ switch (command) {
   case 'usage':
     usage();
     break;
+  case 'archive':
+    if (process.env.JARVIS_TASK_ID) fail('Archiving is a person\'s call, not an agent\'s.');
+    archive(rest.filter((a, i) => !a.startsWith('--') && rest[i - 1] !== '--reason'), flag('reason'));
+    break;
   default:
-    fail('Usage: node scripts/jarvis.mjs add "<task>" | do "<task>" | run [--max n] [--ignore-limits] [--timeout-min n] | list | cancel <id> | usage');
+    fail('Usage: node scripts/jarvis.mjs add "<task>" | do "<task>" | run [--max n] [--ignore-limits] [--timeout-min n] | list | cancel <id> | usage | archive <id>... --reason "<why>"');
 }

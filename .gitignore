@@ -9,3 +9,5 @@ ops/runs/
 # the office speaker's songs: your own files, never committed
 music/*
 !music/README.md
+# archived run logs stay local, like ops/runs/
+ops/archive/*/*.log

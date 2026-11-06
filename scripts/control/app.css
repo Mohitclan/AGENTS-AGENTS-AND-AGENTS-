@@ -346,3 +346,24 @@ label.check { flex-direction: row !important; align-items: center; gap: 6px; fon
   .q-title { order: 5; flex-basis: 100%; white-space: normal; }
 }
 [data-approval-id] { cursor: pointer; }
+
+/* the Team page: one card per agent, real work only */
+.team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+.tm-card { display: flex; flex-direction: column; gap: 10px; margin: 0; }
+.tm-head { display: flex; align-items: center; gap: 10px; }
+.tm-head > div { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.tm-head b { font-size: 15px; }
+.tm-k { color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.tm-k code, .tm-k .tm-when { text-transform: none; letter-spacing: 0; }
+.tm-now { margin: 0; font-size: 13px; }
+.tm-latest { padding: 10px 12px; border-radius: 10px; background: var(--bg2); border-left: 3px solid #2fd27c; }
+.tm-latest.bad { border-left-color: #ef5a5a; }
+.tm-latest p { margin: 4px 0 0; font-size: 13px; line-height: 1.45; }
+.tm-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.tm-stat { padding: 8px; border-radius: 9px; background: var(--panel2); text-align: center; }
+.tm-stat b { display: block; font-size: 18px; }
+.tm-stat span { color: var(--muted); font-size: 11px; }
+.tm-stat.bad b { color: #ef5a5a; }
+.tm-work { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13px; }
+.tm-foot { display: flex; justify-content: space-between; align-items: center; margin-top: auto; padding-top: 6px; border-top: 1px solid var(--line); font-size: 13px; }
+@media (max-width: 720px) { .team-grid { grid-template-columns: 1fr; } }

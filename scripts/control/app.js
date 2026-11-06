@@ -19,7 +19,8 @@ const AGENTS = {
   'lead-generator': ['Lead generator', 'Finds and scores leads'], outreach: ['Outreach', 'Drafts email sequences'],
   sales: ['Sales', 'Replies, calls, proposals'], marketing: ['Marketing', 'Positioning, content, launches'],
   'demo-handler': ['Demos', 'Demo plans and scripts'], 'docs-handler': ['Docs', 'Help docs and one-pagers'],
-  developer: ['Developer', 'Fixes that block sales'], system: ['System', 'Scripts: sends, replies, checks'],
+  developer: ['Developer', 'Fixes that block sales'], 'lead-scout': ['Lead scout', 'Sweeps lead sources, several at once'],
+  system: ['System', 'Scripts: sends, replies, checks'],
 };
 const look = (name) => ({ label: AGENTS[name]?.[0] || name, role: AGENTS[name]?.[1] || '' });
 const face = (name) => badgeImg(name, look(name).label);
@@ -61,7 +62,7 @@ async function api(path, body) {
 function ago(iso) {
   if (!iso) return '';
   const s = (Date.now() - Date.parse(iso)) / 1000;
-  if (s < 0) return 'soon';
+  if (s < 0) return 'today'; // a file dated only by the ID in its name counts as the end of that day
   if (s < 50) return 'just now';
   if (s < 3600) return `${Math.round(s / 60)}m ago`;
   if (s < 86400) return `${Math.round(s / 3600)}h ago`;
@@ -97,6 +98,7 @@ function shell() {
     <nav class="nav" aria-label="Pages">
       <a href="#/" data-nav="home">Home</a>
       <a href="#/working" data-nav="working">Working</a>
+      <a href="#/team" data-nav="team">Team</a>
       <a href="#/overview" data-nav="overview">Overview</a>
       <a href="#/logs" data-nav="logs">Logs</a>
       <a href="#/leads" data-nav="leads">Leads</a>
@@ -1038,6 +1040,35 @@ const reportsView = {
   },
 };
 
+// One card per agent with only real work: test and failed runs a person archived are left out by the server.
+const teamView = {
+  build() {
+    $('#view').innerHTML = '<div class="page-h"><h1>Team</h1><p class="muted">What each agent has really done: its latest result, its numbers and its newest work. Test runs and failed runs you archived are left out.</p></div><div class="team-grid" id="team-grid"></div>';
+  },
+  update(snap) {
+    const busy = (a) => (['working', 'researching', 'waiting'].includes(normalizeState(a.status)) ? 0 : 1);
+    const agents = [...snap.agents].sort((a, b) => busy(a) - busy(b) || String(b.lastAt || '').localeCompare(String(a.lastAt || '')));
+    $('#team-grid').innerHTML = agents.map((a) => {
+      const c = a.counts;
+      const stat = (v, label, bad = false) => `<div class="tm-stat${bad && v ? ' bad' : ''}"><b>${v}</b><span>${label}</span></div>`;
+      const latest = a.latest
+        ? `<div class="tm-latest${a.latest.status === 'failed' ? ' bad' : ''}"><div class="tm-k">${a.latest.from === 'run' ? 'Latest result' : 'Latest task'}${a.latest.task ? ` · <code>${esc(a.latest.task)}</code>` : ''}${a.latest.at ? ` · <span class="tm-when">${esc(ago(a.latest.at))}</span>` : ''}</div><p>${a.latest.report ? `<a href="#" data-file="${esc(a.latest.report)}">${esc(a.latest.text)}</a>` : esc(a.latest.text.replace(/^Finished: /, ''))}</p>${a.latest.state ? `<div class="muted tiny">${esc(a.latest.state)}${a.latest.review ? ` · review ${esc(a.latest.review)}` : ''}</div>` : ''}</div>`
+        : '<div class="tm-latest"><div class="tm-k">Latest result</div><p class="muted">No real result yet.</p></div>';
+      const recent = a.recent?.length
+        ? `<ul class="tm-work">${a.recent.map((o) => `<li>${o.readable ? `<a href="#" data-file="${esc(o.path)}">${esc(o.title)}</a>` : esc(o.title)} ${verdictChip(o.verdict, o.score)}<span class="muted tiny"> · ${esc(ago(o.at))}</span></li>`).join('')}</ul>`
+        : '<p class="muted tiny">No files yet.</p>';
+      return `<section class="card tm-card" data-agent="${esc(a.name)}">
+        <header class="tm-head">${avatarHTML(a.name, { mode: 'badge', size: 'sm', status: a.status })}<div><b>${esc(agentName(a.name))}</b><span class="muted tiny">${esc(look(a.name).role)}</span></div>${statusChip(normalizeState(a.status))}</header>
+        ${a.doing && ['working', 'researching', 'waiting'].includes(normalizeState(a.status)) ? `<p class="tm-now"><span class="tm-k">Now</span> ${esc(a.doing)}</p>` : ''}
+        ${latest}
+        <div class="tm-stats">${stat(c.tasks, 'tasks')}${stat(c.outputs, 'files made')}${stat(c.passes, 'reviews passed')}${stat(c.revised ?? 0, 'sent back', true)}${stat(c.web, 'web lookups')}${stat(c.fails, 'failed steps, 7 days', true)}</div>
+        <div class="tm-k">Newest work</div>${recent}
+        <footer class="tm-foot"><span class="muted tiny">${a.lastAt ? `Last active ${esc(ago(a.lastAt))}` : 'Not active yet'}</span><a href="#/agent/${esc(a.name)}">Every step →</a></footer>
+      </section>`;
+    }).join('');
+  },
+};
+
 const flagsView = {
   build() {
     $('#view').innerHTML = '<div class="page-h"><h1>Needs you</h1><p class="muted">Everything waiting on a person. This page never approves or sends: approve sends in <code>ops/approvals.md</code> after reading the drafts.</p></div><div id="flag-groups"></div>';
@@ -1279,7 +1310,7 @@ const floatView = {
 
 // ---- routing and the stream ----------------------------------------------------------------------
 
-const VIEWS = { home, working, overview, logs, leads: leadsView, reports: reportsView, flags: flagsView, agent: agentView, gems: gemsView, float: floatView };
+const VIEWS = { home, working, team: teamView, overview, logs, leads: leadsView, reports: reportsView, flags: flagsView, agent: agentView, gems: gemsView, float: floatView };
 let current = '';
 
 function route() {

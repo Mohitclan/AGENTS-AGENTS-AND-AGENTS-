@@ -35,7 +35,7 @@ const AGENT_WORDS = {
   'docs-handler': ['docs', 'scribe', 'documentation'],
   developer: ['developer', 'code buddy', 'dev'],
 };
-const PAGES = { home: '#/', office: '#/', working: '#/working', overview: '#/overview', logs: '#/logs', leads: '#/leads', reports: '#/reports', approvals: '#/flags', 'needs you': '#/flags', gallery: '#/gems', gems: '#/gems' };
+const PAGES = { home: '#/', office: '#/', working: '#/working', team: '#/team', 'the team': '#/team', overview: '#/overview', logs: '#/logs', leads: '#/leads', reports: '#/reports', approvals: '#/flags', 'needs you': '#/flags', gallery: '#/gems', gems: '#/gems' };
 
 function load() {
   try {

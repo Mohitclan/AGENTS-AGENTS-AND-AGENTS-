@@ -64,7 +64,7 @@ function openBrowser(url) {
 export const ORDER = ['coordinator', 'evaluator', 'knowledge-base', 'researcher', 'lead-generator', 'outreach', 'sales', 'marketing', 'demo-handler', 'docs-handler', 'developer'];
 // Who owns the files under each folder, for outputs and for activity found only as a file.
 const OWNER = [
-  [/^outputs\/research\//, 'researcher'], [/^outputs\/outreach\//, 'outreach'], [/^outputs\/sales\//, 'sales'],
+  [/^outputs\/research\/scout\//, 'lead-scout'], [/^outputs\/research\/[^/]*lead-notes/, 'lead-generator'], [/^outputs\/research\//, 'researcher'], [/^outputs\/outreach\//, 'outreach'], [/^outputs\/sales\//, 'sales'],
   [/^outputs\/marketing\//, 'marketing'], [/^outputs\/demos\//, 'demo-handler'], [/^outputs\/docs\//, 'docs-handler'],
   [/^outputs\/dev\//, 'developer'], [/^outputs\/reviews\//, 'evaluator'], [/^outputs\/reports\//, 'coordinator'],
   [/^outputs\/replies\//, 'sales'], [/^knowledge\//, 'knowledge-base'], [/^pipeline\/inbox\//, 'lead-generator'],
@@ -114,6 +114,26 @@ const toIso = (value) => {
   const t = Date.parse(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(value) ? value.replace(' ', 'T') : value);
   return Number.isNaN(t) ? null : new Date(t).toISOString();
 };
+// Tasks a person archived (node scripts/jarvis.mjs archive): test runs, smoke tests, failed runs. Jarvis runs one
+// task at a time, so every step stamped inside an archived task's window belongs to it, and the dashboard leaves it
+// out, with the board rows, reviews, outputs and approvals of the T- tasks those steps name. Leads, emails and
+// replies stay: they happened in the world, whichever run caused them.
+function archivedWindows(root) {
+  let list = [];
+  try {
+    list = JSON.parse(read(root, 'ops/archive/archived.json') || '[]');
+  } catch {
+    return [];
+  }
+  return list.map((t) => ({ id: t.id, from: Date.parse(toIso(t.started) || ''), to: Date.parse(toIso(t.finished) || '') + 60_000 })).filter((w) => w.from && w.to);
+}
+const inArchived = (wins, at) => {
+  const t = Date.parse(at || '');
+  return !Number.isNaN(t) && wins.some((w) => t >= w.from && t < w.to);
+};
+const STAYS = new Set(['lead', 'send', 'reply']);
+const hiddenPath = (hidden, path) => [...hidden].some((id) => path.includes(id));
+
 // The date a file is about, from an id or date in its name (T-20261102-01, J-20261102-01,
 // 2026-11-02-...), else its modification time. A fresh clone gives every file the same mtime.
 const ID_DATE = /(?:^|[^\d])(20\d{2})-?(\d{2})-?(\d{2})(?!\d)/;
@@ -328,19 +348,29 @@ export function allEvents(root = ROOT, queue = null) {
       events.push({ id: eventId('l', lead.id, i), at: toIso(h.at), agent, kind: 'lead', status: status === 'disqualified' ? 'warn' : 'ok', lead: lead.id, text: `${verb}: ${clip(lead.company, 60)}${h.note ? ` (${clip(h.note, 90)})` : ''}` });
     });
   }
+  const wins = archivedWindows(root);
+  const hidden = new Set(wins.map((w) => w.id));
+  // a board task whose request names an archived run (J-...) belongs to it, with its reviews and approvals
+  for (const r of board) if (wins.some((w) => String(r.request).includes(w.id))) hidden.add(r.id);
+  if (wins.length) {
+    const gone = events.filter((e) => !STAYS.has(e.kind) && (hidden.has(e.task) || inArchived(wins, e.at)));
+    for (const e of gone) if (/^T-\d/.test(e.task || '')) hidden.add(e.task);
+    const goneSet = new Set(gone);
+    for (let i = events.length - 1; i >= 0; i--) if (goneSet.has(events[i]) || (!STAYS.has(events[i].kind) && hidden.has(events[i].task))) events.splice(i, 1);
+  }
   events.sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
-  return { events, working, board };
+  return { events, working, board: board.filter((r) => !hidden.has(r.id)), hidden };
 }
 
 // ---- what each agent produced ------------------------------------------------------------------
 
-function outputsOf(root, name) {
-  const dirs = ['outputs/research', 'outputs/outreach', 'outputs/sales', 'outputs/marketing', 'outputs/demos', 'outputs/docs', 'outputs/dev', 'outputs/reviews', 'outputs/reports', 'outputs/replies', 'knowledge', 'knowledge/products', 'knowledge/competitors', 'knowledge/proposals', 'pipeline/inbox'];
+function outputsOf(root, name, hidden = new Set()) {
+  const dirs = ['outputs/research', 'outputs/research/scout', 'outputs/outreach', 'outputs/sales', 'outputs/marketing', 'outputs/demos', 'outputs/docs', 'outputs/dev', 'outputs/reviews', 'outputs/reports', 'outputs/replies', 'knowledge', 'knowledge/products', 'knowledge/competitors', 'knowledge/proposals', 'pipeline/inbox'];
   const files = [];
   for (const dir of dirs) {
     for (const f of list(root, dir, dir === 'pipeline/inbox' ? '.jsonl' : '.md')) {
       const path = `${dir}/${f}`;
-      if (ownerOf(path) !== name || f === 'README.md' || f === '_template.md') continue;
+      if (ownerOf(path) !== name || f === 'README.md' || f === '_template.md' || hiddenPath(hidden, path)) continue;
       const text = dir === 'pipeline/inbox' ? '' : read(root, path);
       const title = clip(/^# (.+)$/m.exec(text)?.[1] || f.replace(/\.(md|jsonl)$/, ''), 110);
       const extra = dir === 'outputs/reviews' ? reviewFacts(root, f) : null;
@@ -389,7 +419,11 @@ export function avatarStatus({ name, live, busy, inRun = [], mine = [], working 
 export function snapshot(root = ROOT) {
   const base = collect(root);
   const roster = loadRoster(root);
-  const { events, working, board } = allEvents(root, [...base.tasks].reverse());
+  const { events, working, board, hidden } = allEvents(root, [...base.tasks].reverse());
+  const shown = (p) => !hidden.has(p.task);
+  base.pending = base.pending.filter(shown);
+  base.others = base.others.filter(shown);
+  base.sends = base.sends.filter(shown);
   const live = base.runAlive && base.running;
   const runEvents = live ? events.filter((e) => e.task === base.running.id) : [];
   const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString();
@@ -397,6 +431,17 @@ export function snapshot(root = ROOT) {
   const paused = !live && !!base.usage?.full && base.tasks.some((t) => t.status === 'queued');
   const agents = roster.map((a) => {
     const mine = events.filter((e) => e.agent === a.name);
+    const made = outputsOf(root, a.name, hidden);
+    // Its latest result from a run log; for work done before this computer kept run logs, its newest board task.
+    const result = mine.find((e) => e.kind === 'result');
+    const row = board.filter((r) => r.agent === a.name).sort((x, y) => y.id.localeCompare(x.id))[0];
+    // The coordinator writes no RESULT of its own: its latest work is the newest task it finished.
+    const run = a.name === 'coordinator' && base.tasks.find((t) => t.finished);
+    const latest = run
+      ? { text: clip(run.title, 240), at: toIso(run.finished), task: run.id, status: ['failed', 'blocked'].includes(run.status) ? 'failed' : 'ok', from: 'task', state: run.status.replace('_', ' '), report: run.report || null }
+      : result
+      ? { text: clip(result.text, 240), at: result.at, task: result.task || null, status: result.status, from: 'run' }
+      : row ? { text: clip(row.request, 240), at: toIso(row.updated) || null, task: row.id, status: /blocked|failed/i.test(row.status) ? 'failed' : 'ok', from: 'board', state: clip(row.status, 40), review: clip(row.review, 60) } : null;
     const busy = live && working.find((w) => w.agent === a.name);
     const inRun = runEvents.filter((e) => e.agent === a.name);
     const { status, doing } = avatarStatus({ name: a.name, live: !!live, busy, inRun, mine, working, paused, latestTask: base.tasks[0] });
@@ -405,9 +450,14 @@ export function snapshot(root = ROOT) {
       status,
       backupActive: !!busy?.backup,
       doing,
-      lastAt: mine[0]?.at || null,
+      // a file dated only by the ID in its name counts as the end of that day, so skip anything still ahead
+      lastAt: mine.find((e) => e.at && Date.parse(e.at) <= Date.now())?.at || null,
+      // for the Team page: the latest result in the agent's own words, and its newest work
+      latest,
+      recent: made.slice(0, 3).map(({ path, title, at, verdict, score, readable }) => ({ path, title, at, verdict, score, readable })),
       counts: {
-        outputs: outputsOf(root, a.name).length,
+        outputs: made.length,
+        revised: mine.filter((e) => e.kind === 'revise').length,
         tasks: board.filter((r) => r.agent === a.name).length,
         web: mine.filter((e) => e.kind === 'web').length,
         fails: mine.filter((e) => FAIL.has(e.status) && e.at >= weekAgo).length,
@@ -417,7 +467,7 @@ export function snapshot(root = ROOT) {
   });
   const leads = base.leads;
   const by = (s) => leads.filter((l) => l.status === s).length;
-  const approvals = parseApprovals(read(root, 'ops/approvals.md'));
+  const approvals = parseApprovals(read(root, 'ops/approvals.md')).filter(shown);
   // While the pilot lists addresses, no send to a lead can go out, so a pending send isn't something to act on yet.
   // Other pending actions (a push, a listing, a booking) still are.
   let pilot = false;
@@ -460,11 +510,11 @@ export function agentDetail(root, name) {
   const roster = loadRoster(root);
   const agent = roster.find((a) => a.name === name);
   if (!agent) return null;
-  const { events, board } = allEvents(root);
+  const { events, board, hidden } = allEvents(root);
   const mine = events.filter((e) => e.agent === name);
   return {
     agent,
-    outputs: outputsOf(root, name),
+    outputs: outputsOf(root, name, hidden),
     tasks: board.filter((r) => r.agent === name).map((r) => ({ ...r, request: clip(r.request, 220), output: clip(r.output, 160) })),
     events: mine.slice(0, 600),
     failures: mine.filter((e) => e.status === 'failed' || e.status === 'warn').slice(0, 200),
