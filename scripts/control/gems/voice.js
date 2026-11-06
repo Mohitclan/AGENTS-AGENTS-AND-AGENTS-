@@ -8,10 +8,12 @@
 // "send it"); the task then starts at once and its words are read back, so "cancel that" can stop a
 // misheard one. With "Keep listening" on, the mic stays open for the next task, hands free. A few
 // phrases are answered on the page without any agent: "what's happening", "open <agent or page>",
-// "start waiting tasks", "stop talking", "cancel that". Everything else is a conversation: a short pause after you
+// "start waiting tasks", "stop talking", "cancel that", and the office speaker's "play music", "play <song>",
+// "pause the music", "stop the music" and "next song". Everything else is a conversation: a short pause after you
 // stop talking, it is sent to the guide on the server, which answers from the live team state using Claude Code on
 // the signed-in login; the answer is read aloud and may open a page. A task is sent only when you end it with
 // "go start" or press "Send as a task". When a task ends, the coordinator's own summary is read aloud.
+import { musicPlayer } from '../office3d/music.js';
 import { identityFor } from './identities.js';
 import { normalizeState, STATE_LABEL } from './status.js';
 
@@ -84,14 +86,50 @@ export function localIntent(text) {
   if (/^(stop talking|be quiet|mute)$/.test(t)) return { kind: 'mute' };
   if (/^(start|run) (the )?waiting tasks$/.test(t)) return { kind: 'run' };
   if (/^(cancel|stop) (that|it|this|the( last)? task)$/.test(t)) return { kind: 'cancel' };
-  const open = /^(open|show|go to)\s+(the\s+)?(.+?)(\s+page)?$/.exec(t);
+  const music = musicIntent(t);
+  if (music) return music;
+  const open = /^(open|show( me)?|go to|take me to)\s+(the\s+)?(.+?)(\s+page)?$/.exec(t);
   if (open) {
-    const target = open[3];
+    const target = open[4];
     if (PAGES[target]) return { kind: 'open', hash: PAGES[target] };
     const { agent } = addressee(`${target} x`);
     if (agent) return { kind: 'open', hash: `#/agent/${agent}` };
   }
   return null;
+}
+
+// The office speaker by voice. "play music" plays the list from where it was; "play <name>" picks a song by its
+// title; "pause", "stop" and "next" do what the panel's buttons do.
+export function musicIntent(t) {
+  const words = 'music|song|songs|track|the speaker|some music|a song|something';
+  if (new RegExp(`^(play|start|put on|turn on)( the)? (${words})$`).test(t) || /^(let'?s )?(dance|party)( time)?$/.test(t)) return { kind: 'music', action: 'play' };
+  if (new RegExp(`^(pause)( the)?( ${words})?$`).test(t)) return { kind: 'music', action: 'pause' };
+  if (new RegExp(`^(stop|turn off)( the)? (${words})$`).test(t)) return { kind: 'music', action: 'stop' };
+  if (/^(next|skip)( the)?( song| track| one)?$|^(play )?(the )?next (song|track|one)$/.test(t)) return { kind: 'music', action: 'next' };
+  const named = /^play (the song |the track )?(.{3,80})$/.exec(t);
+  if (named) return { kind: 'music', action: 'play', song: named[2] };
+  return null;
+}
+
+// The song in `songs` whose title best matches what was said, or -1.
+export function findSong(songs, said) {
+  const norm = (s) => String(s).toLowerCase().replace(/\(demo\)/g, '').replace(/[^a-z0-9\u0900-\u097f]+/g, ' ').trim();
+  const want = norm(said);
+  if (!want) return -1;
+  const exact = songs.findIndex((s) => norm(s.title) === want);
+  if (exact >= 0) return exact;
+  const words = want.split(' ').filter((w) => w.length > 2);
+  let best = -1;
+  let score = 0;
+  songs.forEach((s, i) => {
+    const title = norm(s.title);
+    const hits = words.filter((w) => title.includes(w)).length;
+    if (hits > score) {
+      best = i;
+      score = hits;
+    }
+  });
+  return best;
 }
 
 // Which voice reads the answers. A browser lists every voice on the computer, joke voices and old compact ones
@@ -238,7 +276,7 @@ export function createVoice({ onTask, onRun, onCancel, onAsk, getAgents, navigat
       return;
     }
     if (intent) {
-      to.innerHTML = `<span class="vp-chip page">Answered here, no agent needed</span>`;
+      to.innerHTML = `<span class="vp-chip page">${intent.kind === 'music' ? 'The office speaker' : 'Answered here, no agent needed'}</span>`;
       return;
     }
     const { agent } = taskFor(t);
@@ -339,6 +377,38 @@ export function createVoice({ onTask, onRun, onCancel, onAsk, getAgents, navigat
     }
   }
 
+  // The speaker plays in the 3D office on the home page, so the page goes there first and the dancing shows.
+  async function music({ action, song }) {
+    const player = musicPlayer();
+    if (action === 'pause' || action === 'stop') {
+      player[action]();
+      const line = action === 'pause' ? 'Paused.' : 'Music stopped.';
+      log('page', line);
+      return speak(line);
+    }
+    navigate('#/');
+    const songs = await player.load();
+    if (!songs.length) {
+      const line = 'There are no songs yet. Put some in the music folder, then ask again.';
+      log('page', line);
+      return speak(line);
+    }
+    let index = action === 'next' ? -2 : player.state.index < 0 ? 0 : player.state.index;
+    if (song) {
+      index = findSong(songs, song);
+      if (index < 0) {
+        const line = `I couldn't find a song called ${song}. Say "play music" for the list.`;
+        log('page', line);
+        return speak(line);
+      }
+    }
+    if (index === -2) player.next();
+    else player.play(index);
+    dispatchEvent(new CustomEvent('panscience:music'));
+    const title = songs[player.state.index]?.title || '';
+    log('page', `Playing ${title}.`);
+  }
+
   async function send({ asTask = false } = {}) {
     const said = text.value.trim();
     if (!said) return;
@@ -365,6 +435,7 @@ export function createVoice({ onTask, onRun, onCancel, onAsk, getAgents, navigat
       log('page', 'Opened.');
       return;
     }
+    if (intent?.kind === 'music') return music(intent);
     if (intent?.kind === 'cancel') {
       if (!lastTask) {
         log('page', 'There is no task from this panel to cancel.');

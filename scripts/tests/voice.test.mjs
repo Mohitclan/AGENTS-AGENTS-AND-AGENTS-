@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { addressee, askIntent, goodVoice, heardTrigger, localIntent, pieces, plain, rankVoices, taskFor } from '../control/gems/voice.js';
+import { addressee, askIntent, findSong, goodVoice, heardTrigger, localIntent, pieces, plain, rankVoices, taskFor } from '../control/gems/voice.js';
+import { render, TRACKS, wav } from '../make-demo-music.mjs';
 
 describe('voice commands', () => {
   it('routes a task to the agent named first', () => {
@@ -34,6 +35,47 @@ describe('voice commands', () => {
     assert.deepEqual(localIntent('Cancel that'), { kind: 'cancel' });
     assert.deepEqual(localIntent('stop the last task'), { kind: 'cancel' });
     assert.equal(plain('**Done.** See `outputs/x.md` at https://a.b/c'), 'Done. See outputs/x.md at a link');
+  });
+});
+
+describe('voice: the office speaker', () => {
+  it('plays, pauses, stops and skips the music by voice, on the page, without asking the guide', () => {
+    for (const said of ['play music', 'Play some music.', 'start the music', 'put on a song', "let's dance", 'party time']) assert.deepEqual(localIntent(said), { kind: 'music', action: 'play' }, said);
+    assert.deepEqual(localIntent('pause the music'), { kind: 'music', action: 'pause' });
+    assert.deepEqual(localIntent('stop the music'), { kind: 'music', action: 'stop' });
+    for (const said of ['next song', 'skip', 'play the next one']) assert.deepEqual(localIntent(said), { kind: 'music', action: 'next' }, said);
+    assert.deepEqual(localIntent('play office bhangra'), { kind: 'music', action: 'play', song: 'office bhangra' });
+    for (const said of ['play music', 'stop the music', 'next song']) assert.equal(askIntent(said), false, said);
+    // the task commands are untouched
+    assert.deepEqual(localIntent('cancel the task'), { kind: 'cancel' });
+    assert.equal(localIntent('stop'), null);
+    assert.equal(heardTrigger('find 5 leads go start'), true);
+  });
+
+  it('opens a page with "show me" too', () => {
+    assert.deepEqual(localIntent('show me approvals'), { kind: 'open', hash: '#/flags' });
+    assert.deepEqual(localIntent('take me to the leads page'), { kind: 'open', hash: '#/leads' });
+  });
+
+  it('finds a song by the words of its title', () => {
+    const songs = [{ title: 'Office Bhangra (demo)' }, { title: 'Chai Break Groove (demo)' }, { title: 'Badtameez Dil' }];
+    assert.equal(findSong(songs, 'office bhangra'), 0);
+    assert.equal(findSong(songs, 'the chai one'), 1);
+    assert.equal(findSong(songs, 'badtameez dil'), 2);
+    assert.equal(findSong(songs, 'kesariya'), -1);
+  });
+
+  it('composes the demo tracks as playable sound, the same every time', () => {
+    const track = { ...TRACKS[0], bars: 4 };
+    const a = render(track, 7);
+    assert.deepEqual(render(track, 7), a);
+    const peak = a.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
+    assert.ok(peak > 0.8 && peak <= 0.9, `peak ${peak}`);
+    const file = wav(a);
+    assert.equal(file.subarray(0, 4).toString(), 'RIFF');
+    assert.equal(file.subarray(8, 12).toString(), 'WAVE');
+    assert.equal(file.length, 44 + a.length * 2);
+    for (const t of TRACKS) assert.match(t.file, /^\d\d .+ \(demo\)\.wav$/);
   });
 });
 

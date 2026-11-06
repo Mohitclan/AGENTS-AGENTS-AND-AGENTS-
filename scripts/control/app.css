@@ -345,3 +345,4 @@ label.check { flex-direction: row !important; align-items: center; gap: 6px; fon
   .q-row { flex-wrap: wrap; }
   .q-title { order: 5; flex-basis: 100%; white-space: normal; }
 }
+[data-approval-id] { cursor: pointer; }

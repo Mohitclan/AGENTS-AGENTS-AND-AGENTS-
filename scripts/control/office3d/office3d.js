@@ -25,6 +25,10 @@ import { buildGrid } from './nav.js';
 import { buildOffice } from './scene.js';
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+// The page's policy refuses inline style attributes in HTML, so a colour travels as data-c and is set here.
+const paintDots = (el) => {
+  for (const d of el.querySelectorAll('[data-c]')) d.style.setProperty('--c', d.dataset.c);
+};
 const clip = (s, n) => {
   const t = String(s ?? '').replace(/\s+/g, ' ').trim();
   return t.length > n ? `${t.slice(0, n - 1)}…` : t;
@@ -411,7 +415,7 @@ export async function createOffice3D(container, { roster = [], immersive = false
     const src = { real: 'From real agent events', sim: 'Simulation (the demo)', preview: 'Preview: a state you set' }[ag.source] || 'From real agent events';
     const why = { state: 'because of its state', errand: 'because of a real event', idle: 'ambient' }[d.why] || '';
     p.hidden = false;
-    const html = `<header><span class="o3-dot" style="--c:${esc(id.theme?.primary)}"></span><div><b>${esc(id.name)}</b><span>${esc(ag.name)}</span></div><button type="button" data-act="close" aria-label="Close">✕</button></header>
+    const html = `<header><span class="o3-dot" data-c="${esc(id.theme?.primary)}"></span><div><b>${esc(id.name)}</b><span>${esc(ag.name)}</span></div><button type="button" data-act="close" aria-label="Close">✕</button></header>
       <p class="o3-state"><span class="o3-pill st-${ag.status}">${esc(STATE_LABEL[ag.status])}</span><span class="o3-src">${esc(src)}</span></p>
       ${ag.doing ? `<p class="o3-doing">${esc(clip(ag.doing, 160))}</p>` : ''}
       <p class="o3-act"><b>In the office:</b> ${esc(d.label)} <span class="muted">(${esc(why)})</span></p>
@@ -419,6 +423,7 @@ export async function createOffice3D(container, { roster = [], immersive = false
     if (p.dataset.html !== html) {
       p.dataset.html = html;
       p.innerHTML = html;
+      paintDots(p);
     }
   }
   function select(name) {
@@ -471,8 +476,9 @@ export async function createOffice3D(container, { roster = [], immersive = false
     const p = $('.o3-preview');
     p.innerHTML = `<header><b>Preview</b><span>Set a state for any agent to see how it behaves. Nothing runs and nothing is saved.</span></header>
       <div class="o3-presets"><button type="button" data-preset="idle">Everyone idle</button><button type="button" data-preset="busy">Busy day</button><button type="button" data-preset="trouble">Problems</button></div>
-      <ul>${[...world.agents.values()].map((ag) => `<li><span class="o3-dot" style="--c:${esc(identityFor(ag.name).theme?.primary)}"></span><label for="pv-${esc(ag.name)}">${esc(identityFor(ag.name).name)}</label><select id="pv-${esc(ag.name)}" data-agent="${esc(ag.name)}">${STATES.map((s) => `<option value="${s}"${(preview.get(ag.name)?.status || 'idle') === s ? ' selected' : ''}>${esc(STATE_LABEL[s])}</option>`).join('')}</select></li>`).join('')}</ul>
+      <ul>${[...world.agents.values()].map((ag) => `<li><span class="o3-dot" data-c="${esc(identityFor(ag.name).theme?.primary)}"></span><label for="pv-${esc(ag.name)}">${esc(identityFor(ag.name).name)}</label><select id="pv-${esc(ag.name)}" data-agent="${esc(ag.name)}">${STATES.map((s) => `<option value="${s}"${(preview.get(ag.name)?.status || 'idle') === s ? ' selected' : ''}>${esc(STATE_LABEL[s])}</option>`).join('')}</select></li>`).join('')}</ul>
       <button type="button" class="o3-exit" data-act="preview">Back to live</button>`;
+    paintDots(p);
   }
   const PRESETS = {
     idle: () => ({}),
@@ -527,6 +533,8 @@ export async function createOffice3D(container, { roster = [], immersive = false
     paintMusic();
   }
   const offMusic = player.onChange(paintMusic);
+  const onVoiceMusic = () => showMusic(true); // "play music" said to the voice panel opens the speaker's panel
+  addEventListener('panscience:music', onVoiceMusic);
 
   // ---- input ----
   const ray = new THREE.Raycaster();
@@ -785,6 +793,7 @@ export async function createOffice3D(container, { roster = [], immersive = false
       cancelAnimationFrame(raf);
       clearInterval(sky);
       offMusic();
+      removeEventListener('panscience:music', onVoiceMusic);
       detachPlayer();
       ro.disconnect();
       controls.dispose();
