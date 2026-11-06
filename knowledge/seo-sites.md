@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: confirmed
 owner: founders
 last_verified: 2026-11-06
 sources:
