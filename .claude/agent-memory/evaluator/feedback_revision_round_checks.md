@@ -1,6 +1,6 @@
 ---
 name: revision-round-checks
-description: What to test on an r2 of a proposal or code-evidence file - repo branch drift, stale row references, universal claims resting on one example, uneven markers
+description: What to test on an r2 - repo branch drift, stale row references, universal claims on one example, uneven markers, full-text rewrites, live lead record vs corrected inbox file
 metadata:
   type: feedback
 ---
@@ -25,4 +25,9 @@ On a revision round, go past "was each fix made" and test what the fix introduce
 
 - When a tool list will drive a permissions change, curl the docs page's raw HTML and grep each tool's description; don't trust a fetch summary. Then check that the allow-list doesn't block a tool the docs say to call first (HubSpot's `tool_guidance` before `query_crm_data`, T-20261103-02 r2). Also check that the configured endpoint matches the documented one, because tool sets can differ.
 
-Related: [[feedback_sales_asset_checks]], [[feedback_search_summary_claims]]
+- Write rewrites as full replacement text, never "...": in T-20261106-01 r2 my R5 shortened a `next_action` opening to "...", and the author kept a stale opening that re-asked questions r1 had settled.
+- When an author says my quote isn't on the page, fetch "every sentence containing <keyword>" before ruling: the SafetyClip page held both wordings in different sections.
+- Lead fixes arrive as a corrected inbox file plus later coordinator `next`/`hold`/status commands. Judge the live record (`leads.mjs show`) and its `history` order, and flag any stale field left in the inbox file, because re-importing it overwrites the live one.
+- Before accepting "Stop only because of a hold", read `gateOf` and its CRITICAL_SIGNALS list to confirm the hold is the sole Stop source.
+
+Related: [[feedback_sales_asset_checks]], [[feedback_search_summary_claims]], [[feedback_lead_batch_checks]]

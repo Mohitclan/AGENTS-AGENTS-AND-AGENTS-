@@ -183,3 +183,11 @@ Every time one agent started another. Written by `scripts/team-hooks.mjs`.
 | 2026-11-05 11:01 | coordinator | evaluator | T-20261105-04 | T-20261105-04 scoped re-review r2 |
 | 2026-11-05 12:31 | coordinator | lead-generator | T-20261105-05 | T-20261105-05 lead batch |
 | 2026-11-05 12:42 | coordinator | evaluator | T-20261105-06 | T-20261105-06 review lead batch |
+| 2026-11-06 10:00 | coordinator | lead-generator | T-20261106-01 | MotionRepo segment 1 lead sprint |
+| 2026-11-06 10:00 | lead-generator | lead-scout | T-20261106-01 | Scout A Indian boards |
+| 2026-11-06 10:00 | lead-generator | lead-scout | T-20261106-01 | Scout B Indian news |
+| 2026-11-06 10:00 | lead-generator | lead-scout | T-20261106-01 | Scout C global launch boards |
+| 2026-11-06 10:00 | lead-generator | lead-scout | T-20261106-01 | Scout D developers and intent |
+| 2026-11-06 10:14 | coordinator | evaluator | T-20261106-02 | Review MotionRepo lead batch |
+| 2026-11-06 10:30 | coordinator | lead-generator | T-20261106-01 | Revise lead batch per review r1 |
+| 2026-11-06 10:34 | coordinator | evaluator | T-20261106-02 | Scoped re-review of lead batch fixes |
