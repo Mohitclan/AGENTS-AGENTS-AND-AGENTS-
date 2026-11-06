@@ -61,12 +61,12 @@ function openBrowser(url) {
 }
 
 // The order agents appear in. Others found in .claude/agents/ follow.
-export const ORDER = ['coordinator', 'evaluator', 'knowledge-base', 'researcher', 'lead-generator', 'outreach', 'sales', 'marketing', 'demo-handler', 'docs-handler', 'developer'];
+export const ORDER = ['coordinator', 'evaluator', 'knowledge-base', 'researcher', 'lead-generator', 'outreach', 'sales', 'marketing', 'demo-handler', 'docs-handler', 'developer', 'seo-aeo'];
 // Who owns the files under each folder, for outputs and for activity found only as a file.
 const OWNER = [
   [/^outputs\/research\/scout\//, 'lead-scout'], [/^outputs\/research\/[^/]*lead-notes/, 'lead-generator'], [/^outputs\/research\//, 'researcher'], [/^outputs\/outreach\//, 'outreach'], [/^outputs\/sales\//, 'sales'],
   [/^outputs\/marketing\//, 'marketing'], [/^outputs\/demos\//, 'demo-handler'], [/^outputs\/docs\//, 'docs-handler'],
-  [/^outputs\/dev\//, 'developer'], [/^outputs\/reviews\//, 'evaluator'], [/^outputs\/reports\//, 'coordinator'],
+  [/^outputs\/dev\//, 'developer'], [/^outputs\/seo\//, 'seo-aeo'], [/^outputs\/reviews\//, 'evaluator'], [/^outputs\/reports\//, 'coordinator'],
   [/^outputs\/replies\//, 'sales'], [/^knowledge\//, 'knowledge-base'], [/^pipeline\/inbox\//, 'lead-generator'],
 ];
 export const ownerOf = (path) => OWNER.find(([re]) => re.test(path))?.[1] ?? null;
@@ -364,8 +364,17 @@ export function allEvents(root = ROOT, queue = null) {
 
 // ---- what each agent produced ------------------------------------------------------------------
 
+// SEO and AEO reports sit in one folder per product: outputs/seo/<slug>/YYYY-MM-DD.md
+const seoFolders = (root) => {
+  try {
+    return readdirSync(join(root, 'outputs', 'seo'), { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => `outputs/seo/${d.name}`);
+  } catch {
+    return [];
+  }
+};
+
 function outputsOf(root, name, hidden = new Set()) {
-  const dirs = ['outputs/research', 'outputs/research/scout', 'outputs/outreach', 'outputs/sales', 'outputs/marketing', 'outputs/demos', 'outputs/docs', 'outputs/dev', 'outputs/reviews', 'outputs/reports', 'outputs/replies', 'knowledge', 'knowledge/products', 'knowledge/competitors', 'knowledge/proposals', 'pipeline/inbox'];
+  const dirs = ['outputs/research', 'outputs/research/scout', 'outputs/outreach', 'outputs/sales', 'outputs/marketing', 'outputs/demos', 'outputs/docs', 'outputs/dev', 'outputs/seo', ...seoFolders(root), 'outputs/reviews', 'outputs/reports', 'outputs/replies', 'knowledge', 'knowledge/products', 'knowledge/competitors', 'knowledge/proposals', 'pipeline/inbox'];
   const files = [];
   for (const dir of dirs) {
     for (const f of list(root, dir, dir === 'pipeline/inbox' ? '.jsonl' : '.md')) {

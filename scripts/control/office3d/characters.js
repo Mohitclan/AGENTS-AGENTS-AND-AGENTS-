@@ -19,7 +19,7 @@
 import * as THREE from '/vendor/three/build/three.module.js';
 import { GLTFLoader } from '/vendor/three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from '/vendor/three/examples/jsm/utils/SkeletonUtils.js';
-import { PEOPLE } from './cast.js';
+import { PEOPLE, RETINT } from './cast.js';
 
 const X = new THREE.Vector3(1, 0, 0);
 const Y = new THREE.Vector3(0, 1, 0);
@@ -227,7 +227,10 @@ export class Character {
       } else if (rig.spec.tint && m.name === 'Grey') {
         m.color.set(0xe9e6f2);
         m.roughness = 0.5;
-      } else if (!rig.spec.tint) m.roughness = 0.7;
+      } else if (!rig.spec.tint) {
+        m.roughness = 0.7;
+        if (RETINT.has(name) && o.name === 'body-mesh') m.color.copy(new THREE.Color(0xffffff).lerp(tint, 0.6));
+      }
       o.material = m;
       o.userData.agent = name;
       this.meshes.push(o);

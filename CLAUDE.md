@@ -1,6 +1,6 @@
 # Sales and growth team
 
-This folder runs an AI team whose job is to turn our SaaS products into paying customers. The main session is the `coordinator` agent: it plans work and delegates to ten specialists, each with a fallback agent. Every agent reads this file.
+This folder runs an AI team whose job is to turn our SaaS products into paying customers. The main session is the `coordinator` agent: it plans work and delegates to eleven specialists, each with a fallback agent. Every agent reads this file.
 
 ## Main memory
 
@@ -35,6 +35,7 @@ Company facts and policies live in `knowledge/company.md`. Each product's facts 
 | `demo-handler` | Personalised demo plans, demo scripts, demo environment checklists, post-demo follow-ups |
 | `docs-handler` | Help docs, getting-started guides, FAQs, comparison pages, sales one-pagers |
 | `developer` | Small fixes that block sales (sign-up, checkout, landing pages, tracking, demo data) on a local branch |
+| `seo-aeo` | SEO and AEO for the sites in `knowledge/seo-sites.md`: audits each live site, fixes what it can in the code on a local branch, reports the rest |
 | `<agent>-fallback` | Stands in for a specialist that failed three times on a task: same job, different model. Only the coordinator runs it |
 
 ## Where things live
@@ -43,7 +44,7 @@ Company facts and policies live in `knowledge/company.md`. Each product's facts 
 |---|---|
 | `knowledge/` | Company and product facts, competitor files, change proposals |
 | `pipeline/leads.jsonl` | Every lead. Written only by `node scripts/leads.mjs`; format in `pipeline/lead-schema.md` |
-| `outputs/<area>/` | Deliverables: `research`, `outreach`, `sales`, `marketing`, `demos`, `docs`, `dev`, `reviews` |
+| `outputs/<area>/` | Deliverables: `research`, `outreach`, `sales`, `marketing`, `demos`, `docs`, `dev`, `seo`, `reviews` |
 | `ops/board.md` | Task board: each task's owner, status, output and review score |
 | `ops/approvals.md` | Actions waiting for a human yes or no |
 | `evaluation/rubrics.md` | How each kind of work is scored |

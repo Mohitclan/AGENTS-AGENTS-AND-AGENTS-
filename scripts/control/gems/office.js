@@ -19,7 +19,7 @@ const clip = (t, n) => (String(t || '').length > n ? `${String(t).slice(0, n - 1
 export const SEATS = {
   'knowledge-base': [9, 57], researcher: [24, 57], 'lead-generator': [39, 57],
   outreach: [61, 57], sales: [76, 57], marketing: [91, 57],
-  developer: [11, 95], 'docs-handler': [29, 95], evaluator: [50, 95], 'demo-handler': [71, 95],
+  developer: [9, 95], 'docs-handler': [25, 95], evaluator: [41, 95], 'demo-handler': [57, 95], 'seo-aeo': [73, 95],
 };
 const TABLE = [50, 77];
 const OUTBOX = [91, 96];
@@ -60,6 +60,7 @@ const DESK_PROP = {
   'docs-handler': '<path d="M94 12q9-4 10 0 1-4 10 0v-12q-9-4-10 0-1-4-10 0z" fill="#fffdf6" stroke="#efc152"/><path d="M104 0v12" stroke="#efc152"/>',
   developer: '<rect x="92" y="-14" width="24" height="18" rx="3" fill="#3b3757"/><rect x="94" y="-12" width="20" height="13" rx="1.5" fill="#1f2340"/><path d="M96 -9h8M96 -6h12M96 -3h6" stroke="#9be7c4" stroke-width="1.4"/><rect x="102" y="4" width="4" height="6" fill="#3b3757"/><rect x="98" y="9" width="12" height="3" rx="1.5" fill="#3b3757"/>',
   evaluator: '<rect x="94" y="6" width="18" height="7" rx="2" fill="#ff9aa8"/><rect x="99" y="-4" width="8" height="10" rx="2" fill="#8a6a4a"/>',
+  'seo-aeo': '<rect x="93" y="-6" width="20" height="18" rx="2" fill="#fff" stroke="#c9ea86"/><rect x="96" y="5" width="3" height="4" fill="#d9eeb0"/><rect x="101" y="2" width="3" height="7" fill="#b8e05c"/><rect x="106" y="-2" width="3" height="11" fill="#8fbf3a"/><path d="M96 0l5-3 4 2 5-5" fill="none" stroke="#5a7a1c" stroke-width="1.3" stroke-linecap="round"/>',
 };
 
 function deskSVG(agent, label) {

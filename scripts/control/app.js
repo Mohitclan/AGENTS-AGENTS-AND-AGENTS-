@@ -20,6 +20,7 @@ const AGENTS = {
   sales: ['Sales', 'Replies, calls, proposals'], marketing: ['Marketing', 'Positioning, content, launches'],
   'demo-handler': ['Demos', 'Demo plans and scripts'], 'docs-handler': ['Docs', 'Help docs and one-pagers'],
   developer: ['Developer', 'Fixes that block sales'], 'lead-scout': ['Lead scout', 'Sweeps lead sources, several at once'],
+  'seo-aeo': ['SEO & AEO', 'Search and AI-answer visibility'],
   system: ['System', 'Scripts: sends, replies, checks'],
 };
 const look = (name) => ({ label: AGENTS[name]?.[0] || name, role: AGENTS[name]?.[1] || '' });

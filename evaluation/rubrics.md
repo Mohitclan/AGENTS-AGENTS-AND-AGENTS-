@@ -140,3 +140,17 @@ Also score the four U's (hook-bank skill) in your review. Below the pass mark, i
 | Write-up covers risk, rollback and what a human should check | 10 |
 
 **Auto-fail:** failing tests, changes to production configuration, or migrations without a written rollback.
+
+## 10. SEO and AEO audit and fixes
+
+**Automated checks:** `node scripts/check-links.mjs <report>`; for code changes, the project's own tests and lint, run by the evaluator in `repos/<slug>` on the agent's branch.
+
+Spot-check at least three failed checks and three fixes against the live site or the code. Any trick search engines penalise (hidden text, keyword stuffing, cloaking, review or rating markup without real reviews, invented FAQ content) is an auto-fail, and so is a pushed branch or anything submitted outside this computer.
+
+| Criterion | Weight |
+|---|---|
+| Findings are true: each failed check has the URL and what the page or file actually showed | 30 |
+| Fixes for a person are ranked by impact and each says exactly what to change and where | 20 |
+| Code changes are small, follow the repo's patterns, use only confirmed facts, and tests or lint pass where they exist | 20 |
+| AEO is covered: crawler access, `llms.txt`, answer-first content, structured data and facts that match the fact sheet | 15 |
+| "Since the last run" compares with the previous report, and the report is short enough to act on | 15 |

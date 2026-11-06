@@ -11,8 +11,9 @@ const grid = buildGrid();
 const places = [...DESKS.map((d) => ({ id: d.agent, ...d.approach })), ...SPOTS.map((s) => ({ id: s.id, ...standPoint(s) }))];
 
 describe('3D office floor plan and walking', () => {
-  it('gives every agent its own desk, and every place a walkable spot to stand', () => {
-    assert.equal(new Set(DESKS.map((d) => d.agent)).size, 11);
+  it('gives every agent its own desk, and every place a walkable spot to stand', async () => {
+    const { ORDER } = await import('../control.mjs');
+    assert.deepEqual(DESKS.map((d) => d.agent).sort(), [...ORDER].sort(), 'one desk per agent in the team order');
     for (const p of places) assert.ok(grid.walkable(p.x, p.z), `${p.id} is not walkable`);
   });
 

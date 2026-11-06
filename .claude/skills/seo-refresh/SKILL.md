@@ -34,6 +34,8 @@ When you audit a page or a site, go in this order and report the first failing s
 
 In your findings, label each step as checked, not checked, or couldn't be checked, and say what you used. A fetch can't settle step 1 or the schema question on its own.
 
+A full site audit belongs to the `seo-aeo` agent, which goes deeper with the site-technical-audit, page-content-seo, saas-structured-data and ai-answer-visibility skills and `node scripts/seo-check.mjs`. Keep this skill for choosing keywords and refreshing pages.
+
 ## On the page
 
 - The keyword is in the title, the H1, one H2 and the first paragraph, naturally.

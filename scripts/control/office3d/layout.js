@@ -20,7 +20,7 @@ const SEAT_ROWS = [
   { bench: 0, side: 'north', xs: [-7.6, -5.2, -2.8], agents: ['researcher', 'coordinator', 'lead-generator'] },
   { bench: 0, side: 'south', xs: [-7.6, -5.2, -2.8], agents: ['knowledge-base', 'evaluator', 'outreach'] },
   { bench: 1, side: 'north', xs: [-7.6, -5.2, -2.8], agents: ['marketing', 'developer', 'sales'] },
-  { bench: 1, side: 'south', xs: [-6.4, -4.0], agents: ['docs-handler', 'demo-handler'] },
+  { bench: 1, side: 'south', xs: [-7.6, -5.2, -2.8], agents: ['docs-handler', 'demo-handler', 'seo-aeo'] },
 ];
 
 function buildDesks() {

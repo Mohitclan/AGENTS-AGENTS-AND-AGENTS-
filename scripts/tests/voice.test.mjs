@@ -52,6 +52,13 @@ describe('voice: the office speaker', () => {
     assert.equal(heardTrigger('find 5 leads go start'), true);
   });
 
+  it('sends "SEO, ..." to the SEO and AEO agent, and never a plain "search for" or "rank"', () => {
+    assert.deepEqual(addressee('seo and aeo, fix the meta tags on testpilot'), { agent: 'seo-aeo', rest: 'fix the meta tags on testpilot' });
+    assert.deepEqual(addressee('Rank Gem: check every site'), { agent: 'seo-aeo', rest: 'check every site' });
+    assert.equal(addressee('search for competitors, researcher').agent, null);
+    assert.equal(addressee('rank these leads by score').agent, null);
+  });
+
   it('opens a page with "show me" too', () => {
     assert.deepEqual(localIntent('show me approvals'), { kind: 'open', hash: '#/flags' });
     assert.deepEqual(localIntent('take me to the leads page'), { kind: 'open', hash: '#/leads' });

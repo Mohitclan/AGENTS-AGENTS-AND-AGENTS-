@@ -104,6 +104,15 @@ export const IDENTITIES = [
     motion: { float: 1.4, blink: 5, tilt: 4 },
     badge: '30 26 100 100',
   },
+  {
+    id: 'rank-gem', name: 'Rank Gem', agent: 'seo-aeo', concept: false,
+    personality: 'Sharp-eyed and tidy; makes sure people and AI assistants can find us.',
+    theme: { primary: '#b8e05c', soft: '#f5fbe6', ink: '#5a7a1c' },
+    species: 'human',
+    look: { skin: '#e8b996', hair: '#2b2a3a', hairLight: '#6f6a8a', hairStyle: 'bob', outfit: 'jacket', outfitColor: '#c9ea86', trim: '#8fbf3a', pants: '#4f5878', shoes: '#fffaf4', prop: 'chart', glasses: '#3c4a1c', eye: '#2c2a3a' },
+    motion: { float: 1.5, blink: 4.8, tilt: 5 },
+    badge: '30 26 100 100',
+  },
 ];
 
 // Scripts (sends, replies, copy checks) have no character: a small gem stands for them.

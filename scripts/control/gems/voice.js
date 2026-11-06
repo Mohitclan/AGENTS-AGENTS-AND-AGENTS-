@@ -34,6 +34,7 @@ const AGENT_WORDS = {
   'demo-handler': ['demo', 'demos', 'fox'],
   'docs-handler': ['docs', 'scribe', 'documentation'],
   developer: ['developer', 'code buddy', 'dev'],
+  'seo-aeo': ['seo and aeo', 'rank gem', 'seo', 'aeo'],
 };
 const PAGES = { home: '#/', office: '#/', working: '#/working', team: '#/team', 'the team': '#/team', overview: '#/overview', logs: '#/logs', leads: '#/leads', reports: '#/reports', approvals: '#/flags', 'needs you': '#/flags', gallery: '#/gems', gems: '#/gems' };
 

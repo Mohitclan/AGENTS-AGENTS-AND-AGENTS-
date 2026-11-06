@@ -13,6 +13,7 @@ import { DESKS, SPOTS } from './layout.js';
 // The kind of work each role does at its desk when the server says "working".
 export const ROLE_WORK = {
   developer: 'coding',
+  'seo-aeo': 'coding',
   evaluator: 'analyzing',
   coordinator: 'planning',
   researcher: 'writing',
