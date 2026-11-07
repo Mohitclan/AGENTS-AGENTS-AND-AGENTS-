@@ -12,7 +12,7 @@
 // sign-in, and TEAM_PAGE_HOST is the public name. The page refuses to start with a name and no hash.
 import { spawn, spawnSync } from 'node:child_process';
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
-import { closeSync, existsSync, fstatSync, mkdirSync, openSync, readdirSync, readFileSync, readSync } from 'node:fs';
+import { closeSync, existsSync, fstatSync, mkdirSync, openSync, readdirSync, readFileSync, readSync, unlinkSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { join, posix } from 'node:path';
 import { frontmatter, isMain, ROOT } from './_shared.mjs';
@@ -714,7 +714,32 @@ export function addTask(root, task) {
 // full, if any) and { started } (false when a run was already going or the guard held it back).
 export function startQueued(root) {
   const full = planUsage(root)?.full;
+  if (full) markResume(root); // mission control starts it once the window resets
   return full ? { full, started: false } : { full: undefined, started: startRun(root) };
+}
+
+// The note Jarvis (or the task box) leaves when the plan's usage held the queue back: { at, resetsAt } in seconds.
+const RESUME_FILE = 'ops/runs/resume-after-limit.json';
+export function markResume(root) {
+  const windows = readJson(root, 'ops/runs/plan-limits.json', null)?.windows || {};
+  const resetsAt = Math.max(0, ...Object.values(windows).filter((w) => w.utilization >= STOP_AT).map((w) => w.resetsAt || 0)) || Math.round(Date.now() / 1000) + 3600;
+  mkdirSync(join(root, 'ops', 'runs'), { recursive: true });
+  writeFileSync(join(root, RESUME_FILE), JSON.stringify({ at: new Date().toISOString(), resetsAt }));
+}
+
+// Called by mission control every minute. Starts the waiting tasks once the window that stopped them has reset
+// (a minute's grace), if tasks are still waiting and no run is going. Returns what it did, or null.
+export function resumeIfDue(root, now = Date.now()) {
+  const note = readJson(root, RESUME_FILE, null);
+  if (!note) return null;
+  if (now < (note.resetsAt || 0) * 1000 + 60_000) return null;
+  if (planUsage(root)?.full) return null; // a newer report says a window is still full
+  const clear = () => { try { unlinkSync(join(root, RESUME_FILE)); } catch { /* gone already */ } };
+  const waiting = (readJson(root, 'ops/queue.json', []) || []).some((t) => t.status === 'queued' || t.status === 'running');
+  if (!waiting) return clear(), null;
+  if (runAlive(root)) return clear(), null;
+  clear();
+  return startRun(root) ? 'Started the waiting tasks after the plan window reset.' : null;
 }
 
 // A POST from the page. The Origin and custom header keep other websites from reaching it.
@@ -723,7 +748,10 @@ export function act(root, path, { host, origin, marker, body, site }) {
   if (!sameSite({ host, origin, marker, site })) return reply(403, 'Use the team page itself.');
   const full = planUsage(root)?.full;
   const start = (id) => {
-    if (full) return reply(200, `${id} is queued. It can't start until the plan's ${full} window resets.`, { id });
+    if (full) {
+      markResume(root);
+      return reply(200, `${id} is queued. It starts by itself when the plan's ${full} window resets.`, { id });
+    }
     return reply(200, startRun(root) ? `${id} is starting.` : `${id} is queued, and starts after the current task.`, { id });
   };
   if (path === '/tasks') {

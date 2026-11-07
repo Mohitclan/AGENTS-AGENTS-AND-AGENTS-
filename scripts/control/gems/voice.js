@@ -36,7 +36,7 @@ const AGENT_WORDS = {
   developer: ['developer', 'code buddy', 'dev'],
   'seo-aeo': ['seo and aeo', 'rank gem', 'seo', 'aeo'],
 };
-const PAGES = { home: '#/', office: '#/', working: '#/working', team: '#/team', 'the team': '#/team', overview: '#/overview', logs: '#/logs', leads: '#/leads', reports: '#/reports', approvals: '#/flags', 'needs you': '#/flags', gallery: '#/gems', gems: '#/gems' };
+const PAGES = { home: '#/', office: '#/', working: '#/working', team: '#/team', 'the team': '#/team', overview: '#/overview', logs: '#/logs', leads: '#/leads', outreach: '#/outreach', drafts: '#/outreach', emails: '#/outreach', reports: '#/reports', approvals: '#/flags', 'needs you': '#/flags', gallery: '#/gems', gems: '#/gems' };
 
 function load() {
   try {
@@ -80,9 +80,31 @@ export function taskFor(text) {
   return { agent, task: `Ask the ${agent} to: ${clean}` };
 }
 
+// Outreach by voice. "Draft emails for the new leads" or "confirm the drafts" asks the team to draft the newest run's
+// leads ("draft emails for puzari" names one). "Approve all drafts" or "approve the emails for puzari" approves
+// drafts that passed review, which sends them. Only short commands count, so "find five leads and draft emails"
+// stays a task for the team.
+const MAILS = '(?:e-?mails?|mails?|drafts?|outreach)';
+const names = (s) => s.split(/\s*(?:,|\band\b|&)\s*/).map((x) => x.trim()).filter(Boolean);
+export function outreachIntent(t) {
+  const s = t.replace(/^(please|ok|okay|yes|go ahead and|go ahead)\s+/, '').replace(/\s+please$/, '');
+  if (new RegExp(`^(?:confirm|start|do)\\s+(?:the\\s+)?(?:drafts?|drafting)(?:\\s+(?:for\\s+)?(?:them|all|all of them|the new leads))?$`).test(s)) return { kind: 'draft', leads: 'new' };
+  const draft = new RegExp(`^(?:draft|write)\\s+(?:the\\s+)?${MAILS}?\\s*(?:for|to)\\s+(?:the\\s+)?(.+)$`).exec(s) || /^draft\s+(them|all|all of them|the new leads)$/.exec(s);
+  if (draft) {
+    const who = draft[1].trim();
+    return { kind: 'draft', leads: /^(them|all|all of them|new leads|the new leads|all (the )?new leads|leads)$/.test(who) ? 'new' : names(who) };
+  }
+  if (new RegExp(`^approve\\s+(?:all|everything|all (?:the\\s+)?${MAILS})(?:\\s+and send(?: them)?)?$`).test(s)) return { kind: 'approve', drafts: 'all' };
+  const one = new RegExp(`^approve\\s+(?:the\\s+)?(?:${MAILS}\\s+(?:for|to)\\s+)?(?:the\\s+)?(.+?)(?:\\s+${MAILS})?(?:\\s+and send(?: (?:it|them))?)?$`).exec(s);
+  if (one && !/^(it|that|this)$/.test(one[1])) return { kind: 'approve', drafts: names(one[1]) };
+  return null;
+}
+
 // Phrases the page answers itself. Returns { kind, ... } or null for a real task.
 export function localIntent(text) {
   const t = text.trim().toLowerCase().replace(/[?.!]+$/, '');
+  const outreach = outreachIntent(t);
+  if (outreach) return outreach;
   if (/^(what('s| is) happening|status|who('s| is) (working|busy)|what are you (all )?doing)/.test(t)) return { kind: 'status' };
   if (/^(stop talking|be quiet|mute)$/.test(t)) return { kind: 'mute' };
   if (/^(start|run) (the )?waiting tasks$/.test(t)) return { kind: 'run' };
@@ -181,7 +203,7 @@ export const askIntent = (text) => {
   return /[a-z]{2}/i.test(t) && !heardTrigger(t) && !localIntent(t);
 };
 
-export function createVoice({ onTask, onRun, onCancel, onAsk, getAgents, navigate }) {
+export function createVoice({ onTask, onRun, onCancel, onAsk, onOutreach, getAgents, navigate }) {
   const settings = load();
   let rec = null;
   let listening = false;
@@ -437,6 +459,18 @@ export function createVoice({ onTask, onRun, onCancel, onAsk, getAgents, navigat
       return;
     }
     if (intent?.kind === 'music') return music(intent);
+    if ((intent?.kind === 'draft' || intent?.kind === 'approve') && onOutreach) {
+      if (intent.kind === 'approve') log('page', 'Approving and sending…');
+      try {
+        const msg = await onOutreach(intent);
+        log('team', msg);
+        speak(msg);
+      } catch (error) {
+        log('page', error.message);
+        speak(error.message);
+      }
+      return;
+    }
     if (intent?.kind === 'cancel') {
       if (!lastTask) {
         log('page', 'There is no task from this panel to cancel.');

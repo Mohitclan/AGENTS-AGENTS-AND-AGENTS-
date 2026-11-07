@@ -75,6 +75,9 @@ if (tool === 'Bash' && typeof args.command === 'string') {
   if (/\bsend-email\.mjs\b/.test(cmd) && !/--dry-run\b/.test(cmd)) {
     ask('This sends a real email. Allow it only if a person approved this exact send in this session.');
   }
+  // Pilot test emails go out when a person approves a draft on the Outreach page, never on an agent's say-so.
+  if (/\bsend-tests\.mjs\b/.test(cmd) && !/--dry-run\b/.test(cmd)) ask('This sends test emails. A person approves drafts on the Outreach page.');
+  if (/\boutreach\.mjs\b/.test(cmd) && /\b(approve|draft)\b/.test(cmd)) ask('Approving drafts and asking for new ones is a person\'s decision, made on the Outreach page or by voice.');
   process.exit(0);
 }
 

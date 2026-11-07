@@ -17,16 +17,17 @@
 // tool call inside a sub-agent carries the id of the Agent call that started it, so every web search,
 // page fetch, file write and failure is credited to the agent that made it.
 import { createHash } from 'node:crypto';
-import { closeSync, existsSync, fstatSync, openSync, readdirSync, readFileSync, readSync, statSync } from 'node:fs';
+import { closeSync, existsSync, fstatSync, openSync, readdirSync, readFileSync, readSync, statSync, writeFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { ROOT, frontmatter, isMain } from './_shared.mjs';
-import { act, collect, createAuth, parseApprovals, planUsage, renderMarkdown, sameSite } from './dashboard.mjs';
+import { act, addTask, collect, createAuth, parseApprovals, planUsage, renderMarkdown, resumeIfDue, sameSite, startQueued } from './dashboard.mjs';
 import { BRAND, faviconHref, lockupSvg } from './control/gems/logo.js';
 import { askGuide, guideContext } from './guide.mjs';
 import { listSongs, sendSong } from './music.mjs';
 import { projectsApi } from './projects.mjs';
+import { approveAndSend, draftEmails, logRequest, outreachState, planApproval, planDrafts } from './outreach.mjs';
 
 const DEFAULT_PORT = 4318;
 const STATIC = join(ROOT, 'scripts', 'control');
@@ -425,6 +426,23 @@ export function avatarStatus({ name, live, busy, inRun = [], mine = [], working 
   return { status: paused ? 'paused' : 'idle', doing: null };
 }
 
+// The Outreach page's state. It reads every review for every draft, so it is only rebuilt when one of the files
+// it depends on changes, not on every tick of the live stream.
+let outreachMemo = { key: '', value: null };
+function outreachCached(root) {
+  const stamp = (rel) => { try { return statSync(join(root, rel)).mtimeMs; } catch { return 0; } };
+  const drafts = existsSync(join(root, 'outputs', 'outreach')) ? readdirSync(join(root, 'outputs', 'outreach')).map((n) => `${n}:${stamp(`outputs/outreach/${n}`)}`).join(',') : '';
+  const key = [drafts, ...['outputs/reviews', 'pipeline/leads.jsonl', 'ops/queue.json', 'ops/outreach.jsonl', 'ops/send-log.jsonl', 'ops/runs/jarvis.lock'].map(stamp)].join('|');
+  if (key !== outreachMemo.key) {
+    try {
+      outreachMemo = { key, value: outreachState(root) };
+    } catch (error) {
+      outreachMemo = { key, value: { runs: [], drafts: [], ready: 0, error: error.message } };
+    }
+  }
+  return outreachMemo.value;
+}
+
 export function snapshot(root = ROOT) {
   const base = collect(root);
   const roster = loadRoster(root);
@@ -496,6 +514,7 @@ export function snapshot(root = ROOT) {
   return {
     at: new Date().toISOString(),
     live: !!live,
+    outreach: outreachCached(root),
     running: base.running ? { id: base.running.id, title: base.running.title, started: base.running.started } : null,
     usage: base.usage,
     kpis: {
@@ -575,7 +594,6 @@ const readCookie = (header) => new RegExp(`(?:^|;\\s*)${COOKIE}=([a-f0-9]+)`).ex
 const shell = (body, script) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PanScience Innovations · Mission control</title><link rel="icon" href="${faviconHref()}"><link rel="stylesheet" href="/app.css"><link rel="stylesheet" href="/gems/gems.css"><link rel="stylesheet" href="/gems/office.css"><link rel="stylesheet" href="/gems/ui.css"><link rel="stylesheet" href="/office3d/office3d.css"><link rel="stylesheet" href="/gems/home.css"></head><body>${body}<script type="module" src="/${script}"></script></body></html>`;
 const APP = shell(`
   <div id="app" class="app"><noscript>Mission Control needs JavaScript.</noscript></div>
-  <script src="/approval-viewer.js"><\/script>
 `, 'app.js');
 const SIGN_IN = shell(`<main class="signin"><form id="signin" class="signin-card"><div class="brand">${lockupSvg('brand-logo', BRAND.name)}</div><p>Sign in to run the sales team.</p><label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" required><button type="submit">Sign in</button><p id="msg" role="status"></p></form></main>`, 'signin.js');
 
@@ -622,6 +640,14 @@ function main() {
     for (const res of streams) res.write(`event: state\ndata: ${lastState}\n\n`);
   };
   setInterval(tick, TICK_MS).unref();
+  // Waiting tasks the plan's usage held back start again by themselves once the window resets.
+  setInterval(() => {
+    const did = resumeIfDue(ROOT);
+    if (did) {
+      console.log(did);
+      lastSig = '';
+    }
+  }, 60_000).unref();
   setInterval(() => {
     for (const res of streams) res.write(': keep-alive\n\n');
   }, 20_000).unref();
@@ -641,10 +667,6 @@ function main() {
     try {
       if (req.method === 'GET') {
         const file = path.slice(1);
-        // Serve approval-viewer.js
-        if (file === 'approval-viewer.js' && existsSync(join(ROOT, 'scripts', 'approval-viewer.js'))) {
-          return send(res, 200, readFileSync(join(ROOT, 'scripts', 'approval-viewer.js'), 'utf8'), 'text/javascript');
-        }
         if (STATIC_FILES.test(file) && existsSync(join(STATIC, file))) return send(res, 200, readFileSync(join(STATIC, file), 'utf8'), TYPES[file.slice(file.lastIndexOf('.'))]);
         const cache = { 'Cache-Control': 'public, max-age=86400' };
         if (ASSET_FILES.test(file) && existsSync(join(STATIC, file))) return send(res, 200, readFileSync(join(STATIC, file)), TYPES[file.slice(file.lastIndexOf('.'))], cache);
@@ -676,6 +698,10 @@ function main() {
         if (path === '/api/file') {
           const doc = readFile(ROOT, url.searchParams.get('path'));
           return doc ? json(res, 200, doc) : json(res, 404, { message: 'That file is not available here.' });
+        }
+        if (path === '/api/outreach/emails') {
+          const doc = draftEmails(ROOT, url.searchParams.get('draft'));
+          return doc ? json(res, 200, doc) : json(res, 404, { message: 'That draft is not available here.' });
         }
         // Approval viewer endpoints
         const viewApproval = /^\/api\/approval\/([\w-]+)\/view$/.exec(path);
@@ -720,42 +746,53 @@ function main() {
           auth?.signOut(token);
           return json(res, 200, { message: 'Signed out.' }, { 'Set-Cookie': cookieHeader('', site, 0) });
         }
-        // Approval handlers
-        const approveMatch = /^\/api\/approval\/([\w-]+)\/approve$/.exec(path);
-        if (approveMatch && !signedIn) return json(res, 401, { message: 'Sign in first.' });
-        if (approveMatch) {
-          try {
-            const approvals = parseApprovals(read(ROOT, 'ops/approvals.md'));
-            const approval = approvals.find(a => a.id === approveMatch[1]);
-            if (!approval) return json(res, 404, { message: 'Approval not found.' });
-
-            // Execute the send command
-            const out = act(ROOT, `/send-email --approval ${approval.id}`, from);
-            if (out.status !== 200) {
-              const result = JSON.parse(out.body);
-              return json(res, out.status, { message: 'Send failed', details: result.message || 'Unknown error' });
-            }
-            return json(res, 200, { message: 'Email sent and removed from approvals.' });
-          } catch (error) {
-            return json(res, 500, { message: 'Send failed', details: error.message });
-          }
-        }
-        const rejectMatch = /^\/api\/approval\/([\w-]+)\/reject$/.exec(path);
-        if (rejectMatch && !signedIn) return json(res, 401, { message: 'Sign in first.' });
-        if (rejectMatch) {
-          try {
-            // Remove from approvals
-            let approvalsText = read(ROOT, 'ops/approvals.md');
-            const lines = approvalsText.split('\n');
-            const filtered = lines.filter(l => !l.includes(rejectMatch[1]));
-            require('fs').writeFileSync(require('path').join(ROOT, 'ops/approvals.md'), filtered.join('\n'), 'utf8');
-            lastSig = '';
-            return json(res, 200, { message: 'Approval rejected and removed.' });
-          } catch (error) {
-            return json(res, 500, { message: 'Could not reject', details: error.message });
-          }
-        }
         if (!signedIn) return json(res, 401, { message: 'Sign in first.' });
+        // Outreach: a person asks the team to draft emails for leads, or approves drafts that passed review. Both
+        // come from the page (button or voice) or from scripts/outreach.mjs, with the same same-site check as tasks.
+        if (path === '/api/outreach/draft' || path === '/api/outreach/approve') {
+          if (!sameSite(from)) return json(res, 403, { message: 'Use the team page itself.' });
+          let ask;
+          try {
+            ask = JSON.parse(body || '{}');
+          } catch {
+            return json(res, 400, { message: 'That request could not be read.' });
+          }
+          const by = String(ask.by || 'a person on the page').slice(0, 60);
+          if (path === '/api/outreach/draft') {
+            const plan = planDrafts(ROOT, ask.leads === 'new' || !ask.leads ? 'new' : [].concat(ask.leads), by);
+            if (plan.error) return json(res, 409, { message: plan.error });
+            const added = addTask(ROOT, plan.task);
+            if (!added.id) return json(res, 500, { message: `The drafting task wasn't queued: ${added.error}` });
+            logRequest(ROOT, plan.ids, added.id, by);
+            const { full, started } = startQueued(ROOT);
+            lastSig = '';
+            const when = full ? `It starts by itself when the plan's ${full} window resets.` : started ? 'It is starting now.' : 'It starts after the current task.';
+            const skipped = plan.skipped.length ? ` Not drafted: ${plan.skipped.join('; ')}.` : '';
+            return json(res, 200, { message: `Drafting emails for ${plan.ids.length} lead(s) in ${added.id}. ${when}${skipped}`, id: added.id, leads: plan.ids });
+          }
+          const plan = planApproval(ROOT, ask.drafts === 'all' || !ask.drafts ? 'all' : [].concat(ask.drafts));
+          if (plan.error) return json(res, 409, { message: plan.error });
+          approveAndSend(ROOT, plan.drafts, by).then((r) => {
+            lastSig = '';
+            const where = 'as [TEST] copies to the pilot test recipients';
+            json(res, r.ok ? 200 : 500, { message: r.ok ? `Approved ${plan.companies.join(', ')}: ${r.sent} email(s) sent ${where}.` : `Approved, but sending had a problem: ${r.text.split('\n').slice(-3).join(' ')}`, detail: r.text });
+          });
+          return undefined;
+        }
+        // An approval row in ops/approvals.md: a person declines it from the Needs you page. A Yes is still given in
+        // chat (the hook asks a person before any Yes is written), and outreach drafts are approved on the Outreach page.
+        const rowMatch = /^\/api\/approval\/([\w-]+)\/(approve|reject)$/.exec(path);
+        if (rowMatch) {
+          if (!sameSite(from)) return json(res, 403, { message: 'Use the team page itself.' });
+          if (rowMatch[2] === 'approve') return json(res, 409, { message: 'Approve outreach drafts on the Outreach page. Other approvals are given in chat.' });
+          const file = join(ROOT, 'ops', 'approvals.md');
+          const text = existsSync(file) ? readFileSync(file, 'utf8') : '';
+          const kept = text.split('\n').filter((l) => !(l.startsWith('|') && l.includes(`| ${rowMatch[1]} |`)));
+          if (kept.length === text.split('\n').length) return json(res, 404, { message: 'Approval not found.' });
+          writeFileSync(file, kept.join('\n'), 'utf8');
+          lastSig = '';
+          return json(res, 200, { message: 'Approval declined and removed.' });
+        }
         // A spoken or typed question for the guide: answered by Claude Code on the signed-in login, read-only.
         if (path === '/api/ask') {
           let ask;

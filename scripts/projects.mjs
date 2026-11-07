@@ -278,7 +278,7 @@ export function upload(root, input) {
     return fail(500, `The task wasn't queued: ${added.error}`);
   }
   const run = startQueued(root);
-  const when = run.full ? `It can't start until the plan's ${run.full} window resets.` : run.started ? 'It is starting.' : 'It starts after the current task.';
+  const when = run.full ? `It starts by itself when the plan's ${run.full} window resets.` : run.started ? 'It is starting.' : 'It starts after the current task.';
   const what = kind === 'new' ? `New project ${slug}, version ${version}. An agent is converting it to a fact sheet.` : `Update to version ${version} of ${slug}. ${inPlace ? 'An agent is updating the sheet, which is not confirmed yet, in place. Confirm it when it is ready.' : 'An agent is comparing it with the current sheet.'}`;
   return ok({ slug, kind, inPlace, version, taskId: added.id, file, message: `${what} Task ${added.id} is queued. ${when}` });
 }
@@ -310,7 +310,7 @@ export function work(root, input) {
   if (queued.length) {
     const run = startQueued(root); // once for the whole batch, so two runs are not started at the same moment
     const count = `${queued.length} task${queued.length === 1 ? '' : 's'} queued`;
-    message = `${count}${refused.length ? `, ${refused.length} refused` : ''}. ${run.full ? `They can't start until the plan's ${run.full} window resets.` : run.started ? 'The first is starting.' : 'They start after the current task.'}`;
+    message = `${count}${refused.length ? `, ${refused.length} refused` : ''}. ${run.full ? `They start by themselves when the plan's ${run.full} window resets.` : run.started ? 'The first is starting.' : 'They start after the current task.'}`;
   }
   return ok({ queued, refused, message });
 }

@@ -98,7 +98,9 @@ export function mail(root, env = process.env) {
     : { status: 'warn', item: 'Send guard', detail: 'The pilot allow-list is empty, so approved sends can reach prospects.' });
   out.push(cfg.pilot?.auto_test_sends && testers.length
     ? { status: 'ok', item: 'Test emails', detail: `After each task, Jarvis sends every email of each draft that passed review to ${testers.join(', ')} as [TEST] copies, with no questions.` }
-    : { status: 'warn', item: 'Test emails', detail: 'Automatic test emails are off (pilot.auto_test_sends in ops/mail-config.json), so nothing is sent after a task.' });
+    : testers.length
+      ? { status: 'ok', item: 'Test emails', detail: `Sent when a person approves a draft that passed review on the Outreach page (button or voice): [TEST] copies to ${testers.join(', ')}. Nothing is sent automatically after a task.` }
+      : { status: 'warn', item: 'Test emails', detail: 'No pilot test recipients in ops/mail-config.json, so approving a draft has nobody to send to.' });
   const pass = env.SMTP_PASS ? 'set in this shell' : existsSync(join(root, '.env')) ? 'a .env file exists (its contents are not read here)' : null;
   out.push(pass
     ? { status: 'ok', item: 'Mail password', detail: `SMTP_PASS: ${pass}. Needed for sends and for reading replies.` }

@@ -17,15 +17,18 @@
 // Usage guard: Claude Code reports the plan's usage windows in its stream (rate_limit_event). The
 // last report is kept in ops/runs/plan-limits.json, and no task starts while a window is at or over
 // JARVIS_STOP_AT (default 0.85), since a task cut off by the limit loses its work.
-// Pilot test emails: after each task, scripts/send-tests.mjs sends [TEST] copies of every outreach
-// draft that passed review during it to the pilot test recipients only (never a lead), and the
-// result is added to the task's report. On while ops/mail-config.json has pilot.auto_test_sends.
+// Leads and drafts: each task records the leads it found (leads_found), and its report ends with what
+// is waiting on a person: leads ready to draft and drafts ready to approve, both on mission control's
+// Outreach page (scripts/outreach.mjs). Nothing is sent until a person approves a draft there.
+// Pilot test emails sent automatically after each task (scripts/send-tests.mjs) only while
+// ops/mail-config.json has pilot.auto_test_sends; off since 2026-11-07, when approval took over.
 import { spawn, spawnSync } from 'node:child_process';
 import {
   appendFileSync, closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync, writeSync,
 } from 'node:fs';
 import { join } from 'node:path';
 import { ROOT, fail, printTable, resolveClaude, today, workspaceTrusted } from './_shared.mjs';
+import { latestLeads, outreachState } from './outreach.mjs';
 
 const OPS = join(ROOT, 'ops');
 const RUNS = join(OPS, 'runs');
@@ -234,6 +237,15 @@ const windowLabel = (name) => ({ five_hour: '5-hour', seven_day: 'weekly' })[nam
 const resetTime = (sec) => new Date(sec * 1000).toLocaleString('en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit' });
 
 // The fullest window that hasn't reset since the last report and is at or over the threshold.
+// When the plan's usage stops the queue, a note for mission control: once the window has reset, it starts the
+// waiting tasks again by itself (scripts/dashboard.mjs resumeIfDue), so a long queue finishes with nobody watching.
+const RESUME = join(RUNS, 'resume-after-limit.json');
+function noteResume(resetsAt) {
+  mkdirSync(RUNS, { recursive: true });
+  const latest = Math.max(resetsAt || 0, ...Object.values(readLimits()?.windows ?? {}).filter((w) => w.utilization >= STOP_AT).map((w) => w.resetsAt || 0));
+  writeFileSync(RESUME, JSON.stringify({ at: new Date().toISOString(), resetsAt: latest || Math.round(Date.now() / 1000) + 3600 }));
+}
+
 function blockedWindow() {
   const nowSec = Date.now() / 1000;
   return Object.entries(readLimits()?.windows ?? {})
@@ -382,12 +394,32 @@ function testSends(startedMs, mailConfigBefore) {
   return { ok: r.status === 0, sent: Number(/: (\d+) sent,/.exec(text)?.[1] || 0), text: text || `send-tests.mjs exited ${r.status}` };
 }
 
+// What the task left for a person on the Outreach page, in plain words, or '' when nothing.
+function waitingOnPerson(id, leadsFound) {
+  let state;
+  try {
+    state = outreachState(ROOT);
+  } catch {
+    return '';
+  }
+  const lines = [];
+  const found = latestLeads(ROOT);
+  const ready = leadsFound.filter((l) => found.get(l)?.status === 'qualified' && !found.get(l)?.hold);
+  if (leadsFound.length) {
+    lines.push(`- This run found ${leadsFound.length} lead(s); ${ready.length} can be drafted now.${ready.length ? ' Draft emails for them with the button on the Outreach page, or say "draft emails for the new leads".' : ''}`);
+  }
+  const drafts = state.drafts.filter((d) => d.state === 'ready');
+  if (drafts.length) lines.push(`- ${drafts.length} draft(s) passed review and wait for your approval: ${drafts.map((d) => d.company).join(', ')}. Approving one sends it (during the pilot, [TEST] copies to the pilot test recipients only).`);
+  return lines.join('\n');
+}
+
 async function runTask(t, timeoutMs) {
   console.log(`\n${t.id} started: ${t.task}`);
   update(t.id, { status: 'running', started: now(), note: '' });
   const startedMs = Date.now() - 1000; // file times can be coarser than a millisecond
   const mailConfigBefore = readText(MAIL_CONFIG);
   const lessonsBefore = memoryEntries();
+  const leadsBefore = new Set(latestLeads(ROOT).keys());
   const out = await runSession(t, timeoutMs);
   const lessons = memoryEntries() - lessonsBefore;
 
@@ -410,6 +442,9 @@ async function runTask(t, timeoutMs) {
       `# ${t.id}\n\n**Task:** ${t.task}\n\n**Status:** ${status}. The coordinator didn't write a report, so this is its final reply.\n\n${out.resultText || '(no reply)'}\n`,
     );
   }
+  const leadsFound = [...latestLeads(ROOT).keys()].filter((id) => !leadsBefore.has(id));
+  const waiting = waitingOnPerson(t.id, leadsFound);
+  if (waiting) appendFileSync(join(ROOT, report), `\n## Waiting for you on the Outreach page\n\n${waiting}\n`);
   const sends = testSends(startedMs, mailConfigBefore);
   if (sends) {
     appendFileSync(join(ROOT, report), `\n## Test emails (sent by Jarvis after the task)\n\n${sends.text}\n`);
@@ -423,7 +458,7 @@ async function runTask(t, timeoutMs) {
   ]
     .filter(Boolean)
     .join('; ');
-  update(t.id, { status, report, finished: now(), turns: out.turns, note });
+  update(t.id, { status, report, finished: now(), turns: out.turns, note, leads_found: leadsFound });
   console.log(`${t.id} ${STATUS_LABEL[status] || status}. Report: ${report}`);
   return status;
 }
@@ -487,13 +522,17 @@ async function run(opts) {
       console.log(
         `\nNot starting ${next.id}: the plan's ${windowLabel(blocked.name)} window is at ${Math.round(blocked.utilization * 100)}% ` +
           `(stop at ${Math.round(STOP_AT * 100)}%), so a task could be cut off. It resets ${resetTime(blocked.resetsAt)}. ` +
-          'Run jarvis again after that, or use --ignore-limits.',
+          'Mission control starts the waiting tasks again once it resets (or run jarvis again then, or use --ignore-limits).',
       );
+      noteResume(blocked.resetsAt);
       break;
     }
     const result = await runTask(next, timeoutMs);
     ran++;
-    if (result === 'limit') break;
+    if (result === 'limit') {
+      noteResume();
+      break;
+    }
   }
   const left = loadQueue().filter((t) => t.status === 'queued').length;
   console.log(`\n${ran} task(s) run. ${left} still queued. The queue is in ops/queue.md.`);

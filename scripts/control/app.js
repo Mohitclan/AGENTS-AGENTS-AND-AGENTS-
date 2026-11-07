@@ -103,6 +103,7 @@ function shell() {
       <a href="#/overview" data-nav="overview">Overview</a>
       <a href="#/logs" data-nav="logs">Logs</a>
       <a href="#/leads" data-nav="leads">Leads</a>
+      <a href="#/outreach" data-nav="outreach">Outreach <b class="count" id="outreach-count"></b></a>
       <a href="#/reports" data-nav="reports">Reports</a>
       <a href="#/flags" data-nav="flags">Needs you <b class="count" id="flag-count"></b></a>
       <a href="#/gems" data-nav="gems">Gem gallery</a>
@@ -212,6 +213,8 @@ async function openFile(path) {
 function updateShell(snap) {
   $('#signout').hidden = !snap.signOut;
   $('#flag-count').textContent = snap.flags.length || '';
+  const waiting = (snap.outreach?.ready || 0) + (snap.outreach?.runs || []).reduce((n, r) => n + r.ready.length, 0);
+  $('#outreach-count').textContent = waiting || '';
   $('#live').className = `live ${snap.live ? 'on' : ''}`;
   $('#live').innerHTML = snap.live ? '<i></i>Live' : '<i></i>Idle';
   $('#top-run').innerHTML = snap.running ? `<b>${esc(snap.running.id)}</b> ${esc(snap.running.title)}` : '<span class="muted">No task running. Give the team one on the overview.</span>';
@@ -1041,6 +1044,92 @@ const reportsView = {
   },
 };
 
+// Outreach: the leads each run found, a button to have the team draft emails for them, and each finished draft
+// with an Approve button. Approving sends it (during the pilot, [TEST] copies to the three test recipients only).
+// The same two actions work by voice: "draft emails for the new leads", "approve all drafts".
+const LEAD_PILL = { ready: 'p-queued', drafting: 'p-running', drafted: 'p-done', held: 'p-needs_approval', closed: 'p-failed', 'not-qualified': 'p-new' };
+const LEAD_LABEL = { ready: 'Ready to draft', drafting: 'Drafting', drafted: 'Drafted', held: 'On hold', closed: 'Closed', 'not-qualified': 'Not qualified' };
+const DRAFT_PILL = { ready: 'p-needs_approval', approved: 'p-done', 'in-review': 'p-running', revise: 'p-failed', changed: 'p-failed', unreviewed: 'p-new' };
+const DRAFT_LABEL = { ready: 'Ready to approve', approved: 'Approved', 'in-review': 'In review', revise: 'Being revised', changed: 'Needs re-review', unreviewed: 'Not reviewed' };
+
+// A draft's emails in the side panel, as the reader gets them, with a link to the full file and its notes.
+async function openEmails(path, company) {
+  document.body.classList.add('drawer-open');
+  $('#drawer').setAttribute('aria-hidden', 'false');
+  $('#drawer-title').textContent = company || path.split('/').pop();
+  $('#drawer-kicker').textContent = 'Loading…';
+  $('#drawer-body').innerHTML = '';
+  try {
+    const doc = await api(`/api/outreach/emails?draft=${encodeURIComponent(path)}`);
+    const draft = store.snap?.outreach?.drafts.find((d) => d.path === path);
+    const approve = draft?.state === 'ready' ? ` <button type="button" class="primary small" id="or-drawer-approve">Approve and send</button>` : draft ? ` · ${esc(draft.why)}` : '';
+    $('#drawer-kicker').innerHTML = `${doc.emails.length} email${doc.emails.length === 1 ? '' : 's'} · <a href="#" data-file="${esc(path)}">full draft with the reviewer's notes</a>${approve}`;
+    $('#or-drawer-approve')?.addEventListener('click', (e) => outreachAction(e.currentTarget, '/api/outreach/approve', { drafts: [draft.lead] }));
+    $('#drawer-body').innerHTML = doc.emails.map((e) => `<section class="or-mail"><div class="or-mail-n">Email ${e.n}</div><div class="or-mail-subj">${esc(e.subject)}</div><div class="or-mail-body">${esc(e.body)}</div></section>`).join('') || '<p class="muted">This draft has no emails yet.</p>';
+    $('#drawer-body').scrollTop = 0;
+  } catch (error) {
+    $('#drawer-kicker').textContent = '';
+    $('#drawer-body').innerHTML = `<p class="muted">${esc(error.message)}</p>`;
+  }
+}
+
+async function outreachAction(button, path, body) {
+  const label = button.textContent;
+  button.disabled = true;
+  button.textContent = path.endsWith('approve') ? 'Sending…' : 'Starting…';
+  try {
+    const r = await api(path, { ...body, by: 'a person on the page' });
+    toast(r.message);
+  } catch (error) {
+    toast(error.message, true);
+  } finally {
+    button.disabled = false;
+    button.textContent = label;
+  }
+}
+
+const outreachView = {
+  build() {
+    $('#view').innerHTML = `<div class="page-h"><h1>Outreach</h1><p class="muted">Leads the team found, and the emails drafted for them. Nothing is drafted until you ask, and nothing is sent until you approve. Approving sends the draft: during the pilot, as [TEST] copies to Purab, Tanvi and Mohit only, never to the lead. By voice: <q>draft emails for the new leads</q>, <q>approve all drafts</q>.</p></div>
+      <section class="card"><div class="sec-h"><h2>New leads from runs</h2></div><div id="or-runs"></div></section>
+      <section class="card"><div class="sec-h"><h2>Drafted emails</h2><button type="button" class="primary small" id="or-approve-all" hidden></button></div><ul class="rows" id="or-drafts"></ul></section>`;
+    $('#view').addEventListener('click', (e) => {
+      const mail = e.target.closest('a[data-mails]');
+      if (mail) {
+        e.preventDefault();
+        e.stopPropagation();
+        openEmails(mail.dataset.mails, mail.dataset.company);
+        return;
+      }
+      const b = e.target.closest('button[data-or]');
+      if (!b) return;
+      if (b.dataset.or === 'draft') outreachAction(b, '/api/outreach/draft', { leads: b.dataset.leads.split(',') });
+      if (b.dataset.or === 'approve') outreachAction(b, '/api/outreach/approve', { drafts: [b.dataset.lead] });
+    });
+    $('#or-approve-all').addEventListener('click', (e) => outreachAction(e.currentTarget, '/api/outreach/approve', { drafts: 'all' }));
+  },
+  update(snap) {
+    const o = snap.outreach || { runs: [], drafts: [] };
+    $('#or-runs').innerHTML = o.runs.length
+      ? o.runs.map((r) => {
+        const head = `This run found <b>${r.leads.length}</b> lead${r.leads.length === 1 ? '' : 's'}${r.ready.length ? `. <b>${r.ready.length}</b> can be drafted now.` : '.'}`;
+        const ask = r.ready.length
+          ? `<button type="button" class="primary" data-or="draft" data-leads="${esc(r.ready.join(','))}">Draft emails for ${r.ready.length === r.leads.length && r.ready.length > 1 ? 'all of them' : r.ready.length === 1 ? 'it' : `the ${r.ready.length} ready`}</button>`
+          : '';
+        const rows = r.leads.map((l) => `<li><div class="row-top"><b>${esc(l.company)}</b> <span class="pill ${LEAD_PILL[l.state] || ''}">${esc(LEAD_LABEL[l.state] || l.state)}</span>${l.tier ? `<span class="muted tiny">tier ${esc(l.tier)} · score ${esc(l.score)}</span>` : ''}</div><div class="muted tiny">${esc(l.why)}${l.draft ? ` · <a href="#" data-mails="${esc(l.draft)}" data-company="${esc(l.company)}">read the emails</a>` : ''}${l.website ? ` · <a href="${esc(l.website)}" target="_blank" rel="noopener">website</a>` : ''}</div></li>`).join('');
+        return `<div class="or-run"><div class="row-top"><code>${esc(r.task)}</code><span class="muted tiny">${esc(r.finished || '')} · ${esc(r.title.length > 80 ? `${r.title.slice(0, 79)}…` : r.title)}</span></div><p>${head}</p><ul class="rows">${rows}</ul>${ask ? `<div class="or-ask">${ask}</div>` : ''}</div>`;
+      }).join('')
+      : '<p class="muted">No run in the last two weeks found new leads.</p>';
+    const ready = o.drafts.filter((d) => d.state === 'ready');
+    const all = $('#or-approve-all');
+    all.hidden = ready.length < 2;
+    all.textContent = `Approve all ${ready.length} and send`;
+    $('#or-drafts').innerHTML = o.drafts.length
+      ? o.drafts.map((d) => `<li><div class="row-top"><a href="#" data-mails="${esc(d.path)}" data-company="${esc(d.company)}"><b>${esc(d.company)}</b></a> <span class="pill ${DRAFT_PILL[d.state] || ''}">${esc(DRAFT_LABEL[d.state] || d.state)}</span>${d.review ? verdictChip(d.review.verdict) : ''}<span class="muted tiny">${d.emails} email${d.emails === 1 ? '' : 's'} · ${esc(ago(d.at))}</span>${d.state === 'ready' ? `<button type="button" class="primary small or-approve" data-or="approve" data-lead="${esc(d.lead)}">Approve and send</button>` : ''}</div><div class="muted tiny">${esc(d.why)} · <a href="#" data-mails="${esc(d.path)}" data-company="${esc(d.company)}">read the emails</a></div></li>`).join('')
+      : '<li class="muted">No emails drafted yet.</li>';
+  },
+};
+
 // One card per agent with only real work: test and failed runs a person archived are left out by the server.
 const teamView = {
   build() {
@@ -1311,7 +1400,7 @@ const floatView = {
 
 // ---- routing and the stream ----------------------------------------------------------------------
 
-const VIEWS = { home, working, team: teamView, overview, logs, leads: leadsView, reports: reportsView, flags: flagsView, agent: agentView, gems: gemsView, float: floatView };
+const VIEWS = { home, working, team: teamView, overview, logs, leads: leadsView, outreach: outreachView, reports: reportsView, flags: flagsView, agent: agentView, gems: gemsView, float: floatView };
 let current = '';
 
 function route() {
@@ -1399,6 +1488,7 @@ const voice = createVoice({
   onCancel: async (id) => (await api(`/api/tasks/${id}/cancel`, {})).message,
   onAsk: (question, history) => api('/api/ask', { question, history }),
   onRun: async () => (await api('/api/run', {})).message,
+  onOutreach: async ({ kind, leads, drafts }) => (await api(`/api/outreach/${kind}`, kind === 'draft' ? { leads, by: 'voice' } : { drafts, by: 'voice' })).message,
   getAgents: () => store.snap?.agents,
   navigate: (hash) => {
     location.hash = hash;

@@ -367,3 +367,14 @@ label.check { flex-direction: row !important; align-items: center; gap: 6px; fon
 .tm-work { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13px; }
 .tm-foot { display: flex; justify-content: space-between; align-items: center; margin-top: auto; padding-top: 6px; border-top: 1px solid var(--line); font-size: 13px; }
 @media (max-width: 720px) { .team-grid { grid-template-columns: 1fr; } }
+
+/* Outreach page */
+.or-run { padding: 12px 0 14px; border-bottom: 1px solid var(--line); }
+.or-run:last-child { border-bottom: 0; }
+.or-run > p { margin: 6px 0 10px; }
+.or-ask { margin-top: 12px; }
+.or-approve { margin-left: auto; }
+.or-mail { padding: 14px 0 18px; border-bottom: 1px solid var(--line); }
+.or-mail-n { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.or-mail-subj { font-weight: 650; font-size: 16px; margin: 4px 0 10px; }
+.or-mail-body { white-space: pre-wrap; line-height: 1.55; }

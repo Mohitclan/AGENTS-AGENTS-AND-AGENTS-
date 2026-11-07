@@ -127,7 +127,7 @@ test('a full plan window keeps a task queued, and it can be cancelled', () => {
     writeFileSync(repo.path('ops', 'runs', 'plan-limits.json'), JSON.stringify({ at: new Date().toISOString(), windows: { seven_day: { utilization: 0.9, resetsAt } } }));
     const page = { host: HOST, origin: `http://${HOST}`, marker: '1' };
     const added = JSON.parse(act(repo.dir, '/tasks', { ...page, body: '{"task":"Wait"}' }).body);
-    assert.match(added.message, /can't start until the plan's weekly window resets/);
+    assert.match(added.message, /starts by itself when the plan's weekly window resets/);
     assert.equal(act(repo.dir, '/run', { ...page, body: '' }).status, 409);
     assert.equal(act(repo.dir, `/tasks/${added.id}/cancel`, { ...page, body: '' }).status, 200);
     assert.equal(act(repo.dir, `/tasks/${added.id}/cancel`, { ...page, body: '' }).status, 409);

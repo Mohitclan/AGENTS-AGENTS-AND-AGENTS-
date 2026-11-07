@@ -1,8 +1,8 @@
 {
   "_note": "Non-secret mail settings for scripts/send-email.mjs and scripts/replies.mjs. The password lives only in the SMTP_PASS environment variable or the git-ignored .env file, never here. replies.mjs signs in to IMAP with smtp.user and the same password.",
   "pilot": {
-    "_note": "Pilot (changed 2026-11-05 by the human in chat): only these three team members can receive emails from send-email.mjs, and only as [TEST] copies; Sushant is no longer used to send or receive. auto_test_sends (set 2026-11-05, the human said to send without asking): after each Jarvis task, every email of each draft that passed review goes to these three as a [TEST] copy (scripts/send-tests.mjs); set it to false to stop that. Empty both lists to end the pilot.",
-    "auto_test_sends": true,
+    "_note": "Pilot (changed 2026-11-05 by the human in chat): only these three team members can receive emails from send-email.mjs, and only as [TEST] copies; Sushant is no longer used to send or receive. auto_test_sends is false since 2026-11-07 (the human in chat): nothing is sent after a task; a person approves each draft that passed review on mission control's Outreach page (button or voice), and that sends it as [TEST] copies to these three (scripts/outreach.mjs). Empty both lists to end the pilot.",
+    "auto_test_sends": false,
     "test_names": {
       "1609purab@gmail.com": "Purab",
       "tanvinishad.official@gmail.com": "Tanvi",

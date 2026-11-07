@@ -119,7 +119,7 @@ describe('projects: upload', () => {
     assert.ok(task.task.startsWith(`Convert the person-written project form ${file} into knowledge/products/acme-tool.md (status: proposed, with version: 1 in its frontmatter)`), 'the sheet is to carry the form version');
     assert.match(task.task, /Do not confirm it; a person confirms in mission control\./);
     for (const leak of [BODY_MARK, 'Acme Tool', 'Asha', 'acme.example']) assert.ok(!task.task.includes(leak), `${leak} must not be in the task`);
-    assert.match(out.data.message, /can't start until the plan's weekly window resets/);
+    assert.match(out.data.message, /start(s)? by (itself|themselves) when the plan's weekly window resets/);
   });
 
   it('refuses a bad form with a message that names the problem, and writes and queues nothing', () => {
