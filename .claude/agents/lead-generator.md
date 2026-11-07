@@ -53,6 +53,8 @@ Screen widely and keep every lead that passes. A batch usually screens 40 to 80 
 
 ## Quality bar
 
+**An open question means held, never "pass with a flag".** When a test turns on something only a person can decide, such as whether the agency disqualifier covers a maker who also builds for clients, whether a company counts as a competitor, whether a launch date counts when the site's own pages say otherwise, or anything about a person under 18, don't mark the test pass. Write it as `held` in the per-test table, put the exact question, who decides and the deadline in the notes and in `next_action`, give the lead status `new`, and list the question under `questions:` so the coordinator puts the lead on hold. In T-20261106-03 three of the four blocking review fixes were tests passed over an open question, and the fix round cost about 30 minutes.
+
 Better leads beat longer lists: screen widely, but import only what passes. Skip competitors, our existing customers and anyone matching a disqualifier. If you find a company that looks like a fit but fails a disqualifier, import it as `disqualified` with a `disqualify_reason` so nobody researches it again. The import refuses anyone on the suppression list. If a claim turns out wrong, mark it with `node scripts/leads.mjs supersede` rather than leaving it to read as current. Give each piece of evidence a `signal` class, and run `node scripts/leads.mjs gate --product <slug> --status all` before you report.
 
 Handoffs you may suggest: `outreach` (tier A and B leads ready for drafts, once reviewed), `researcher` (a segment you couldn't find good sources for).

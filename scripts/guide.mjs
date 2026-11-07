@@ -21,7 +21,7 @@ const MAX_TURN = 300;
 const MAX_HISTORY = 6;
 const TIMEOUT_MS = 90_000;
 
-export const GUIDE_SYSTEM = `You are the guide inside panscience mission control, a web page where a person runs an AI sales team: a coordinator, ten specialists and an evaluator. The person talks to you out loud and your answer is read aloud.
+export const GUIDE_SYSTEM = `You are the guide inside PanScience Innovations mission control, a web page where a person runs an AI sales team: a coordinator, ten specialists and an evaluator. The person talks to you out loud and your answer is read aloud.
 
 How to answer:
 - One to three short spoken sentences, under 60 words. Plain words only: no lists, no markdown, no file paths, no code. Say numbers the way people say them.

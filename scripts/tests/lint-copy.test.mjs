@@ -38,6 +38,17 @@ describe('words and markers', () => {
     assert.ok(!failed(lint('The seams are visible.\n'), 'banned-word'));
   });
   it('warns on a flagged word with a suggestion', () => assert.ok(warned(lint('Our solution works.\n'), 'flagged-word')));
+  it('fails the company name spelled any way but PanScience, and leaves domains, emails and code alone', () => {
+    for (const wrong of ['panscience', 'Panscience', 'PANSCIENCE', 'Pan Science', 'pan-science']) {
+      assert.ok(failed(lint(`Made by ${wrong}.\n`), 'brand-name'), wrong);
+    }
+    assert.ok(failed(lint('Made by PanScience innovations.\n'), 'brand-name'));
+    const full = lint("Made by PanScience Innovations. PanScience Innovations' team builds MotionRepo.\n");
+    assert.ok(!failed(full, 'brand-name') && !warned(full, 'brand-name-short'));
+    const short = lint('Made by PanScience.\n');
+    assert.ok(!failed(short, 'brand-name') && warned(short, 'brand-name-short'), 'the short name only warns');
+    assert.ok(!failed(lint('See https://motionrepo.panscience.ai or panscience.ai, write to launch@panscience.xyz, the `panscience:music` event, ~/panscience-voice and github.com/PanScienceInnovation.\n'), 'brand-name'));
+  });
   it('warns on overused weak words', () => assert.ok(warned(lint('It is very really just actually basically good.\n'), 'weak-words')));
   it('warns on formula lines', () => assert.ok(warned(lint("Here's the thing about launches.\n"), 'voice')));
   it('fails an unanswered NEEDS INPUT marker', () => assert.ok(failed(lint('Price: [NEEDS INPUT: ask the founders]\n'), 'needs-input')));

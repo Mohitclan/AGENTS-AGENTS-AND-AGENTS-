@@ -11,11 +11,12 @@ Second rounds either redo everything (costly) or miss what the fix itself broke.
    - the last review's numbered fixes;
    - what changed since then: `git diff <reviewed commit>..HEAD` for code, or a diff against the reviewed copy for documents (the coordinator saves that copy at review time);
    - the specialist's fix log, if there is one.
-2. **Give each earlier fix a verdict**, with file:line:
+2. **Give each earlier blocking fix a verdict** (non-blocking fixes weren't sent back, so don't check them), with file:line:
    - ADDRESSED;
    - NOT ADDRESSED;
    - WITHDRAWN (the earlier finding was wrong).
 3. **Check only the changed lines for new problems**: new claims, new numbers, and old copies of corrected text elsewhere in the file (grep the whole file for the old words).
+   - Re-open a source only when a fix added or changed a fact that rests on it. Sources the last round already verified stay verified. For new sources, check the ones a blocking fix depends on, at most about 5, in parallel.
 4. **Out-of-scope observations are listed, but don't extend the loop** or change the verdict, unless one is an auto-fail or touches a hard rule.
 5. **Read the self-review lines as typed claims**: ran, passed, edited, not edited. Check each against the output or the diff.
    - STALE: the check passed before a later edit to the same file. Re-run it.

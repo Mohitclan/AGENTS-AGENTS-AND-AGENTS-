@@ -1,8 +1,8 @@
-# Gem avatars (panscience mission control)
+# Gem avatars (PanScience Innovations mission control)
 
 Every agent has a small animated character, a "gem", that shows what the agent is really doing. You see them in mission control (`node scripts/control.mjs`):
 
-- **The opening:** a black intro. The panscience crystal draws itself in light, the gems pop into orbit, and the view flies through the crystal into the office. About three seconds; a click, a tap or any key skips it.
+- **The opening:** a black intro. The PanScience Innovations mark draws itself in light, the gems pop into orbit, and the view flies through the crystal into the office. About three seconds; a click, a tap or any key skips it.
 - **Home** (`#/`): the office full screen, with no chrome. The glowing dot at the top opens the navigation, and clicking a gem shows a card with its state and a link to its page. "Watch the demo" plays the narrated demo task. On a phone, the room keeps its height and you swipe sideways.
 - **Working** (`#/working`): the same office with the "Who's doing what" list and the live feed beside it.
 - **Overview, the sidebar, the agent pages:** live gems beside each agent.

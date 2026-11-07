@@ -14,7 +14,7 @@
 import * as THREE from '/vendor/three/build/three.module.js';
 import { OrbitControls } from '/vendor/three/examples/jsm/controls/OrbitControls.js';
 import { identityFor } from '../gems/identities.js';
-import { BRAND, drawLogo } from '../gems/logo.js';
+import { BRAND, drawLockup, LOCKUP_RATIO } from '../gems/logo.js';
 import { normalizeState, STATE_LABEL, STATES } from '../gems/status.js';
 import { Agent } from './agents.js';
 import { ACTIVITIES, initialPrefs, roamNote } from './behavior.js';
@@ -262,8 +262,9 @@ export async function createOffice3D(container, { roster = [], immersive = false
       ctx.textAlign = 'center';
       ctx.fillStyle = st === 'idle' ? '#cdbfff' : '#ffffff';
       ctx.font = '800 38px ui-rounded, system-ui, sans-serif';
-      const head = { idle: 'panscience', waiting: 'Waiting…', error: 'Problem', success: '✓ Done', paused: 'Paused' }[st] || 'panscience';
-      ctx.fillText(head, c.width / 2, 96);
+      const head = { waiting: 'Waiting…', error: 'Problem', success: '✓ Done', paused: 'Paused' }[st];
+      if (head) ctx.fillText(head, c.width / 2, 96);
+      else drawLockup(ctx, (c.width - 64 * LOCKUP_RATIO) / 2, 50, 64, ctx.fillStyle);
       ctx.font = '18px system-ui, sans-serif';
       ctx.fillStyle = 'rgba(255,255,255,.75)';
       ctx.fillText(st === 'idle' ? identityFor(name).name : clip(ag.doing, 46), c.width / 2, 156);
@@ -280,10 +281,12 @@ export async function createOffice3D(container, { roster = [], immersive = false
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, c.width, c.height);
     ctx.textBaseline = 'top';
-    const markWidth = drawLogo(ctx, 40, 22, 42, BRAND.paper);
+    const logoWidth = drawLockup(ctx, 40, 18, 50, BRAND.paper);
+    ctx.fillStyle = 'rgba(244, 242, 239, .35)';
+    ctx.fillRect(40 + logoWidth + 18, 22, 2, 42);
     ctx.fillStyle = BRAND.paper;
     ctx.font = '600 26px system-ui, -apple-system, "Helvetica Neue", sans-serif';
-    ctx.fillText('panscience · task display', 40 + markWidth + 16, 30);
+    ctx.fillText('Task display', 40 + logoWidth + 36, 30);
     const chip = { live: ['LIVE', '#3ddc97'], sim: ['SIMULATION', '#ffb020'], preview: ['PREVIEW', '#8fd3ff'] }[mode];
     ctx.font = '700 20px system-ui, sans-serif';
     const cw = ctx.measureText(chip[0]).width + 28;

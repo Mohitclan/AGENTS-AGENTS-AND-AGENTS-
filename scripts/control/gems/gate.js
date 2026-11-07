@@ -1,8 +1,8 @@
-// The gate into the 3D office: two dark doors meet in the middle with the panscience mark on a round plate across the
-// seam, so each door carries half of it. The mark draws itself, "Welcome to the panscience environment" appears, and
+// The gate into the 3D office: two dark doors meet in the middle with the PanScience Innovations mark on a round plate across the
+// seam, so each door carries half of it. The mark draws itself, the "PANSCIENCE INNOVATIONS" wordmark and "Welcome to the PanScience Innovations environment" appear, and
 // once the office behind is ready the doors swing open and light spills through. A click or any key opens them at
 // once; reduced motion turns it into a short fade. It covers the whole window while the 3D office builds.
-import { LOGO } from './logo.js';
+import { BRAND, LOGO, wordmarkSvg } from './logo.js';
 
 export const MIN_MS = 2300; // long enough to read the welcome
 export const MAX_WAIT_MS = 9000; // the doors open even if the office is still loading (its own loading screen shows)
@@ -24,8 +24,8 @@ export function playGate({ calm = matchMedia('(prefers-reduced-motion: reduce)')
     <div class="gate-light"></div>
     <div class="gate-frame">${door('l')}${door('r')}</div>
     <div class="gate-text">
-      <p class="gate-kicker">panscience</p>
-      <h1>Welcome to the <b>panscience</b> environment</h1>
+      <p class="gate-kicker" aria-label="${BRAND.name}">${wordmarkSvg('gate-word')}</p>
+      <h1>Welcome to the <b>${BRAND.name}</b> environment</h1>
       <p class="gate-sub">Opening the 3D office<span>.</span><span>.</span><span>.</span></p>
     </div>
     <button type="button" class="gate-skip">Skip</button>`;

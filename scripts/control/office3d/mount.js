@@ -1,7 +1,7 @@
 // Picks the office for a page: the 3D one when the browser has WebGL 2 and the person hasn't chosen
 // the flat one, else the 2D office (gems/office.js). The returned object works at once: calls made
 // while the 3D office is still loading are kept and replayed, and if loading fails the 2D office
-// takes over with the same calls. Switching from the 2D office to the 3D one goes through the panscience gate
+// takes over with the same calls. Switching from the 2D office to the 3D one goes through the PanScience Innovations gate
 // (gems/gate.js), which covers the office while it builds and opens once it is ready.
 
 import { playGate } from '../gems/gate.js';

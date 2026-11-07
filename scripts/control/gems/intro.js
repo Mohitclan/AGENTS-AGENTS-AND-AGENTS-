@@ -1,7 +1,7 @@
-// The opening: a warm light screen where the panscience mark draws itself, fills in, and the name appears beneath it,
+// The opening: a warm light screen where the PanScience Innovations mark draws itself, fills in, and the wordmark appears beneath it,
 // with a faint copy of the mark behind. About three seconds, then it fades into the page. A click, a tap or any key
 // skips it, and reduced motion turns it into a short fade.
-import { LOGO, logoSvg } from './logo.js';
+import { BRAND, LOGO, logoSvg, wordmarkSvg } from './logo.js';
 
 const HOLD_MS = 3000;
 const OUT_MS = 800;
@@ -22,7 +22,7 @@ export function playIntro() {
           <g class="il-fill">${shapes}</g>
           <g class="il-line">${lines}</g>
         </svg>
-        <h1 class="intro-title">pan<span>science</span></h1>
+        <h1 class="intro-title" aria-label="${BRAND.name}">${wordmarkSvg('intro-word')}</h1>
         <p class="intro-sub">Your AI sales team is getting to work</p>
       </div>
       <button type="button" class="intro-skip">Skip</button>`;

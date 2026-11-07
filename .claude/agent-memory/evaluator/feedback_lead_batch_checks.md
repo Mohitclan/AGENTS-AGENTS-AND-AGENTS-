@@ -5,7 +5,9 @@ metadata:
   type: feedback
 ---
 
-Don't accept an `observed_gap` because the company's own homepage reproduces it. Open every other URL in the same record and look for the opposite, especially a listing's media section, plus the company's YouTube channel.
+Don't accept an `observed_gap` because the company's own homepage reproduces it. Open the other URLs the gap rests on and look for the opposite, especially a listing's media section, plus the company's YouTube channel.
+
+**Budget (2026-11-07):** the list below is checks to choose from by risk, not a list to run on every lead. About 8 pages a lead in round 1, in parallel; widen only on a lead where something fails. In T-20261106-04 r1, 66 fetches found one wrong date out of 24 claims.
 
 **Why:** in T-20261030-06 "no demo video" was true of the homepage, but the directory page cited as evidence 1 showed a demo video, and a tier B Go rested on that gap. The gate only trusts the submitted score, so it cannot catch this.
 
@@ -37,4 +39,11 @@ Don't accept an `observed_gap` because the company's own homepage reproduces it.
 - Give full URLs in fixes: "/makers" sent a specialist to a 404 on the product site when I meant Product Hunt. `producthunt.com/products/<slug>/launches` gives the exact launch date and `/makers` the team when the product page shows only "Launched 10d ago".
 - Before passing test 4, read the product's own pages for "early access", "waitlist", "coming soon". In T-20261101-06 r1 I passed a waitlist on a listing and legal-page date. Read a maker's other product on its own site, headline included, before accepting a one-line category.
 - check-links uses up GitHub's unauthenticated API limit, so API WebFetches then return 403 and restricted counts jump. Fetch API URLs first, or use github.com release pages. Check what "held by the reviewer" claims against your earlier table.
+- "Powered by <site>" footers: open that site's team/editorial page and its tool list. In T-20261106-04 they named the founder and showed a free screen recorder (the Cool Analytics question), on a site the batch said it read.
+- LaunchPad India "Launched <date>" may be a listing date (its home: "new launches and established products compete every Monday"). Compare with the site's /policies and article dates and the earlier notes' row for the same company; apply the batch's own Smler-type standard to every row.
+- LaunchPad listing pages are JS shells to WebFetch, but the home page renders: "This Week's Launches" > "New Launches" / "Established Products", with the city per entry. Use it for the section and city before calling either "browser-only" (T-20261106-04 r2: it settled both). The list rolls over Monday 9:59 IST, so tell the person the date.
+- JetBrains update notes can hold changelog history ("1.0.0: first release") inside a later listed update; judge the listed version and its cdate, not words in the notes.
+- JetBrains: convert cdate yourself (`date -u -r <seconds>`); a vendor-text search missed a plugin that a name search found. Read each plugin's update notes ("first release" vs "Renamed"/"Now freemium").
+- iTunes `lookup?id=<id>&country=in` gives the INR price and the current version date the store page omits. GitHub `/repos/<o>/<r>/contents/` shows whether a "public repo" holds code or only a README.
+- A maker under 18 is excluded by knowledge/company.md line 39 ("never contact anyone under 18"), not a person's policy call; don't repeat the age or name in the review.
 - "A person confirms T3/headcount" next actions: read every comment in the cited Show HN thread (`hn.algolia.com/api/v1/search?query=<name>` lists them) and compare with the Dottr precedent (named founder passes; unknown size lowers icp_fit). In T-20261105-01 a second co-founder named himself there. Also open the parent company's own page for studio or "bespoke software" wording, and check the studio rule is applied the same way as on other rows. Contact-quality labels feed only the import cap, not `gateOf`.

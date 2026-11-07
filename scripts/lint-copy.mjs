@@ -84,6 +84,13 @@ function bodyStart(lines) {
   return end < 0 ? 0 : end + 2;
 }
 
+// The company's full name is PanScience Innovations. Any other spelling of PanScience fails, and PanScience on its own
+// warns. Domains, email addresses, paths and code keep it lowercase (panscience.ai), and PanScienceInnovation is the
+// GitHub organisation.
+const BRAND = 'PanScience';
+const BRAND_FULL = 'PanScience Innovations';
+const BRAND_ANY = /(?<![\w@./~-])pan[\s-]?science(?![\w@/-]|\.[a-z])(\s+innovations\b)?/gi;
+
 function checkWords(lines, start, report) {
   let words = 0;
   let weak = 0;
@@ -91,6 +98,11 @@ function checkWords(lines, start, report) {
     if (i < start) return;
     words += countWords(line);
     for (const w of RULES.hard) if (wordRe(w).test(line)) report.fail('banned-word', i + 1, `"${w}"`);
+    for (const [m, rest] of line.replace(/`[^`]*`/g, ' ').replace(URL_RE, ' ').matchAll(BRAND_ANY)) {
+      const name = rest ? m.slice(0, m.length - rest.length) : m;
+      if (name !== BRAND || (rest && rest.trim() !== 'Innovations')) report.fail('brand-name', i + 1, `"${m}": write ${BRAND_FULL}`);
+      else if (!rest) report.warn('brand-name-short', i + 1, `"${m}": the full name is ${BRAND_FULL}`);
+    }
     for (const [w, better] of Object.entries(RULES.flag)) if (wordRe(w).test(line)) report.warn('flagged-word', i + 1, `"${w}": ${better}`);
     for (const w of RULES.weak) weak += (line.match(new RegExp(wordRe(w).source, 'gi')) || []).length;
     for (const [re, name] of VOICE_PATTERNS) if (re.test(line)) report.warn('voice', i + 1, name);
