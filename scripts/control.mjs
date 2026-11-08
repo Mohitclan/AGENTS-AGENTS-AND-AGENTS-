@@ -580,18 +580,18 @@ function signature(root) {
 // ---- the server ----------------------------------------------------------------------------------
 
 const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.glb': 'model/gltf-binary', '.png': 'image/png' };
-const STATIC_FILES = /^(app\.js|app\.css|signin\.js|(gems|office3d)\/[\w-]+\.(js|css))$/;
+const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.glb': 'model/gltf-binary', '.png': 'image/png', '.jpg': 'image/jpeg' };
+const STATIC_FILES = /^(app\.js|app\.css|signin\.js|(gems|office3d|world)\/[\w-]+\.(js|css))$/;
 // The 3D office: its character model, and the Three.js files it uses (copied in by
 // scripts/vendor-three.mjs). Both are cached for a day; everything else is no-store.
-const ASSET_FILES = /^assets\/((people\/)?[\w-]+\.glb|people\/Textures\/[\w-]+\.png)$/;
+const ASSET_FILES = /^assets\/((people\/)?[\w-]+\.glb|people\/Textures\/[\w-]+\.png|world\/[\w-]+\.jpg)$/;
 const THREE_FILES = /^vendor\/three\/(build\/three\.(module|core)\.js|examples\/jsm\/(loaders|controls|utils|environments)\/\w+\.js)$/;
 const isLocal = (host) => /^(127\.0\.0\.1|localhost)(:\d+)?$/.test(host || '');
 const goodHost = (host, site) => (site ? host === site : isLocal(host));
 const cookieHeader = (value, site, age) => `${COOKIE}=${value}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${age}${site ? '; Secure' : ''}`;
 const readCookie = (header) => new RegExp(`(?:^|;\\s*)${COOKIE}=([a-f0-9]+)`).exec(header || '')?.[1];
 
-const shell = (body, script) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PanScience Innovations · Mission control</title><link rel="icon" href="${faviconHref()}"><link rel="stylesheet" href="/app.css"><link rel="stylesheet" href="/gems/gems.css"><link rel="stylesheet" href="/gems/office.css"><link rel="stylesheet" href="/gems/ui.css"><link rel="stylesheet" href="/office3d/office3d.css"><link rel="stylesheet" href="/gems/home.css"></head><body>${body}<script type="module" src="/${script}"></script></body></html>`;
+const shell = (body, script) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PanScience Innovations · Mission control</title><link rel="icon" href="${faviconHref()}"><link rel="stylesheet" href="/app.css"><link rel="stylesheet" href="/gems/gems.css"><link rel="stylesheet" href="/gems/office.css"><link rel="stylesheet" href="/gems/ui.css"><link rel="stylesheet" href="/office3d/office3d.css"><link rel="stylesheet" href="/gems/home.css"><link rel="stylesheet" href="/world/world.css"></head><body>${body}<script type="module" src="/${script}"></script></body></html>`;
 const APP = shell(`
   <div id="app" class="app"><noscript>Mission Control needs JavaScript.</noscript></div>
 `, 'app.js');
@@ -653,7 +653,7 @@ function main() {
   }, 20_000).unref();
 
   const send = (res, status, body, type = 'text/plain', extra = {}) => {
-    res.writeHead(status, { 'Content-Type': /^(model|image\/png)/.test(type) ? type : `${type}; charset=utf-8`, 'Content-Security-Policy': CSP, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', ...extra });
+    res.writeHead(status, { 'Content-Type': /^(model|image\/(png|jpeg))/.test(type) ? type : `${type}; charset=utf-8`, 'Content-Security-Policy': CSP, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', ...extra });
     res.end(body);
   };
   const json = (res, status, data, extra) => send(res, status, JSON.stringify(data), 'application/json', extra);

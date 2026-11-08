@@ -15,7 +15,9 @@ const medallion = () => {
 };
 
 // Shows the gate. Call ready() when the office behind it can be seen; the returned `done` resolves once it is gone.
-export function playGate({ calm = matchMedia('(prefers-reduced-motion: reduce)').matches, minMs = MIN_MS, maxWaitMs = MAX_WAIT_MS } = {}) {
+// title: the place being entered ("Developer Studio"); sub: the line under it. Defaults are for the 3D office.
+export function playGate({ calm = matchMedia('(prefers-reduced-motion: reduce)').matches, minMs = MIN_MS, maxWaitMs = MAX_WAIT_MS, title = '', sub = 'Opening the 3D office' } = {}) {
+  const safe = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const el = document.createElement('div');
   el.className = `gate${calm ? ' calm' : ''}`;
   el.setAttribute('role', 'presentation');
@@ -25,8 +27,8 @@ export function playGate({ calm = matchMedia('(prefers-reduced-motion: reduce)')
     <div class="gate-frame">${door('l')}${door('r')}</div>
     <div class="gate-text">
       <p class="gate-kicker" aria-label="${BRAND.name}">${wordmarkSvg('gate-word')}</p>
-      <h1>Welcome to the <b>${BRAND.name}</b> environment</h1>
-      <p class="gate-sub">Opening the 3D office<span>.</span><span>.</span><span>.</span></p>
+      <h1>${title ? `Welcome to the <b>${safe(title)}</b>` : `Welcome to the <b>${BRAND.name}</b> environment`}</h1>
+      <p class="gate-sub">${safe(sub)}<span>.</span><span>.</span><span>.</span></p>
     </div>
     <button type="button" class="gate-skip">Skip</button>`;
   document.body.append(el);

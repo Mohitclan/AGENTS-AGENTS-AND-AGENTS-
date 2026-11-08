@@ -9,8 +9,13 @@ import { playIntro } from './gems/intro.js';
 import { BRAND, lockupSvg } from './gems/logo.js';
 import { createDemo } from './gems/simulator.js';
 import { normalizeState, STATE_LABEL } from './gems/status.js';
+import { playGate } from './gems/gate.js';
 import { createVoice } from './gems/voice.js';
 import { mountOffice } from './office3d/mount.js';
+import { MAPS } from './world/maps.js';
+import { OFFICES, officeById } from './world/offices.js';
+import { createWorld3D, webgl3dAvailable } from './world/world3d.js';
+import { createWorld } from './world/worldview.js';
 
 // The agents' names and jobs as people read them. Their characters live in gems/identities.js.
 const AGENTS = {
@@ -97,6 +102,7 @@ function shell() {
   <aside class="side" id="side">
     <a class="brand" href="#/">${lockupSvg('brand-logo', BRAND.name)}</a>
     <nav class="nav" aria-label="Pages">
+      <a href="#/offices" data-nav="offices">Offices</a>
       <a href="#/" data-nav="home">Home</a>
       <a href="#/working" data-nav="working">Working</a>
       <a href="#/team" data-nav="team">Team</a>
@@ -857,32 +863,112 @@ function animateNew(snap) {
 
 // ---- one agent -----------------------------------------------------------------------------------
 
+// One agent's page, built to be read at a glance: what it is doing right now (or its last job), then tabs for an
+// overview, its jobs one card each (steps folded away), the files it made, its problems grouped by job, and its
+// memory. The current job is kept apart from older ones, so a live run never mixes with history.
+const STEP = { handoff: 'Handed over', start: 'Started', result: 'Finished', web: 'Looked up', file: 'Edited', read: 'Read', command: 'Ran', plan: 'Planned', tool: 'Used a tool', error: 'Problem', fallback: 'Backup took over', review: 'Review', revise: 'Sent back for fixes', blocked: 'Blocked', check: 'Copy check', send: 'Email', reply: 'Reply', lead: 'Lead', run: 'Task' };
+const JOB_STATUS = { live: ['p-running', 'Running now'], done: ['p-done', 'Finished'], failed: ['p-failed', 'Had a problem'], open: ['p-queued', 'Worked on'] };
+
+// Board task (T-...) -> the Jarvis run (J-...) its request names: it is a step of that run.
+const runMap = (d) => new Map(d.tasks.map((t) => [t.id, /^(J-\d{8}-\d+)\b/.exec(t.request || '')?.[1]]).filter(([, j]) => j));
+
+// A problem in plain words, from the raw message: what happened and whether anything is wrong.
+function plainWhy(text) {
+  const s = String(text);
+  if (/requires approval|person's decision|deny rule|needs approval|approved this exact/i.test(s)) return 'Blocked by the safety rules: only a person may do this. The agent carried on another way.';
+  if (/No such tool available|not available in this session/i.test(s)) return "Tried a tool it doesn't have, then did it another way.";
+  if (/^REVISE|sent back|REVISE \d+/i.test(s)) return 'The reviewer sent the work back with fixes to make.';
+  if (/Timeout|UNREACHABLE|ECONN|fetch failed|403|404/i.test(s)) return "Some web pages didn't load or no longer exist.";
+  if (/Nothing imported|problem\(s\)/i.test(s)) return 'The lead file had a mistake, so nothing was saved until it was fixed.';
+  if (/^Exit code \d+/.test(s)) return 'The check found something to fix.';
+  return '';
+}
+
+// Jobs from the agent's events: one per task ID, newest first; the job running now (if a run is alive) comes first.
+function agentJobs(d, snap) {
+  const titles = new Map([...(snap?.tasks || []).map((t) => [t.id, t.title]), ...d.tasks.map((t) => [t.id, t.request])]);
+  const boardBy = new Map(d.tasks.map((t) => [t.id, t]));
+  const liveId = snap?.live ? snap.running?.id : null;
+  // A board task (T-...) whose request names a Jarvis task (J-...) is a step of that run: fold it in.
+  const runOf = runMap(d);
+  for (const [tId, jId] of runOf) if (!boardBy.has(jId)) boardBy.set(jId, boardBy.get(tId));
+  const jobs = new Map();
+  for (const e of d.events) {
+    const id = runOf.get(e.task) || e.task || 'other';
+    if (!jobs.has(id)) jobs.set(id, { id, events: [], problems: [], web: 0, files: 0 });
+    const j = jobs.get(id);
+    j.events.push(e);
+    if (e.kind === 'web') j.web++;
+    if (e.kind === 'file') j.files++;
+    if (e.status === 'failed' || e.kind === 'error') j.problems.push(e);
+  }
+  return [...jobs.values()].map((j) => {
+    j.events.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+    j.at = j.events[0]?.at;
+    j.result = j.events.find((e) => e.kind === 'result');
+    j.title = titles.get(j.id) || (j.id === 'other' ? 'Work outside a task' : '');
+    j.board = boardBy.get(j.id);
+    j.state = j.id === liveId ? 'live' : j.result ? (j.result.status === 'failed' ? 'failed' : 'done') : 'open';
+    return j;
+  }).sort((a, b) => (a.state === 'live' ? -1 : b.state === 'live' ? 1 : String(b.at).localeCompare(String(a.at))));
+}
+
+// Problems that say the same thing ("Check links ... failed") are one line with a count.
+function groupProblems(list) {
+  const groups = new Map();
+  for (const e of list) {
+    const what = String(e.text).split(/ failed:|: /)[0].slice(0, 90);
+    const g = groups.get(what) || { what, n: 0, last: e };
+    g.n++;
+    if (String(e.at) > String(g.last.at)) g.last = e;
+    groups.set(what, g);
+  }
+  return [...groups.values()].sort((a, b) => String(b.last.at).localeCompare(String(a.last.at)));
+}
+
+const stepLine = (e) => `<li class="step s-${esc(e.status || 'ok')}"><span class="step-k">${esc(STEP[e.kind] || e.kind)}</span><span class="step-t">${esc(e.text)}</span><time>${esc(ago(e.at))}</time></li>`;
+const jobHead = (j) => `<div class="job-top"><code>${esc(j.id === 'other' ? '—' : j.id)}</code><span class="pill ${JOB_STATUS[j.state][0]}">${JOB_STATUS[j.state][1]}</span>${j.board?.review ? verdictChip(/PASS/.test(j.board.review) ? 'PASS' : /REVISE/.test(j.board.review) ? 'REVISE' : '', (/(?:PASS|REVISE) (\d+)/.exec(j.board.review) || [])[1]) : ''}<time>${esc(stamp(j.at))}</time></div>${j.title ? `<div class="job-title">${esc(j.title)}</div>` : ''}`;
+
 const agentView = {
-  tab: 'work',
+  tab: 'overview',
+  open: new Set(),
   build(name) {
     const l = look(name);
+    agentView.open = new Set();
     $('#view').innerHTML = `
-    <section class="agent-head card">
+    <section class="ag-head card">
       <div class="agent-av">${avatarHTML(name, { mode: 'full', size: 'lg' })}</div>
-      <div class="agent-info">
-        <div class="kicker">Agent</div>
-        <h1>${esc(l.label)} <span class="muted name">${esc(name)}</span></h1>
-        <p class="gem-line">${esc(identityFor(name).personality)}</p>
-        <p class="muted" id="ag-desc"></p>
-        <div class="agent-now" id="ag-now"></div>
-        <div class="tags" id="ag-tags"></div>
+      <div class="ag-who">
+        <h1>${esc(l.label)} <span class="ag-gem">${esc(identityFor(name).name)}</span></h1>
+        <p class="ag-role" id="ag-desc"></p>
+        <div class="ag-status" id="ag-now"></div>
       </div>
-      <div class="agent-stats" id="ag-stats"></div>
+      <div class="ag-stats" id="ag-stats"></div>
     </section>
-    <nav class="tabs" id="ag-tabs" role="tablist">
-      ${['work', 'activity', 'failures', 'tasks', 'memory'].map((t) => `<button role="tab" data-tab="${t}">${{ work: 'What it made', activity: 'Activity', failures: 'Failures', tasks: 'Tasks', memory: 'Memory and skills' }[t]}</button>`).join('')}
-    </nav>
+    <section class="card ag-right-now" id="ag-current"><p class="muted">Loading…</p></section>
+    <nav class="tabs ag-tabs" id="ag-tabs" role="tablist"></nav>
     <section class="card panel" id="ag-panel"><p class="muted">Loading…</p></section>`;
     $('#ag-tabs').addEventListener('click', (e) => {
       const b = e.target.closest('[data-tab]');
       if (!b) return;
       agentView.tab = b.dataset.tab;
       agentView.paint(name);
+    });
+    $('#view').addEventListener('click', (e) => {
+      const t = e.target.closest('[data-job]');
+      if (t) {
+        const id = t.dataset.job;
+        if (agentView.open.has(id)) agentView.open.delete(id);
+        else agentView.open.add(id);
+        agentView.paint(name);
+        return;
+      }
+      const go = e.target.closest('[data-goto]');
+      if (go) {
+        agentView.tab = go.dataset.goto;
+        if (go.dataset.open) agentView.open.add(go.dataset.open);
+        agentView.paint(name);
+      }
     });
     agentView.load(name);
   },
@@ -901,38 +987,98 @@ const agentView = {
     mountAvatars($('.agent-av'));
     setAvatarStatus($('.agent-av .gem'), a.status, { agentLabel: agentName(name), doing: a.doing });
     const st = normalizeState(a.status);
-    $('#ag-now').innerHTML = `<span class="st-pill st-${esc(st)}">${esc(STATUS[st])}</span> <span class="muted">${esc(identityFor(name).name)}</span>${a.backupActive ? ' <span class="pill p-failed">On backup</span>' : ''} ${a.doing ? `<span class="doing">${esc(a.doing)}</span>` : a.lastAt ? `<span class="muted">Last active ${esc(ago(a.lastAt))}</span>` : ''}`;
-    $('#ag-stats').innerHTML = [['Outputs', a.counts.outputs], ['Tasks', a.counts.tasks], ['Passed reviews', a.counts.passes], ['Web lookups', a.counts.web], ['Failures (7d)', a.counts.fails]].map(([l, v]) => `<div class="mini"><b>${esc(v)}</b><span>${esc(l)}</span></div>`).join('');
+    $('#ag-now').innerHTML = `<span class="st-pill st-${esc(st)}">${esc(STATUS[st])}</span>${a.backupActive ? ' <span class="pill p-failed">Its backup is working</span>' : ''}<span class="tag">Model: ${esc(a.model || 'default')}</span>`;
+    const c = a.counts;
+    $('#ag-stats').innerHTML = [['Files made', c.outputs], ['Passed reviews', c.passes], ['Problems this week', c.fails, c.fails > 0]].map(([label, v, bad]) => `<div class="mini${bad ? ' bad' : ''}"><b>${esc(v)}</b><span>${esc(label)}</span></div>`).join('');
     const d = store.detail[name];
     if (d && (Date.now() - d.at > 4000) && (a.status === 'working' || a.lastAt !== d.lastAt)) {
       d.lastAt = a.lastAt;
       agentView.load(name);
+    } else if (d) agentView.paintNow(name);
+  },
+  // The "Right now" card: the live job and its newest steps, or the last job when idle.
+  paintNow(name) {
+    const d = store.detail[name];
+    const a = store.snap?.agents.find((x) => x.name === name);
+    if (!d || !a) return;
+    const jobs = agentJobs(d, store.snap);
+    const live = jobs.find((j) => j.state === 'live');
+    const busy = ['working', 'researching', 'waiting'].includes(normalizeState(a.status));
+    const box = $('#ag-current');
+    if (live || busy) {
+      const j = live || jobs[0];
+      const steps = (j?.events || []).filter((e) => e.kind !== 'read').slice(0, 6);
+      box.innerHTML = `<div class="rn-k">Right now</div><h2>${esc(a.doing || 'Working')}</h2>${j ? jobHead(j) : ''}<ul class="steps">${steps.map(stepLine).join('') || '<li class="muted">Starting…</li>'}</ul>${j ? `<button type="button" class="small" data-goto="jobs" data-open="${esc(j.id)}">All steps of this job</button>` : ''}`;
+      box.classList.add('live');
+      return;
     }
+    box.classList.remove('live');
+    const last = jobs.find((j) => j.result) || jobs[0];
+    if (!last) {
+      box.innerHTML = '<div class="rn-k">Right now</div><h2>Not working right now</h2><p class="muted">It hasn\'t done any real work yet.</p>';
+      return;
+    }
+    const report = (store.snap?.tasks || []).find((t) => t.id === last.id)?.report;
+    box.innerHTML = `<div class="rn-k">Right now</div><h2>Not working right now</h2><div class="rn-last"><div class="rn-k2">Its last job · ${esc(ago(last.at))}</div>${jobHead(last)}${last.result ? `<p class="rn-result">${esc(last.result.text.replace(/^Finished:\s*/, ''))}</p>` : ''}<div class="rn-actions">${report ? `<a class="btn-link" href="#" data-file="${esc(report)}">Open the job's report</a>` : ''}<button type="button" class="small" data-goto="jobs" data-open="${esc(last.id)}">See its steps</button>${last.problems.length ? `<button type="button" class="small" data-goto="problems">${last.problems.length} problem${last.problems.length === 1 ? '' : 's'} on the way</button>` : ''}</div></div>`;
   },
   paint(name) {
     const d = store.detail[name];
     if (!d) return;
-    $('#ag-desc').textContent = d.agent.description;
-    $('#ag-tags').innerHTML = [`<span class="tag">Model: ${esc(d.agent.model || 'default')}</span>`, d.agent.hasBackup ? '<span class="tag">Has a backup agent</span>' : '', ...d.agent.canAsk.map((c) => `<span class="tag">Can ask ${esc(agentName(c))}</span>`)].join('');
-    for (const b of $$('#ag-tabs [data-tab]')) b.setAttribute('aria-selected', String(b.dataset.tab === agentView.tab));
+    $('#ag-desc').textContent = String(d.agent.description || '').split(/(?<=\.)\s/)[0];
+    const jobs = agentJobs(d, store.snap);
+    const problems = d.failures.filter((e) => e.kind !== 'lead');
+    const tabs = [['overview', 'Overview'], ['jobs', `Jobs (${jobs.filter((j) => j.id !== 'other').length})`], ['files', `Files (${d.outputs.length})`], ['problems', `Problems (${problems.length})`], ['memory', 'Memory and skills']];
+    $('#ag-tabs').innerHTML = tabs.map(([t, label]) => `<button role="tab" data-tab="${t}" aria-selected="${t === agentView.tab}">${esc(label)}</button>`).join('');
+    agentView.paintNow(name);
     const p = $('#ag-panel');
     const tab = agentView.tab;
-    if (tab === 'work') {
-      const extra = name === 'lead-generator' ? leadsTable(store.snap?.leads ?? []) : '';
-      p.innerHTML = `${extra}<h3>Files ${esc(agentName(name))} produced <span class="muted">(${d.outputs.length})</span></h3>${d.outputs.length ? `<div class="wide"><table class="tbl"><thead><tr><th>What</th><th>Kind</th><th>Date</th><th></th></tr></thead><tbody>${d.outputs.map((o) => `<tr><td>${o.readable ? `<a href="#" data-file="${esc(o.path)}">${esc(o.title)}</a>` : esc(o.title)}<div class="muted tiny"><code>${esc(o.path)}</code></div></td><td>${esc(o.kind)}</td><td>${esc(stamp(o.at))}</td><td>${verdictChip(o.verdict, o.score)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Nothing yet.</p>'}`;
-    } else if (tab === 'activity') {
-      const list = d.events.filter((e) => store.filters.reads || e.kind !== 'read');
-      p.innerHTML = `<div class="sec-h"><h3>Everything ${esc(agentName(name))} did <span class="muted">(${list.length})</span></h3><label class="check"><input type="checkbox" id="ag-reads" ${store.filters.reads ? 'checked' : ''}> Show file reads</label></div><ol class="feed big">${list.slice(0, 300).map((e) => feedItem(e)).join('') || '<li class="muted">No activity recorded yet.</li>'}</ol>`;
+    const fileRow = (o) => `<li><div class="row-top">${o.readable ? `<a href="#" data-file="${esc(o.path)}">${esc(o.title)}</a>` : esc(o.title)}${verdictChip(o.verdict, o.score)}</div><div class="muted tiny">${esc(o.kind || '')} · ${esc(stamp(o.at))}</div></li>`;
+    if (tab === 'overview') {
+      const recent = jobs.filter((j) => j.id !== 'other').slice(0, 5);
+      const extra = name === 'lead-generator' ? `<section class="ov-block"><h3>Leads it found</h3>${leadsTable(store.snap?.leads ?? [])}</section>` : '';
+      p.innerHTML = `<div class="ov-grid">
+        <section class="ov-block"><h3>Recent jobs</h3>${recent.length ? `<ul class="rows">${recent.map((j) => `<li class="job-mini" data-goto="jobs" data-open="${esc(j.id)}">${jobHead(j)}${j.result ? `<div class="muted tiny clamp2">${esc(j.result.text.replace(/^Finished:\s*/, ''))}</div>` : ''}</li>`).join('')}</ul>` : '<p class="muted">No jobs yet.</p>'}</section>
+        <section class="ov-block"><h3>Newest files</h3>${d.outputs.length ? `<ul class="rows">${d.outputs.slice(0, 5).map(fileRow).join('')}</ul>${d.outputs.length > 5 ? `<button type="button" class="small" data-goto="files">All ${d.outputs.length} files</button>` : ''}` : '<p class="muted">No files yet.</p>'}</section>
+      </div>${extra}`;
+    } else if (tab === 'jobs') {
+      const reads = store.filters.reads;
+      p.innerHTML = `<div class="sec-h"><h3>Jobs, newest first</h3><label class="check"><input type="checkbox" id="ag-reads" ${reads ? 'checked' : ''}> Show file reads in the steps</label></div>
+        <div class="jobs">${jobs.map((j) => {
+          const open = agentView.open.has(j.id) || (j.state === 'live' && !agentView.open.has(`!${j.id}`));
+          const steps = j.events.filter((e) => reads || e.kind !== 'read');
+          return `<article class="job${j.state === 'live' ? ' live' : ''}">${jobHead(j)}
+            ${j.result ? `<p class="job-result">${esc(j.result.text.replace(/^Finished:\s*/, ''))}</p>` : ''}
+            <div class="job-meta"><span>${steps.length} step${steps.length === 1 ? '' : 's'}</span><span>${j.web} web lookup${j.web === 1 ? '' : 's'}</span><span>${j.files} file edit${j.files === 1 ? '' : 's'}</span>${j.problems.length ? `<span class="bad">${j.problems.length} problem${j.problems.length === 1 ? '' : 's'}</span>` : ''}<button type="button" class="small" data-job="${esc(j.id)}">${open ? 'Hide the steps' : 'Show the steps'}</button></div>
+            ${open ? `<ul class="steps">${steps.slice(0, agentView.open.has(`all:${j.id}`) ? undefined : 25).map(stepLine).join('')}</ul>${steps.length > 25 && !agentView.open.has(`all:${j.id}`) ? `<button type="button" class="small more" data-job="all:${esc(j.id)}">Show all ${steps.length} steps</button>` : ''}` : ''}</article>`;
+        }).join('') || '<p class="muted">No jobs yet.</p>'}</div>`;
       $('#ag-reads').addEventListener('change', (e) => {
         store.filters.reads = e.target.checked;
         agentView.paint(name);
       });
-    } else if (tab === 'failures') {
-      p.innerHTML = `<h3>Failures and why <span class="muted">(${d.failures.length})</span></h3>${d.failures.length ? `<ol class="fails-list">${d.failures.map((e) => `<li class="fail s-${esc(e.status)}"><div class="ev-top">${chip(e.kind)}<time>${esc(stamp(e.at))}</time>${e.task ? `<code>${esc(e.task)}</code>` : ''}</div><div class="why">${esc(e.text)}</div>${e.ref ? fileLink(e.ref, 'Open the details') : ''}</li>`).join('')}</ol>` : '<p class="muted">No failures recorded.</p>'}`;
-    } else if (tab === 'tasks') {
-      p.innerHTML = `<h3>Tasks on the board <span class="muted">(${d.tasks.length})</span></h3>${d.tasks.length ? `<div class="wide"><table class="tbl"><thead><tr><th>Task</th><th>What</th><th>Status</th><th>Review</th><th>Updated</th></tr></thead><tbody>${d.tasks.map((t) => `<tr><td><code>${esc(t.id)}</code></td><td>${esc(t.request)}</td><td>${statusChip(t.status)}</td><td>${esc(t.review)}</td><td>${esc(t.updated)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">No tasks on the board yet.</p>'}<h3>Work handed to ${esc(agentName(name))} <span class="muted">(${d.calls.length})</span></h3><ol class="feed">${d.calls.slice(0, 50).map((e) => feedItem(e)).join('') || '<li class="muted">None recorded.</li>'}</ol>`;
+    } else if (tab === 'files') {
+      p.innerHTML = `<div class="sec-h"><h3>Files it made</h3><input type="search" id="ag-file-q" class="ag-search" placeholder="Find a file"></div><ul class="rows" id="ag-files">${d.outputs.map(fileRow).join('') || '<li class="muted">No files yet.</li>'}</ul>`;
+      $('#ag-file-q').addEventListener('input', (e) => {
+        const q = e.target.value.toLowerCase();
+        $('#ag-files').innerHTML = d.outputs.filter((o) => `${o.title} ${o.path}`.toLowerCase().includes(q)).map(fileRow).join('') || '<li class="muted">No file matches.</li>';
+      });
+    } else if (tab === 'problems') {
+      const byJob = new Map();
+      const runOf = runMap(d);
+      for (const e of problems) {
+        const id = runOf.get(e.task) || e.task || 'other';
+        if (!byJob.has(id)) byJob.set(id, []);
+        byJob.get(id).push(e);
+      }
+      const jobOf = new Map(jobs.map((j) => [j.id, j]));
+      p.innerHTML = `<h3>Problems, by job</h3><p class="muted tiny">A problem is a step that didn't work: a command refused or failing, a page that wouldn't load, or work the reviewer sent back. Most are retried in the same job: "The job still finished" means it recovered.</p>${[...byJob.entries()].sort((a, b) => String(b[1][0].at).localeCompare(String(a[1][0].at))).map(([id, list]) => {
+        const j = jobOf.get(id);
+        const recovered = j?.result && j.result.status !== 'failed';
+        return `<article class="job">${j ? jobHead(j) : `<div class="job-top"><code>${esc(id)}</code></div>`}${recovered ? '<span class="pill p-done">The job still finished</span>' : ''}<ul class="probs">${groupProblems(list).map((g) => { const raw = String(g.last.text).slice(g.what.length).replace(/^( failed)?:\s*/, ''); const why = plainWhy(raw || g.last.text); return `<li><b>${esc(g.what)}</b>${g.n > 1 ? ` <span class="pill p-failed">${g.n} times</span>` : ''}${why ? `<div class="prob-why">${esc(why)}</div>` : ''}<div class="muted tiny">${esc(raw.slice(0, 180))}${raw.length > 180 ? '…' : ''} · ${esc(ago(g.last.at))}</div></li>`; }).join('')}</ul></article>`;
+      }).join('') || '<p class="muted">No problems. Nice.</p>'}`;
     } else {
-      p.innerHTML = `<h3>Skills it loads</h3><div class="tags">${d.agent.skills.map((s) => `<span class="tag">${esc(s)}</span>`).join('') || '<span class="muted">None</span>'}</div><h3>Lessons in its memory <span class="muted">(${d.memory.lessons.length})</span></h3>${d.memory.lessons.length ? `<ul class="lessons">${d.memory.lessons.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>` : '<p class="muted">No lessons yet. They are added after each reviewed task.</p>'}`;
+      p.innerHTML = `<h3>Skills it uses</h3><div class="tags">${d.agent.skills.map((s) => `<span class="tag">${esc(s)}</span>`).join('') || '<span class="muted">None</span>'}</div>
+        <h3>Who it can ask</h3><div class="tags">${d.agent.canAsk.map((c) => `<span class="tag">${esc(agentName(c))}</span>`).join('') || '<span class="muted">Nobody</span>'}${d.agent.hasBackup ? '<span class="tag">Has a backup agent</span>' : ''}</div>
+        <h3>What it has learned <span class="muted">(${d.memory.lessons.length})</span></h3>${d.memory.lessons.length ? `<ol class="lessons">${d.memory.lessons.map((x) => `<li>${esc(x.replace(/\s*\(source:[^)]*\)\s*$/, ''))}</li>`).join('')}</ol>` : '<p class="muted">No lessons yet.</p>'}`;
     }
   },
 };
@@ -1398,9 +1544,132 @@ const floatView = {
   },
 };
 
+// ---- the offices: choose an office, and each office's live map ---------------------------------------
+
+// Who works in an office right now, from the page's state.
+const officeAgents = (office, snap) => (snap?.agents ?? []).filter((a) => Object.hasOwn(office.seats, a.name));
+const BUSY = new Set(['working', 'researching', 'waiting']);
+
+const officesView = {
+  build() {
+    $('#view').innerHTML = `<div class="offices-page">
+      <div class="offices-hero">${lockupSvg('brand-logo', BRAND.name)}<h1>Choose your office</h1><p>Each office is a team of agents with its own floor. Walk in to watch them work.</p></div>
+      <div class="offices-grid">${OFFICES.map((o) => {
+        const map = MAPS[o.map];
+        const team = Object.keys(o.seats);
+        const faces = team.slice(0, 5).map((n) => avatarHTML(n, { size: 'xs', mode: 'badge' })).join('');
+        return `<article class="office-card" data-office="${esc(o.id)}">
+          <div class="office-pic"><img src="/${esc(map.thumb)}" alt="${esc(map.name)} map" loading="lazy"><span class="office-badge${team.length ? '' : ' soon'}" data-badge>${team.length ? 'Open' : 'Ready for a team'}</span><span class="office-faces">${faces}</span></div>
+          <div class="office-body"><div class="office-team">${esc(o.team)}</div><h2>${esc(o.name)}</h2><p>${esc(o.blurb)}</p>
+            <div class="office-stats" data-stats>${team.length ? `<span><b>${team.length}</b> agents</span>` : `<span><b>${o.planned.length}</b> seats planned</span>`}<span><b>${map.rooms.filter((r) => r.kind !== 'other').length}</b> rooms</span></div>
+            <div class="office-go"><a class="primary" href="#/world/${esc(o.id)}">Enter the office</a>${o.classic ? '<a href="#/">2D and 3D view</a>' : ''}</div></div>
+        </article>`;
+      }).join('')}</div>
+      <p class="offices-note">New teams get their own office: the next ones are the developers and the social media interns.</p></div>`;
+    for (const card of $$('.office-card')) card.style.setProperty('--oc', officeById(card.dataset.office).accent);
+    mountAvatars($('#view'));
+  },
+  update(snap) {
+    for (const o of OFFICES) {
+      const card = $(`.office-card[data-office="${o.id}"]`);
+      if (!card || !Object.keys(o.seats).length) continue;
+      const busy = officeAgents(o, snap).filter((a) => BUSY.has(normalizeState(a.status))).length;
+      const badge = card.querySelector('[data-badge]');
+      badge.textContent = busy ? `${busy} working now` : 'Open';
+      badge.classList.toggle('live', busy > 0);
+    }
+  },
+};
+
+// Map or 3D, remembered per office. Only offices with a 3D view (offices.js: view3d) offer the switch.
+const MODE_KEY = (id) => `world.mode.${id}`;
+const savedMode = (office) => {
+  if (!office.view3d || !webgl3dAvailable()) return 'map';
+  try {
+    return localStorage.getItem(MODE_KEY(office.id)) || '3d';
+  } catch {
+    return '3d';
+  }
+};
+
+const worldView = {
+  world: null,
+  office: null,
+  mode: 'map',
+  build(id) {
+    const office = officeById(id) || OFFICES[0];
+    const map = MAPS[office.map];
+    worldView.office = office;
+    const team = Object.keys(office.seats);
+    $('#view').innerHTML = `<div class="world-page">
+      <div class="world-bar"><h1>${esc(office.name)}</h1><span class="office-team">${esc(office.team)}</span>
+        ${office.view3d ? '<div class="world-mode" role="group" aria-label="View"><button type="button" data-mode="map">Map</button><button type="button" data-mode="3d">3D</button></div>' : ''}
+        <nav class="world-switch" aria-label="Offices">${OFFICES.map((o) => `<a href="#/world/${esc(o.id)}" class="${o.id === office.id ? 'on' : ''}">${esc(o.name)}</a>`).join('')}<a href="#/offices">All offices</a>${office.classic ? '<a href="#/">2D and 3D view</a>' : ''}</nav></div>
+      ${team.length ? '' : `<div class="world-note">This office is ready for the <b>${esc(office.team.toLowerCase())}</b> team. The dashed seats show where each planned role will sit: ${office.planned.map((p) => esc(p.role)).join(', ')}.</div>`}
+      <div class="world-map" id="world-map"></div></div>`;
+    $('.world-page').style.setProperty('--oc', office.accent);
+    $('.world-mode')?.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-mode]');
+      if (!b || b.dataset.mode === worldView.mode) return;
+      try {
+        localStorage.setItem(MODE_KEY(office.id), b.dataset.mode);
+      } catch {
+        // private window: the choice lasts until the page closes
+      }
+      worldView.show(b.dataset.mode);
+    });
+    // The gate plays when you walk in from another page; on the first load the opening animation plays instead.
+    worldView.gate = performance.now() > 4000 ? playGate({ title: office.name, sub: `Opening the ${map.name.toLowerCase()}` }) : null;
+    worldView.show(savedMode(office));
+  },
+  // Puts the map or the 3D office in the page, replacing whichever was there.
+  async show(mode) {
+    const office = worldView.office;
+    const map = MAPS[office.map];
+    worldView.world?.destroy();
+    worldView.world = null;
+    worldView.mode = mode;
+    for (const b of $$('.world-mode [data-mode]')) b.setAttribute('aria-pressed', String(b.dataset.mode === mode));
+    const opts = { office, map, label: agentName, onOpen: (name) => { location.hash = `#/agent/${name}`; } };
+    const ready = () => {
+      worldView.gate?.ready();
+      worldView.gate = null;
+    };
+    if (mode === '3d') {
+      try {
+        const view = await createWorld3D($('#world-map'), opts);
+        if (worldView.mode !== '3d' || worldView.office !== office || !$('#world-map')) return view.destroy(); // left meanwhile
+        worldView.world = view;
+        view.update(officeAgents(office, store.snap));
+        ready();
+        return undefined;
+      } catch (error) {
+        toast(`The 3D office couldn't start (${error.message}), so here is the map.`, true);
+        worldView.mode = 'map';
+        for (const b of $$('.world-mode [data-mode]')) b.setAttribute('aria-pressed', String(b.dataset.mode === 'map'));
+      }
+    }
+    worldView.world = createWorld($('#world-map'), opts);
+    worldView.world.update(officeAgents(office, store.snap));
+    const img = $('#world-map .wv-map');
+    if (img.complete) ready();
+    else img.addEventListener('load', ready, { once: true });
+    return undefined;
+  },
+  update(snap) {
+    worldView.world?.update(officeAgents(worldView.office, snap));
+  },
+  leave() {
+    worldView.world?.destroy();
+    worldView.world = null;
+    worldView.gate?.ready();
+    worldView.gate = null;
+  },
+};
+
 // ---- routing and the stream ----------------------------------------------------------------------
 
-const VIEWS = { home, working, team: teamView, overview, logs, leads: leadsView, outreach: outreachView, reports: reportsView, flags: flagsView, agent: agentView, gems: gemsView, float: floatView };
+const VIEWS = { offices: officesView, world: worldView, home, working, team: teamView, overview, logs, leads: leadsView, outreach: outreachView, reports: reportsView, flags: flagsView, agent: agentView, gems: gemsView, float: floatView };
 let current = '';
 
 function route() {
@@ -1494,6 +1763,8 @@ const voice = createVoice({
     location.hash = hash;
   },
 });
+// Mission control opens on "Choose your office".
+if (!location.hash || location.hash === '#' || location.hash === '#/') history.replaceState(null, '', '#/offices');
 window.addEventListener('hashchange', render);
 connect();
 api('/api/state').then((s) => !store.snap && onState(s)).catch((e) => toast(e.message, true));
