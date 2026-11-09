@@ -1,7 +1,8 @@
 // Walking on an office map: which places an agent can stand on, and the way from one place to another around the
-// walls. A map's walls are line segments in map units, with (0, 0) at the centre of the picture (the format the
-// Nonilion maps use). The floor is cut into square cells; a cell is blocked when its centre is closer to a wall than
-// an agent's radius. Paths are A* over the free cells, then smoothed so agents walk straight where they can.
+// walls and the furniture. A map's walls are line segments in map units, with (0, 0) at the centre of the map (the
+// format the Nonilion maps use); its blocks are furniture footprints (maps.js). The floor is cut into square cells; a
+// cell is blocked when its centre is closer to a wall or a block than an agent's radius. Paths are A* over the free
+// cells, then smoothed so agents walk straight where they can.
 // No browser code here, so it is tested directly.
 
 export const CELL = 25; // map units per cell
@@ -16,8 +17,18 @@ export function distToSegment(px, py, [x1, y1, x2, y2]) {
   return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
 }
 
+// Is (px, py) within `pad` of a block: a footprint { at, size: [width, depth], turn } turned `turn` degrees clockwise?
+export function inBlock(px, py, { at: [cx, cy], size: [bw, bd], turn = 0 }, pad = 0) {
+  const a = (turn * Math.PI) / 180;
+  const dx = px - cx;
+  const dy = py - cy;
+  const lx = dx * Math.cos(a) + dy * Math.sin(a);
+  const ly = -dx * Math.sin(a) + dy * Math.cos(a);
+  return Math.abs(lx) <= bw / 2 + pad && Math.abs(ly) <= bd / 2 + pad;
+}
+
 // The walkable grid of a map: { cols, rows, free: Uint8Array, toCell, toPoint }.
-export function buildGrid({ w, h, walls }, { cell = CELL, radius = RADIUS } = {}) {
+export function buildGrid({ w, h, walls, blocks = [] }, { cell = CELL, radius = RADIUS, blockPad = RADIUS / 2 } = {}) {
   const cols = Math.ceil(w / cell);
   const rows = Math.ceil(h / cell);
   const free = new Uint8Array(cols * rows).fill(1);
@@ -37,10 +48,39 @@ export function buildGrid({ w, h, walls }, { cell = CELL, radius = RADIUS } = {}
       }
     }
   }
+  for (const b of blocks) {
+    const reachB = Math.hypot(b.size[0], b.size[1]) / 2 + blockPad; // furniture may be passed closer than a wall
+    const c0 = Math.max(0, Math.floor((b.at[0] - reachB - x0) / cell));
+    const c1 = Math.min(cols - 1, Math.floor((b.at[0] + reachB - x0) / cell));
+    const r0 = Math.max(0, Math.floor((b.at[1] - reachB - y0) / cell));
+    const r1 = Math.min(rows - 1, Math.floor((b.at[1] + reachB - y0) / cell));
+    for (let r = r0; r <= r1; r++) {
+      for (let c = c0; c <= c1; c++) {
+        if (inBlock(x0 + (c + 0.5) * cell, y0 + (r + 0.5) * cell, b, blockPad)) free[r * cols + c] = 0;
+      }
+    }
+  }
   const toCell = (x, y) => [Math.min(cols - 1, Math.max(0, Math.floor((x - x0) / cell))), Math.min(rows - 1, Math.max(0, Math.floor((y - y0) / cell)))];
   const toPoint = (c, r) => [x0 + (c + 0.5) * cell, y0 + (r + 0.5) * cell];
   const isFree = (c, r) => c >= 0 && r >= 0 && c < cols && r < rows && free[r * cols + c] === 1;
   return { cols, rows, cell, free, toCell, toPoint, isFree };
+}
+
+// Can a visitor stand at (x, y): inside the map, at least `pad` from every wall, and clear of the furniture? Finer
+// than the grid, for the person walking the 3D office.
+export function standable(map, x, y, pad = 22) {
+  if (Math.abs(x) > map.w / 2 - pad || Math.abs(y) > map.h / 2 - pad) return false;
+  for (const s of map.walls) if (distToSegment(x, y, s) < pad) return false;
+  for (const b of map.blocks || []) if (inBlock(x, y, b, pad * 0.6)) return false;
+  return true;
+}
+
+// One step of a walk: the whole move if the walker can stand there, else the move along x only or along y only (so a
+// walker slides along a wall instead of sticking to it), else no move. Steps must be shorter than twice `pad`, or a
+// walker could step through a wall.
+export function stepWithin(map, [x, y], [dx, dy], pad = 22) {
+  for (const [nx, ny] of [[x + dx, y + dy], [x + dx, y], [x, y + dy]]) if (standable(map, nx, ny, pad)) return [nx, ny];
+  return [x, y];
 }
 
 // The free cell nearest to (x, y), searching outwards ring by ring. Returns [c, r] or null.

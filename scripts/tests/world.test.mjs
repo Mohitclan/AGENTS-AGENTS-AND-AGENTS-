@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { AT_SEAT, createCrowd, officeLayout } from '../control/world/crowd.js';
-import { MAPS } from '../control/world/maps.js';
-import { buildGrid, clearLine, distToSegment, findPath, pathLength, pointAlong, spotsIn } from '../control/world/nav.js';
+import { floorsOf, MAPS, SOLID, turnOf } from '../control/world/maps.js';
+import { buildGrid, clearLine, distToSegment, findPath, inBlock, pathLength, pointAlong, spotsIn, standable, stepWithin } from '../control/world/nav.js';
 import { officeById, officeOf, OFFICES } from '../control/world/offices.js';
 import { makeCopy } from './_helpers.mjs';
 
@@ -93,10 +93,42 @@ describe('who walks where (crowd.js)', () => {
   });
 });
 
+describe('furniture and the visitor on foot', () => {
+  // A 1000 x 1000 room with a desk in the middle, turned a quarter.
+  const room = { w: 1000, h: 1000, walls: [[-500, -500, 500, -500], [500, -500, 500, 500], [500, 500, -500, 500], [-500, 500, -500, -500]], blocks: [{ at: [0, 0], size: [400, 100], turn: 90 }] };
+
+  it('turns a footprint clockwise on the map, and keeps walkers off it', () => {
+    assert.equal(turnOf('right'), 270);
+    assert.equal(turnOf(45), 45);
+    assert.ok(inBlock(0, 150, room.blocks[0]), 'turned a quarter, the long side runs down the map');
+    assert.ok(!inBlock(150, 0, room.blocks[0]));
+    const grid = buildGrid(room);
+    assert.equal(grid.isFree(...grid.toCell(0, 0)), false);
+    const path = findPath(grid, [-300, 0], [300, 0]);
+    assert.ok(path && path.some(([, y]) => Math.abs(y) > 200), 'walks round the desk');
+  });
+
+  it('lets a visitor walk, slide along a wall, and never pass through a wall or a desk', () => {
+    assert.ok(standable(room, -300, 0));
+    assert.ok(!standable(room, -490, 0), 'too close to the wall');
+    assert.ok(!standable(room, 0, 100), 'on the desk');
+    assert.deepEqual(stepWithin(room, [-300, 0], [10, 0]), [-290, 0]);
+    // Into the wall at a slant: it slides along it instead of stopping dead.
+    assert.deepEqual(stepWithin(room, [-470, 0], [-10, 10]), [-470, 10]);
+    // Walking hard at the desk for a long while never gets onto it.
+    let at = [-300, 120];
+    for (let i = 0; i < 200; i++) at = stepWithin(room, at, [15, 0]);
+    assert.ok(!inBlock(...at, room.blocks[0]), `stopped at ${at}`);
+    assert.ok(at[0] < -60);
+  });
+});
+
 describe('the office maps', () => {
+  const kit = readFileSync(join(ROOT, 'scripts', 'control', 'world', 'props3d.js'), 'utf8');
+  const kinds = new Set([...kit.matchAll(/^ {4}(\w+)\(g, p/gm)].map((m) => m[1]));
   for (const [id, map] of Object.entries(MAPS)) {
     it(`${id}: its pictures exist, its rooms are inside it, and every room can reach the meeting room`, () => {
-      for (const file of [map.image, map.thumb]) assert.ok(existsSync(join(ROOT, 'scripts', 'control', file)), file);
+      for (const file of [...floorsOf(map).map((f) => f.image), map.thumb]) assert.ok(existsSync(join(ROOT, 'scripts', 'control', file)), file);
       assert.ok(map.walls.length > 10);
       const meet = map.rooms.filter((r) => r.kind === 'meet');
       assert.equal(meet.length, 1, 'one meeting room');
@@ -105,9 +137,43 @@ describe('the office maps', () => {
       for (const r of map.rooms) {
         const [x1, y1, x2, y2] = r.box;
         assert.ok(x1 < x2 && y1 < y2 && x1 >= -map.w / 2 && x2 <= map.w / 2 && y1 >= -map.h / 2 && y2 <= map.h / 2, `${r.id} box`);
-        assert.ok(findPath(grid, mid(r.box), mid(meet[0].box)), `${r.id} reaches ${meet[0].id}`);
-        assert.ok(spotsIn(grid, r.box, 4).length >= 4, `${r.id} has room for four`);
+        const spots = spotsIn(grid, r.box, 4);
+        assert.ok(spots.length >= 4, `${r.id} has room for four`);
+        assert.ok(findPath(grid, spots[0], mid(meet[0].box)), `${r.id} reaches ${meet[0].id}`);
       }
+    });
+  }
+
+  for (const [id, map] of Object.entries(MAPS).filter(([, m]) => m.floors)) {
+    it(`${id}: its pictures meet without gaps, its furniture can be built, and every seat is on open floor a visitor can walk to`, () => {
+      for (const f of map.floors) {
+        const [x1, y1, x2, y2] = f.box;
+        assert.ok(x1 >= -map.w / 2 - 1 && x2 <= map.w / 2 + 1 && y1 >= -map.h / 2 - 1 && y2 <= map.h / 2 + 1, `${f.image} lies on the map`);
+      }
+      for (const p of map.props) assert.ok(kinds.has(p.k), `props3d.js builds a ${p.k}`);
+      assert.equal(map.blocks.length, map.props.filter((p) => SOLID.has(p.k)).length);
+      const grid = buildGrid(map);
+      assert.ok(map.entrance && standable(map, ...map.entrance.at), 'a visitor can stand at the way in');
+      for (const s of map.seats) {
+        assert.ok(map.rooms.some((r) => r.id === s.room), `${s.room} exists`);
+        assert.ok(standable(map, ...s.at, 10), `the seat at ${s.at} in ${s.room} is clear of walls and desks`);
+        assert.ok(findPath(grid, map.entrance.at, s.at), `the seat at ${s.at} can be walked to`);
+      }
+      // A visitor on foot reaches every named room from the way in (a flood fill over the floor, in 10-unit steps).
+      const seen = new Set([map.entrance.at.map((v) => Math.round(v / 10)).join()]);
+      const todo = [map.entrance.at.map((v) => Math.round(v / 10) * 10)];
+      while (todo.length) {
+        const [x, y] = todo.pop();
+        for (const [dx, dy] of [[10, 0], [-10, 0], [0, 10], [0, -10]]) {
+          const k = `${(x + dx) / 10},${(y + dy) / 10}`;
+          if (!seen.has(k) && standable(map, x + dx, y + dy)) {
+            seen.add(k);
+            todo.push([x + dx, y + dy]);
+          }
+        }
+      }
+      const reached = [...seen].map((k) => k.split(',').map((v) => Number(v) * 10));
+      for (const r of map.rooms) assert.ok(reached.some(([x, y]) => x >= r.box[0] && x <= r.box[2] && y >= r.box[1] && y <= r.box[3]), `a visitor can walk into ${r.id}`);
     });
   }
 });
@@ -149,7 +215,8 @@ describe('the offices on mission control', () => {
   });
 
   it('serves the map code, its stylesheet and the pictures', async () => {
-    for (const f of ['world/worldview.js', 'world/world3d.js', 'world/crowd.js', 'world/nav.js', 'world/maps.js', 'world/offices.js', 'world/world.css']) assert.equal((await fetch(`${base}/${f}`)).status, 200, f);
+    for (const f of ['world/worldview.js', 'world/world3d.js', 'world/props3d.js', 'world/crowd.js', 'world/nav.js', 'world/maps.js', 'world/offices.js', 'world/world.css']) assert.equal((await fetch(`${base}/${f}`)).status, 200, f);
+    for (const f of ['dev-floor', 'dev-boardroom', 'social-office', 'social-neon']) assert.equal((await fetch(`${base}/assets/world/${f}.jpg`)).status, 200, f);
     const pic = await fetch(`${base}/assets/world/campus-blue.jpg`);
     assert.equal(pic.status, 200);
     assert.equal(pic.headers.get('content-type'), 'image/jpeg');

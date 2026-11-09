@@ -1,13 +1,265 @@
-// The office maps. Each one is a picture (in assets/world/) plus what an agent needs to walk on it, in map units with
-// (0, 0) at the centre of the picture:
-//   w, h    the size of the map in map units (the picture is scaled to fit them)
-//   walls   line segments agents can't cross: [x1, y1, x2, y2]
-//   rooms   named boxes [x1, y1, x2, y2] where agents sit, meet or take a break. kind: 'room' (seats), 'meet'
-//           (where hand-offs happen), 'break' (where agents with nothing to do wander), 'other' (a label only)
-// The pictures and walls come from PanScience Innovations' Nonilion project (public/world and src/util/mapData*.ts,
-// 2025). Other companies' names painted on the maps were covered with the PanScience Innovations logo.
-// To add a map: put its picture in assets/world/, add an entry here with its walls and rooms, and check it on the
-// Offices page with "Show walls" turned on.
+// The office maps. Each one is a floor of pictures (in assets/world/) plus what an agent needs to walk on it, in map
+// units with (0, 0) at the centre of the map. 100 map units are a metre in the 3D office.
+//   w, h      the size of the map in map units
+//   image     the picture of a one-picture map, stretched over the whole map
+//   floors    the pictures of a map laid from several: [{ image, box: [x1, y1, x2, y2] }] (see `laid` below)
+//   walls     line segments agents can't cross: [x1, y1, x2, y2]
+//   rooms     named boxes [x1, y1, x2, y2] where agents sit, meet or take a break. kind: 'room' (seats), 'meet'
+//             (where hand-offs happen), 'break' (where agents with nothing to do wander), 'other' (a label only)
+// A map laid from pictures can also have:
+//   seats     where the agents of a room sit, at the desks drawn in the picture: [{ room, at, face, chair }]. face is
+//             the way the agent looks ('up', 'down', 'left', 'right' on the picture, or degrees clockwise from down);
+//             chair is 'office' (the default), 'armchair', 'lounge', 'stool' or 'none'. A seat with `perch: true` is a
+//             chair in a meeting or break room that idle agents sit on for a while, never anyone's own
+//   props     the furniture, built in 3D by world/props3d.js: [{ k, at, size: [width, depth], face, ... }]. Solid
+//             furniture (desks, counters, racks...) becomes `blocks` that agents walk around
+//   lights    coloured lamps in the 3D office: [{ at, color, power }]
+//   entrance  where a visitor starts walking in the 3D office: { at, face }
+//   mood      the 3D office's colours: { light, glow, wall, cap }
+// The space-station campus comes from PanScience Innovations' Nonilion project (public/world and
+// src/util/mapData*.ts, 2025); a company name painted on it was covered with the PanScience Innovations logo. The
+// two studios are laid from office designs the founders chose on 2026-11-09 (the Social Media Studio's office
+// picture carries its artist's credit, cthulhu_architect, which stays on the floor).
+// To add a map: put its pictures in assets/world/, add an entry here, and check it on the Offices page with "Show
+// walls" turned on.
+
+// Furniture agents walk around rather than through. Chairs, rugs, lights and wall screens are not in the way.
+export const SOLID = new Set(['desk', 'table', 'counter', 'rack', 'cabinet', 'crate', 'kiosk', 'plant', 'sofa', 'shelf', 'lighttable', 'console', 'side', 'roundtable']);
+
+const FACE = { down: 0, left: 90, up: 180, right: 270 };
+// A facing as degrees clockwise from down on the picture: 'right' is 270, 45 is down and to the left.
+export const turnOf = (face = 0) => (typeof face === 'number' ? face : FACE[face] ?? 0);
+
+// The pictures of a map, each with the box it covers.
+export const floorsOf = (map) => map.floors || [{ image: map.image, box: [-map.w / 2, -map.h / 2, map.w / 2, map.h / 2] }];
+
+// One picture laid on a map. Its walls, rooms, seats, furniture and lights are traced in the picture's own pixels
+// (`t`), and land in map units: the picture's top-left corner goes to `at`, each pixel is `scale` map units, and
+// `crop` is the pixel the saved picture starts from when it was cut from a bigger one. A wall is a line through
+// several points: [x1, y1, x2, y2, x3, y3, ...].
+function laid({ image, px: [pw, ph], at: [x0, y0], scale, crop: [cx, cy] = [0, 0] }, t) {
+  const r = (v) => Math.round(v * 10) / 10;
+  const P = ([x, y]) => [r(x0 + (x - cx) * scale), r(y0 + (y - cy) * scale)];
+  const walls = [];
+  for (const line of t.walls || []) {
+    for (let i = 2; i + 1 < line.length; i += 2) walls.push([...P([line[i - 2], line[i - 1]]), ...P([line[i], line[i + 1]])]);
+  }
+  return {
+    floor: { image, box: [x0, y0, r(x0 + pw * scale), r(y0 + ph * scale)] },
+    walls,
+    rooms: (t.rooms || []).map((room) => ({ ...room, box: [...P(room.box.slice(0, 2)), ...P(room.box.slice(2))] })),
+    seats: (t.seats || []).map((s) => ({ ...s, at: P(s.at) })),
+    props: (t.props || []).map((p) => ({ ...p, at: P(p.at), size: p.size.map((v) => r(v * scale)) })),
+    lights: (t.lights || []).map((l) => ({ ...l, at: P(l.at) })),
+    entrance: t.entrance && { ...t.entrance, at: P(t.entrance.at) },
+  };
+}
+
+// A map from laid pictures, with the solid furniture as blocks for walking.
+function joined(meta, ...parts) {
+  const all = (key) => parts.flatMap((p) => p[key]);
+  const props = all('props');
+  return {
+    ...meta,
+    floors: parts.map((p) => p.floor),
+    walls: all('walls'),
+    rooms: all('rooms'),
+    seats: all('seats'),
+    props,
+    blocks: props.filter((p) => SOLID.has(p.k)).map((p) => ({ at: p.at, size: p.size, turn: turnOf(p.face) })),
+    lights: all('lights'),
+    entrance: parts.find((p) => p.entrance)?.entrance,
+  };
+}
+
+// ---- the Developer Studio: a dark work floor with server racks, and a neon boardroom up the corridor ----
+const DEV_ORANGE = '#ff7a18';
+const devFloor = laid({ image: 'assets/world/dev-floor.jpg', px: [1799, 1799], at: [-630, -360], scale: 0.7 }, {
+  walls: [
+    [170, 1665, 170, 350, 345, 350, 345, 0],
+    [505, 0, 505, 350, 1300, 350, 1300, 400, 1590, 460, 1590, 995, 1700, 995, 1700, 1655, 1110, 1655, 1110, 1799, 780, 1799, 780, 1665, 170, 1665],
+  ],
+  rooms: [
+    { id: 'front', name: 'Frontend pod', box: [300, 360, 790, 1000], kind: 'room' },
+    { id: 'back', name: 'Backend pod', box: [880, 470, 1580, 990], kind: 'room' },
+    { id: 'coffee', name: 'Coffee point', box: [520, 980, 1110, 1260], kind: 'break' },
+    { id: 'qa', name: 'QA lab', box: [180, 1150, 640, 1655], kind: 'room' },
+    { id: 'ops', name: 'Ops room', box: [1140, 1150, 1600, 1655], kind: 'room' },
+    { id: 'aisle', name: 'Hallway', box: [790, 1260, 1100, 1790], kind: 'other' },
+  ],
+  seats: [
+    { room: 'front', at: [680, 720], face: 'left' },
+    { room: 'front', at: [720, 405], face: 'up' },
+    { room: 'back', at: [935, 820], face: 'right' },
+    { room: 'back', at: [1410, 845], face: 'left' },
+    { room: 'qa', at: [395, 1230], face: 'left' },
+    { room: 'qa', at: [395, 1360], face: 'left' },
+    { room: 'ops', at: [1470, 1440], face: 'left' },
+    { room: 'ops', at: [1170, 1290], face: 'right' },
+  ],
+  props: [
+    { k: 'rack', at: [235, 520], size: [310, 130], face: 'right' },
+    { k: 'rack', at: [235, 835], size: [300, 130], face: 'right' },
+    { k: 'rack', at: [1445, 467], size: [280, 70], face: 12 },
+    { k: 'rack', at: [1550, 805], size: [210, 70], face: 'left', tall: 1.3 },
+    { k: 'rack', at: [1645, 1320], size: [640, 110], face: 'left' },
+    { k: 'screen', at: [660, 356], size: [240, 8], lift: 0.6, tall: 0.8 },
+    { k: 'screen', at: [895, 356], size: [150, 8], lift: 0, tall: 1.6, color: '#57d8ff' },
+    { k: 'screen', at: [1150, 356], size: [260, 8], lift: 0.7, tall: 0.6, color: '#3fb6d8' },
+    { k: 'neon', at: [525, 357], size: [26, 12], tall: 1.9 },
+    { k: 'neon', at: [800, 357], size: [26, 12], tall: 1.9 },
+    { k: 'neon', at: [1005, 357], size: [26, 12], tall: 1.9 },
+    { k: 'neon', at: [1308, 382], size: [26, 12], tall: 1.9 },
+    { k: 'cabinet', at: [1265, 555], size: [220, 150], tall: 0.55, top: '#2b3640' },
+    { k: 'cabinet', at: [1445, 525], size: [95, 55], tall: 0.45 },
+    { k: 'kiosk', at: [1545, 550], size: [80, 90] },
+    { k: 'crate', at: [1030, 565], size: [140, 140], face: -20, glow: true },
+    { k: 'desk', at: [510, 730], size: [330, 215], glow: true, item: 'papers', face: 'right' },
+    { k: 'desk', at: [1175, 835], size: [360, 220], glow: true, item: 'monitor', face: 'down' },
+    { k: 'kiosk', at: [675, 975], size: [90, 160] },
+    { k: 'counter', at: [320, 1095], size: [300, 80] },
+    { k: 'counter', at: [715, 1420], size: [130, 470] },
+    { k: 'counter', at: [540, 1630], size: [220, 60] },
+    { k: 'desk', at: [270, 1320], size: [300, 140], glow: true, item: 'monitor', face: 'right' },
+    { k: 'crate', at: [515, 1300], size: [140, 130], face: 30 },
+    { k: 'crate', at: [470, 1525], size: [150, 120], face: -20, glow: true, tall: 0.3 },
+    { k: 'counter', at: [1330, 1075], size: [420, 130] },
+    { k: 'counter', at: [1075, 1470], size: [120, 360] },
+    { k: 'desk', at: [1305, 1285], size: [140, 180], glow: true, item: 'monitor', face: 'left' },
+    { k: 'desk', at: [1360, 1430], size: [150, 120], glow: true, face: 'right' },
+    { k: 'crate', at: [1490, 1195], size: [150, 90], face: -40, glow: true },
+  ],
+  lights: [
+    { at: [510, 730], color: DEV_ORANGE, power: 2.2 },
+    { at: [1175, 845], color: DEV_ORANGE, power: 2.2 },
+    { at: [330, 1360], color: DEV_ORANGE, power: 1.8 },
+    { at: [1320, 1330], color: DEV_ORANGE, power: 2 },
+    { at: [940, 1350], color: '#3fb6d8', power: 1.6 },
+  ],
+  entrance: { at: [945, 1745], face: 'up' },
+});
+const devBoardroom = laid({ image: 'assets/world/dev-boardroom.jpg', px: [1799, 1799], at: [-497.5, -900], scale: 0.3 }, {
+  walls: [[400, 1799, 80, 1799, 80, 0, 1720, 0, 1720, 1799, 700, 1799]],
+  rooms: [{ id: 'boardroom', name: 'Boardroom', box: [90, 10, 1710, 1790], kind: 'meet' }],
+  seats: [
+    ...[[533, 360], [513, 700], [493, 1060], [473, 1400]].map((at) => ({ room: 'boardroom', at, face: 'right', chair: 'none', perch: true })),
+    ...[[1247, 360], [1267, 700], [1297, 1060], [1317, 1400]].map((at) => ({ room: 'boardroom', at, face: 'left', chair: 'none', perch: true })),
+  ],
+  props: [
+    { k: 'table', at: [900, 840], size: [570, 1390] },
+    ...[[480, 360], [460, 700], [440, 1060], [420, 1400]].map((at) => ({ k: 'lounge', at, size: [230, 250], face: 'right' })),
+    ...[[1300, 360], [1320, 700], [1350, 1060], [1370, 1400]].map((at) => ({ k: 'lounge', at, size: [230, 250], face: 'left' })),
+    { k: 'plant', at: [330, 110], size: [200, 200], tall: 0.9 },
+    { k: 'plant', at: [1460, 110], size: [200, 200], tall: 0.9 },
+  ],
+  lights: [
+    { at: [900, 500], color: '#ff3df2', power: 2.4 },
+    { at: [900, 1250], color: '#ff3df2', power: 2.4 },
+  ],
+});
+
+// ---- the Social Media Studio: the writers' office, and a neon shoot studio at the end of its hallway ----
+const socialOffice = laid({ image: 'assets/world/social-office.jpg', px: [1213, 1138], at: [-1201, -740], scale: 1.3, crop: [0, 395] }, {
+  walls: [
+    [0, 1275, 0, 405, 1213, 405, 1213, 1095],
+    [345, 405, 345, 1095],
+    [868, 405, 868, 1095],
+    [868, 838, 1130, 838],
+    [1180, 838, 1213, 838],
+    [0, 1095, 88, 1095],
+    [168, 1095, 500, 1095],
+    [608, 1095, 1120, 1095],
+    [1200, 1095, 1213, 1095, 1213, 1119.6],
+    [0, 1275, 1213, 1275, 1213, 1250.4],
+  ],
+  rooms: [
+    { id: 'writers', name: "Writers' room", box: [10, 412, 338, 1088], kind: 'room' },
+    { id: 'planning', name: 'Planning office', box: [352, 412, 862, 1088], kind: 'meet' },
+    { id: 'design', name: 'Design lab', box: [875, 412, 1208, 832], kind: 'room' },
+    { id: 'edit', name: 'Edit suite', box: [875, 845, 1208, 1088], kind: 'room' },
+    { id: 'hall', name: 'Hallway', box: [5, 1100, 1208, 1270], kind: 'other' },
+  ],
+  seats: [
+    { room: 'writers', at: [262, 590], face: 'up' },
+    { room: 'writers', at: [262, 765], face: 'up' },
+    { room: 'writers', at: [262, 940], face: 'up' },
+    { room: 'planning', at: [607, 640], face: 'down' },
+    { room: 'planning', at: [518, 805], face: 'up', chair: 'armchair' },
+    { room: 'planning', at: [692, 805], face: 'up', chair: 'armchair' },
+    { room: 'design', at: [1108, 575], face: 'right' },
+    { room: 'design', at: [1012, 575], face: 'left', chair: 'stool' },
+    { room: 'edit', at: [1015, 985], face: 'right' },
+    { room: 'planning', at: [442, 930], face: 'right', chair: 'none', perch: true },
+    { room: 'planning', at: [442, 1010], face: 'right', chair: 'none', perch: true },
+  ],
+  props: [
+    ...[530, 707, 882].map((y) => ({ k: 'desk', at: [258, y], size: [128, 58], top: '#c98f6b', item: 'typewriter' })),
+    { k: 'plant', at: [213, 1048], size: [70, 70], tall: 0.55, bloom: '#d8333a' },
+    { k: 'plant', at: [302, 1052], size: [55, 55], tall: 0.7 },
+    { k: 'cabinet', at: [475, 440], size: [200, 55], tall: 0.7, top: '#8a5a3c' },
+    { k: 'cabinet', at: [735, 440], size: [200, 55], tall: 0.7, top: '#8a5a3c' },
+    { k: 'shelf', at: [388, 640], size: [165, 60], face: 'right' },
+    { k: 'desk', at: [606, 708], size: [258, 75], top: '#a87252', item: 'papers', face: 'up' },
+    { k: 'sofa', at: [390, 970], size: [180, 70], face: 'right', color: '#a0704d' },
+    { k: 'side', at: [390, 832], size: [60, 60] },
+    { k: 'roundtable', at: [780, 1010], size: [90, 90] },
+    { k: 'plant', at: [825, 843], size: [55, 55], tall: 0.8 },
+    { k: 'cabinet', at: [842, 705], size: [32, 80], tall: 0.8, top: '#8a5a3c' },
+    { k: 'lighttable', at: [950, 575], size: [75, 175] },
+    { k: 'desk', at: [1180, 575], size: [130, 66], top: '#b07c55', item: 'monitor', face: 'left' },
+    { k: 'counter', at: [1000, 805], size: [245, 38], tall: 0.45, color: '#7b5236' },
+    { k: 'desk', at: [1078, 1012], size: [135, 56], top: '#b07c55', item: 'monitor', face: 'left' },
+    { k: 'desk', at: [1012, 1052], size: [75, 55], top: '#b07c55' },
+    { k: 'cabinet', at: [893, 975], size: [30, 190], tall: 0.7, top: '#8a5a3c' },
+  ],
+  lights: [
+    { at: [180, 760], color: '#d6ecff', power: 1.2 },
+    { at: [606, 760], color: '#ffd9a0', power: 1.4 },
+    { at: [1040, 650], color: '#e8f6ff', power: 1.1 },
+  ],
+  entrance: { at: [600, 1235], face: 'up' },
+});
+const socialNeon = laid({ image: 'assets/world/social-neon.jpg', px: [1649, 1799], at: [375.9, -378], scale: 0.5, crop: [150, 0] }, {
+  walls: [
+    [220, 1160, 220, 220, 1700, 220, 1700, 1790, 220, 1790, 220, 1500],
+    [150, 1160, 220, 1160],
+    [150, 1500, 220, 1500],
+  ],
+  rooms: [
+    { id: 'shoot', name: 'Neon studio', box: [230, 230, 1290, 1785], kind: 'room' },
+    { id: 'lounge', name: 'Lounge', box: [1300, 640, 1690, 1785], kind: 'break' },
+  ],
+  seats: [
+    { room: 'shoot', at: [600, 1430], face: 'down' },
+    { room: 'shoot', at: [850, 1430], face: 'down' },
+    { room: 'shoot', at: [1240, 625], face: 'up' },
+    { room: 'shoot', at: [440, 360], face: 'left' },
+    { room: 'shoot', at: [440, 490], face: 'left' },
+    { room: 'lounge', at: [1372, 974], face: 70, chair: 'none', perch: true },
+    { room: 'lounge', at: [1517, 909], face: 70, chair: 'none', perch: true },
+  ],
+  props: [
+    { k: 'desk', at: [305, 440], size: [400, 170], top: '#2a2140', item: 'papers', face: 'right' },
+    { k: 'neon', at: [228, 310], size: [8, 200], lift: 0.95, tall: 0.06, color: '#ff4fd8' },
+    { k: 'desk', at: [1240, 470], size: [240, 180], top: '#15172a', item: 'monitor', face: 'down' },
+    { k: 'lounge', at: [1460, 360], size: [140, 130], face: 45 },
+    { k: 'lounge', at: [1410, 960], size: [170, 150], face: 70 },
+    { k: 'lounge', at: [1555, 895], size: [170, 110], face: 70 },
+    { k: 'side', at: [1460, 1400], size: [90, 90] },
+    { k: 'plant', at: [1560, 1530], size: [150, 150], tall: 0.6, spiky: true },
+    { k: 'console', at: [725, 1565], size: [490, 150], face: 'up' },
+    { k: 'neon', at: [1692, 360], size: [8, 460], lift: 1.25, tall: 0.06, color: '#cfeaff' },
+    { k: 'neon', at: [1692, 1060], size: [8, 580], lift: 1.25, tall: 0.06, color: '#cfeaff' },
+    { k: 'neon', at: [430, 226], size: [330, 8], lift: 1.65, tall: 0.06, color: '#d58cff' },
+    { k: 'neon', at: [755, 226], size: [170, 8], lift: 1.4, tall: 0.06, color: '#ff4fd8' },
+    { k: 'neon', at: [1410, 226], size: [340, 8], lift: 1.65, tall: 0.06, color: '#bfe3ff' },
+  ],
+  lights: [
+    { at: [650, 430], color: '#ff3df2', power: 2.6 },
+    { at: [1450, 900], color: '#2f8cff', power: 2.4 },
+    { at: [900, 1650], color: '#b44dff', power: 2 },
+  ],
+});
 
 export const MAPS = {
   'campus-blue': {
@@ -155,189 +407,18 @@ export const MAPS = {
       [785, 1280, 720, 1220],
     ],
   },
-  hackathon: {
-    name: 'Hackathon floor',
-    image: 'assets/world/hackathon.jpg',
-    thumb: 'assets/world/hackathon-thumb.jpg',
-    w: 5016,
-    h: 3344,
-    rooms: [
-      { id: 'pod-1', name: 'Frontend pod', box: [-2034, -1198, -834, -598], kind: 'room' },
-      { id: 'pod-2', name: 'Backend pod', box: [-802, -1198, 651, -630], kind: 'room' },
-      { id: 'pod-3', name: 'Infrastructure pod', box: [682, -1198, 2040, -598], kind: 'room' },
-      { id: 'pod-4', name: 'Code review pod', box: [-2034, -535, -1024, 2], kind: 'room' },
-      { id: 'hall', name: 'Hackathon hall', box: [-992, -472, 777, 855], kind: 'meet' },
-      { id: 'pod-5', name: 'Testing pod', box: [808, -503, 2040, 2], kind: 'room' },
-      { id: 'pod-6', name: 'Design pod', box: [-2066, 65, -1024, 665], kind: 'room' },
-      { id: 'corner', name: 'Coffee corner', box: [-960, 65, -455, 665], kind: 'break' },
-      { id: 'pod-8', name: 'Data pod', box: [808, 65, 2040, 665], kind: 'room' },
-    ],
-    walls: [
-      [-2268, -1469, 2264, -1476],
-      [2264, -1476, 2329, 1128],
-      [2329, 1128, 514, 1109],
-      [-685, 1116, -2340, 1115],
-      [-2340, 1115, -2268, -1468],
-      [-2024, -1209, -2048, -570],
-      [-2048, -570, -1561, -571],
-      [-998, -572, -828, -577],
-      [-828, -577, -825, -1215],
-      [-825, -1215, -2023, -1210],
-      [-828, -578, -632, -572],
-      [-411, -575, 258, -575],
-      [521, -583, 673, -570],
-      [673, -570, 662, -1200],
-      [662, -1200, -825, -1215],
-      [673, -571, 675, -475],
-      [800, -577, 672, -574],
-      [1166, -579, 2039, -581],
-      [2039, -581, 2020, -1211],
-      [2020, -1211, 663, -1201],
-      [2041, -580, 2052, 37],
-      [2052, 37, 1211, 37],
-      [985, 28, 113, 28],
-      [770, -64, 784, 725],
-      [784, 725, 783, 861],
-      [242, 712, 1028, 710],
-      [1314, 708, 2073, 713],
-      [2073, 713, 2052, 40],
-      [-458, 36, -1109, 26],
-      [-1002, 847, -975, 29],
-      [-458, 711, -1588, 715],
-      [-1867, 715, -2092, 712],
-      [-2092, 712, -2070, 31],
-      [-2070, 31, -1364, 37],
-      [-2049, -571, -2069, 30],
-      [2504, -1671, 2506, 1669],
-      [2506, 1669, -2508, 1669],
-      [-2508, 1669, -2508, -1671],
-      [-2508, -1671, 2502, -1671],
-    ],
-  },
-  strand: {
-    name: 'Creative floor',
-    image: 'assets/world/strand.jpg',
-    thumb: 'assets/world/strand-thumb.jpg',
-    w: 2731,
-    h: 4096,
-    rooms: [
-      { id: 'content-desks', name: 'Content desks', box: [-1159, -1790, -566, -1068], kind: 'room' },
-      { id: 'shoot', name: 'Photo and video shoot', box: [-540, -1764, -24, -1197], kind: 'room' },
-      { id: 'edit', name: 'Editing suite', box: [-1, -1764, 466, -1197], kind: 'room' },
-      { id: 'lounge', name: 'Creator lounge', box: [492, -1790, 1188, -1197], kind: 'break' },
-      { id: 'planning', name: 'Planning room', box: [-1159, -1016, -566, -475], kind: 'room' },
-      { id: 'studio', name: 'Brand studio', box: [-359, -1042, 440, -475], kind: 'meet' },
-      { id: 'community', name: 'Community desk', box: [466, -1042, 1162, -475], kind: 'room' },
-      { id: 'open-desks', name: 'Open desks', box: [-1210, 67, -463, 918], kind: 'room' },
-      { id: 'design', name: 'Design room', box: [595, 67, 1162, 918], kind: 'room' },
-      { id: 'meeting', name: 'Meeting room', box: [389, 1099, 1162, 1744], kind: 'room' },
-    ],
-    walls: [
-      [-222, 51, -42, 57],
-      [-42, 57, -42, 530],
-      [-42, 530, -432, 533],
-      [-432, 533, -435, 788],
-      [-435, 788, -558, 921],
-      [-558, 921, -45, 924],
-      [-45, 924, -41, 826],
-      [-43, 638, -42, 529],
-      [104, 924, 437, 920],
-      [431, 761, 429, 528],
-      [429, 528, 118, 524],
-      [118, 524, 119, 57],
-      [119, 57, 429, 56],
-      [429, 56, 431, 177],
-      [432, 387, 430, 528],
-      [595, 923, 1190, 920],
-      [1190, 920, 1191, 66],
-      [1191, 66, 611, 60],
-      [611, 60, 609, 23],
-      [611, -112, 609, -263],
-      [609, -263, 610, -390],
-      [610, -390, 611, -460],
-      [611, -460, 1189, -464],
-      [1189, -464, 1191, 67],
-      [610, -461, 462, -461],
-      [462, -461, 465, -1027],
-      [465, -1027, 889, -1030],
-      [890, -1196, 1190, -1193],
-      [1190, -1193, 1190, -465],
-      [759, -1192, 503, -1196],
-      [503, -1196, 502, -1492],
-      [502, -1492, 497, -1604],
-      [508, -1492, 709, -1489],
-      [709, -1489, 712, -1199],
-      [1190, -1194, 1184, -1627],
-      [1184, -1627, 1023, -1801],
-      [1023, -1801, 500, -1806],
-      [500, -1806, 502, -1733],
-      [-12, -1745, 499, -1807],
-      [339, -1191, -8, -1193],
-      [-8, -1193, -13, -1746],
-      [-13, -1746, -546, -1799],
-      [-546, -1799, -545, -1429],
-      [-10, -1194, -173, -1194],
-      [-301, -1192, -546, -1189],
-      [-546, -1189, -547, -1295],
-      [-552, -1026, -1180, -1029],
-      [-1180, -1029, -1240, -1457],
-      [-1240, -1457, -1188, -1655],
-      [-1188, -1655, -1013, -1820],
-      [-1013, -1820, -547, -1800],
-      [-1181, -1028, -1187, -455],
-      [-1187, -455, -550, -460],
-      [-550, -460, -548, -589],
-      [-547, -716, -553, -1027],
-      [-363, -863, -363, -1028],
-      [-363, -1028, 310, -1030],
-      [212, -456, -34, -459],
-      [-34, -459, -360, -458],
-      [-360, -458, -363, -635],
-      [-549, -462, -549, -387],
-      [-359, -458, -361, -115],
-      [-361, -115, -331, -118],
-      [-207, -113, -32, -116],
-      [-32, -116, -33, -459],
-      [211, -114, 140, -112],
-      [21, -114, -31, -116],
-      [211, -458, 211, -115],
-      [211, -115, 255, -114],
-      [369, -112, 431, -115],
-      [431, -115, 427, -460],
-      [427, -460, 211, -459],
-      [428, -461, 462, -461],
-      [-373, 57, -431, 57],
-      [-431, 57, -433, 328],
-      [-548, 51, -433, 55],
-      [-546, -256, -550, 51],
-      [-550, 51, -1185, 61],
-      [-1185, 61, -1187, -455],
-      [-701, 973, -700, 919],
-      [-700, 919, -1237, 921],
-      [-1237, 921, -1213, 528],
-      [-1213, 528, -1185, 61],
-      [-574, 1111, -700, 1113],
-      [-700, 1113, -698, 1766],
-      [-698, 1766, -1076, 1760],
-      [-1076, 1760, -1182, 1670],
-      [-1182, 1670, -1173, 1403],
-      [-1173, 1403, -1207, 1134],
-      [-1207, 1134, -1237, 923],
-      [-697, 1764, -245, 1766],
-      [-245, 1766, -246, 1112],
-      [-246, 1112, -399, 1108],
-      [-245, 1109, -53, 1110],
-      [123, 1113, 358, 1107],
-      [358, 1107, 353, 1761],
-      [353, 1761, -245, 1765],
-      [354, 1762, 1191, 1767],
-      [1191, 1767, 1191, 1116],
-      [1191, 1116, 1190, 919],
-      [626, 1109, 1190, 1116],
-      [-1365, 2038, 1363, 2044],
-      [1363, 2044, 1359, -2043],
-      [1359, -2043, -1362, -2047],
-      [-1362, -2047, -1364, 2038],
-    ],
-  },
+  'dev-studio': joined({
+    name: 'Neon build floor',
+    thumb: 'assets/world/dev-studio-thumb.jpg',
+    w: 1260,
+    h: 1800,
+    mood: { light: 0.5, glow: 0.85, wall: '#18222c', cap: DEV_ORANGE },
+  }, devFloor, devBoardroom),
+  'social-studio': joined({
+    name: "Writers' office and neon studio",
+    thumb: 'assets/world/social-studio-thumb.jpg',
+    w: 2402,
+    h: 1480,
+    mood: { light: 0.95, glow: 0.4, wall: '#4a3428', cap: '#ff9f43', ceiling: '#3d3330' },
+  }, socialOffice, socialNeon),
 };

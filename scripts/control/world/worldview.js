@@ -15,6 +15,7 @@ import { identityFor } from '../gems/identities.js';
 import { normalizeState, STATE_LABEL } from '../gems/status.js';
 import { AT_SEAT, createCrowd, officeLayout, petPlaces } from './crowd.js';
 import { createPet, sheet } from './pet.js';
+import { floorsOf } from './maps.js';
 import { buildGrid } from './nav.js';
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -30,7 +31,7 @@ export function createWorld(container, { office, map, onOpen, label = (name) => 
 
   container.innerHTML = `
     <div class="wv" tabindex="0" aria-label="${esc(office.name)} map">
-      <div class="wv-stage"><img class="wv-map" alt="" draggable="false"><canvas class="wv-walls" hidden></canvas></div>
+      <div class="wv-stage"><canvas class="wv-walls" hidden></canvas></div>
       <div class="wv-tools">
         <button type="button" data-z="in" aria-label="Zoom in">+</button>
         <button type="button" data-z="out" aria-label="Zoom out">−</button>
@@ -40,10 +41,9 @@ export function createWorld(container, { office, map, onOpen, label = (name) => 
       <div class="wv-pop" hidden></div>
     </div>`;
   const root = container.querySelector('.wv');
+  root.classList.toggle('pixel', !map.floors); // the Nonilion maps are pixel art: keep their pixels sharp up close
   const stage = root.querySelector('.wv-stage');
-  const img = root.querySelector('.wv-map');
   const pop = root.querySelector('.wv-pop');
-  img.src = `/${map.image}`;
 
   // Stage size: one map unit is `unit` pixels on the stage; the view moves and zooms the whole stage.
   const unit = 0.32;
@@ -51,9 +51,19 @@ export function createWorld(container, { office, map, onOpen, label = (name) => 
   const sh = map.h * unit;
   stage.style.width = `${sw}px`;
   stage.style.height = `${sh}px`;
-  img.style.width = `${sw}px`;
-  img.style.height = `${sh}px`;
   const toStage = ([x, y]) => [(x + map.w / 2) * unit, (y + map.h / 2) * unit];
+  // The floor: one picture, or several laid side by side (maps.js `floors`).
+  for (const f of floorsOf(map)) {
+    const img = document.createElement('img');
+    img.className = 'wv-map';
+    img.alt = '';
+    img.draggable = false;
+    img.src = `/${f.image}`;
+    const [x1, y1] = toStage(f.box.slice(0, 2));
+    const [x2, y2] = toStage(f.box.slice(2));
+    Object.assign(img.style, { width: `${x2 - x1}px`, height: `${y2 - y1}px`, transform: `translate(${x1}px, ${y1}px)` });
+    stage.prepend(img);
+  }
   const place = (el, p) => {
     const [x, y] = toStage(p);
     el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`; // centred on the spot
@@ -200,7 +210,7 @@ export function createWorld(container, { office, map, onOpen, label = (name) => 
     else zoomAt(b.dataset.z === 'in' ? 1.3 : 1 / 1.3, r.width / 2, r.height / 2);
   });
 
-  // "Show walls": the lines agents walk around, to check a map's data.
+  // "Show walls": the lines agents walk around, and the furniture they step round, to check a map's data.
   const wallsCanvas = root.querySelector('.wv-walls');
   root.querySelector('[data-walls]').addEventListener('change', (e) => {
     wallsCanvas.hidden = !e.target.checked;
@@ -218,6 +228,16 @@ export function createWorld(container, { office, map, onOpen, label = (name) => 
       ctx.moveTo(...toStage([x1, y1]));
       ctx.lineTo(...toStage([x2, y2]));
       ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(255, 214, 10, .9)';
+    ctx.lineWidth = 2;
+    for (const b of map.blocks || []) {
+      const [cx, cy] = toStage(b.at);
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(((b.turn || 0) * Math.PI) / 180);
+      ctx.strokeRect((-b.size[0] / 2) * unit, (-b.size[1] / 2) * unit, b.size[0] * unit, b.size[1] * unit);
+      ctx.restore();
     }
   });
 

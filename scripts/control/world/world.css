@@ -48,7 +48,7 @@
 .wv:active { cursor: grabbing; }
 .wv-stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 .wv-map, .wv-walls { position: absolute; left: 0; top: 0; pointer-events: none; }
-.wv.zoomed .wv-map { image-rendering: pixelated; }
+.wv.pixel.zoomed .wv-map { image-rendering: pixelated; }
 .wv-room { position: absolute; left: 0; top: 0; z-index: 2; pointer-events: none; white-space: nowrap; font: 700 11px/1 system-ui, sans-serif; letter-spacing: .06em; text-transform: uppercase; color: #fff; background: rgba(10, 15, 30, .72); padding: 4px 9px; border-radius: 99px; }
 .wv-room.k-meet { background: rgba(76, 141, 255, .88); }
 .wv-room.k-break { background: rgba(255, 159, 67, .9); color: #2a1500; }
@@ -99,3 +99,19 @@
 .wv-pet i { display: block; width: 64px; height: 64px; background-repeat: no-repeat; image-rendering: pixelated; scale: .8; }
 .wv-pet.left i { scale: -.8 .8; }
 .w3-tag.pet { pointer-events: auto; } .w3-tag.pet .w3-name { font-size: 10px; background: rgba(255, 159, 67, .9); color: #2a1500; }
+
+/* ---- inside the 3D office: walking, and riding along with an agent (world/world3d.js) ---- */
+.wv-tools button[aria-pressed="true"] { border-color: var(--oc, #4c8dff); color: #fff; background: rgba(76, 141, 255, .28); }
+.w3.inside .w3-tags .wv-room { display: none; }
+.w3-where { position: absolute; left: 12px; top: 12px; z-index: 5; font-size: 12px; font-weight: 600; color: #fff; background: rgba(10, 15, 30, .82); border: 1px solid var(--line2); border-radius: 99px; padding: 5px 12px; }
+.w3-help { position: absolute; left: 50%; bottom: 14px; translate: -50% 0; z-index: 5; max-width: min(560px, 80%); text-align: center; font-size: 13px; color: #fff; background: rgba(10, 15, 30, .86); border-radius: 12px; padding: 8px 14px; pointer-events: none; }
+.w3-where[hidden], .w3-help[hidden], .w3-pad[hidden], .w3-mini[hidden] { display: none; }
+.w3-mini { position: absolute; right: 12px; top: 52px; z-index: 5; border-radius: 10px; border: 1px solid var(--line2); background: rgba(10, 15, 30, .85); box-shadow: 0 8px 24px rgba(0, 0, 0, .4); pointer-events: none; }
+.w3-pad { position: absolute; left: 12px; bottom: 12px; z-index: 5; display: grid; grid-template-columns: repeat(3, 40px); grid-template-rows: repeat(2, 40px); gap: 4px; }
+.w3-pad button { padding: 0; font-size: 14px; background: rgba(18, 26, 48, .9); touch-action: none; user-select: none; }
+.w3-pad [data-move="fwd"] { grid-column: 2; grid-row: 1; }
+.w3-pad [data-move="turnL"] { grid-column: 1; grid-row: 2; }
+.w3-pad [data-move="back"] { grid-column: 2; grid-row: 2; }
+.w3-pad [data-move="turnR"] { grid-column: 3; grid-row: 2; }
+.w3.inside .w3-canvas { cursor: grab; }
+.w3.inside .wv-pop { bottom: 110px; }
