@@ -210,6 +210,11 @@ export function collectWeek(root, week) {
   const rate = (list) => rateOf(list.filter((r) => r.answered).length, list.length, DEFAULT_MIN);
   const bySubject = tally(rows);
   const bySource = tally(rows.map((r) => ({ ...r, name: r.source })));
+  // Only live sends can be answered by a lead: a test copy goes to a team member, so it never counts against a
+  // subject line or a source.
+  const live = rows.filter((r) => r.mode === 'live');
+  const liveBySubject = tally(live);
+  const liveBySource = tally(live.map((r) => ({ ...r, name: r.source })));
 
   // leads
   const queue = readText(root, 'ops/queue.json');
@@ -261,6 +266,8 @@ export function collectWeek(root, week) {
     rates: { all: rate(rows), live: rate(rows.filter((r) => r.mode === 'live')), test: rate(rows.filter((r) => r.mode === 'test')) },
     bySubject,
     bySource,
+    liveBySubject,
+    liveBySource,
     leads: { runs: leadRuns, found: leadRuns.reduce((n, r) => n + r.found, 0), quiet: leadRuns.filter((r) => r.found === 0).length, imported },
     drafts: { written: drafts, passed: drafts.filter((d) => d.verdict === 'PASS').length },
     decisions: { approved: count('approve'), declined: count('decline') },
@@ -283,9 +290,9 @@ export function adviceFrom(data) {
   if (source) more.push(`Do more of: leads from ${source.name}. They gave the most replies: ${got(source)}.`);
   const subject = best(data.bySubject);
   if (subject) more.push(`Do more of: the subject line "${subject.name}": ${got(subject)}.`);
-  const quietSubject = silent(data.bySubject);
+  const quietSubject = silent(data.liveBySubject || []);
   if (quietSubject) less.push(`Do less of: the subject line "${quietSubject.name}". No replies after ${plural(quietSubject.sent, 'send')}.`);
-  const quietSource = silent(data.bySource);
+  const quietSource = silent(data.liveBySource || []);
   if (quietSource) less.push(`Do less of: leads from ${quietSource.name}. No replies after ${plural(quietSource.sent, 'send')}.`);
   const empty = data.leads.runs
     .filter((r) => r.found === 0)
@@ -294,7 +301,7 @@ export function adviceFrom(data) {
   if (empty && empty.points > 0) less.push(`Do less of: runs that find no leads. ${empty.id} found none and used about ${empty.points} points of the 5-hour window.`);
   const lines = [...more.slice(0, 2), ...less.slice(0, 2)];
   if (!more.length) lines.unshift(`Not enough replies yet to say what to do more of: ${plural(data.sent.live + data.sent.test, 'email')} sent, ${plural(data.received.answers, 'answer')} received. A subject line or a source is judged from ${DEFAULT_MIN} sends.`);
-  if (!less.length && lines.length < 2) lines.push(`Nothing to do less of yet: no subject line or source has had ${DEFAULT_MIN} sends without a reply.`);
+  if (!less.length && lines.length < 2) lines.push(`Nothing to do less of yet: no subject line or source has had ${DEFAULT_MIN} live sends without a reply (test copies go to the team, so they don't count).`);
   return lines.slice(0, 4);
 }
 

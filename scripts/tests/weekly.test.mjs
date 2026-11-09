@@ -240,12 +240,16 @@ describe('what to do more and less of', () => {
     const lines = adviceFrom({ ...base, sent: { live: 4, test: 0 }, bySubject: [{ name: 'S', sent: 4, replied: 0 }], bySource: [{ name: 'a.test', sent: 4, replied: 0 }] });
     assert.equal(lines.length, 2);
     assert.match(lines[0], /^Not enough replies yet to say what to do more of: 4 emails sent, 0 answers received\./);
-    assert.match(lines[1], /^Nothing to do less of yet: no subject line or source has had 10 sends without a reply\.$/);
+    assert.match(lines[1], /^Nothing to do less of yet: no subject line or source has had 10 live sends without a reply \(test copies go to the team, so they don't count\)\.$/);
   });
 
-  it('judges a subject line or a source silent only from 10 sends, and picks the one with the most sends', () => {
-    const lines = adviceFrom({ ...base, bySubject: [{ name: 'Nine', sent: 9, replied: 0 }, { name: 'Ten', sent: 10, replied: 0 }, { name: 'Twelve', sent: 12, replied: 0 }], bySource: [{ name: 'a.test', sent: 9, replied: 0 }] });
+  it('judges a subject line or a source silent only from 10 live sends, and picks the one with the most sends', () => {
+    const subjects = [{ name: 'Nine', sent: 9, replied: 0 }, { name: 'Ten', sent: 10, replied: 0 }, { name: 'Twelve', sent: 12, replied: 0 }];
+    const lines = adviceFrom({ ...base, bySubject: subjects, liveBySubject: subjects, bySource: [{ name: 'a.test', sent: 9, replied: 0 }], liveBySource: [{ name: 'a.test', sent: 9, replied: 0 }] });
     assert.deepEqual(lines.filter((l) => /^Do less/.test(l)), ['Do less of: the subject line "Twelve". No replies after 12 sends.']);
+    // Test copies go to team members, who never reply as a lead: 14 of them say nothing about a source.
+    const tests = adviceFrom({ ...base, bySource: [{ name: 'mxraven.com', sent: 14, replied: 0 }], liveBySource: [] });
+    assert.ok(!tests.some((l) => /^Do less of: leads from/.test(l)), tests.join('\n'));
   });
 
   it('prefers the source and subject with the most replies, then the better rate', () => {
