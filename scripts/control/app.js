@@ -15,6 +15,7 @@ import { startTour } from './gems/tour.js';
 import { budgetWarning, STUCK_MIN, stuckAgents, taskBudget } from './gems/watch.js';
 import { createVoice } from './gems/voice.js';
 import { mountOffice } from './office3d/mount.js';
+import { badgeOf, roleText } from './world/crew.js';
 import { MAPS } from './world/maps.js';
 import { OFFICES, officeById } from './world/offices.js';
 import { createWorld3D, webgl3dAvailable } from './world/world3d.js';
@@ -1655,11 +1656,12 @@ const officesView = {
       <div class="offices-grid">${OFFICES.map((o) => {
         const map = MAPS[o.map];
         const team = Object.keys(o.seats);
-        const faces = team.slice(0, 5).map((n) => avatarHTML(n, { size: 'xs', mode: 'badge' })).join('');
+        const crew = o.crew || [];
+        const faces = team.length ? team.slice(0, 5).map((n) => avatarHTML(n, { size: 'xs', mode: 'badge' })).join('') : crew.slice(0, 5).map((c) => `<img src="${badgeOf(c.look)}" alt="${esc(c.name)}" title="${esc(`${c.name}, ${c.role}`)}">`).join('');
         return `<article class="office-card" data-office="${esc(o.id)}">
           <div class="office-pic"><img src="/${esc(map.thumb)}" alt="${esc(map.name)} map" loading="lazy"><span class="office-badge${team.length ? '' : ' soon'}" data-badge>${team.length ? 'Open' : 'Ready for a team'}</span><span class="office-faces">${faces}</span></div>
           <div class="office-body"><div class="office-team">${esc(o.team)}</div><h2>${esc(o.name)}</h2><p>${esc(o.blurb)}</p>
-            <div class="office-stats" data-stats>${team.length ? `<span><b>${team.length}</b> agents</span>` : `<span><b>${o.planned.length}</b> seats planned</span>`}<span><b>${map.rooms.filter((r) => r.kind !== 'other').length}</b> rooms</span></div>
+            <div class="office-stats" data-stats>${team.length ? `<span><b>${team.length}</b> agents</span>` : `${crew.length ? `<span><b>${crew.length}</b> robots in training</span><span><b>${o.planned.length - crew.length}</b> open seats</span>` : `<span><b>${o.planned.length}</b> seats planned</span>`}`}<span><b>${map.rooms.filter((r) => r.kind !== 'other').length}</b> rooms</span></div>
             <div class="office-go"><a class="primary" href="#/world/${esc(o.id)}">Enter the office</a>${o.classic ? '<a href="#/">2D and 3D view</a>' : ''}</div></div>
         </article>`;
       }).join('')}</div>
@@ -1703,7 +1705,7 @@ const worldView = {
       <div class="world-bar"><h1>${esc(office.name)}</h1><span class="office-team">${esc(office.team)}</span>
         ${office.view3d ? '<div class="world-mode" role="group" aria-label="View"><button type="button" data-mode="map">Map</button><button type="button" data-mode="3d">3D</button></div>' : ''}
         <nav class="world-switch" aria-label="Offices">${OFFICES.map((o) => `<a href="#/world/${esc(o.id)}" class="${o.id === office.id ? 'on' : ''}">${esc(o.name)}</a>`).join('')}<a href="#/offices">All offices</a>${office.classic ? '<a href="#/">2D and 3D view</a>' : ''}</nav></div>
-      ${team.length ? '' : `<div class="world-note">This office is ready for the <b>${esc(office.team.toLowerCase())}</b> team. The dashed seats show where each planned role will sit: ${office.planned.map((p) => esc(p.role)).join(', ')}.</div>`}
+      ${team.length ? '' : `<div class="world-note">This office is ready for the <b>${esc(office.team.toLowerCase())}</b> team.${office.crew?.length ? ` Its robot crew shows how it will work: ${office.crew.map((c) => `${esc(c.name)} (${esc(roleText(c.role))})`).join(', ')}. They have no skills or tasks yet.` : ''} ${office.planned.length > (office.crew?.length || 0) ? `The dashed seats are the other planned roles: ${office.planned.filter((p) => !office.crew?.some((c) => c.role === p.role)).map((p) => esc(p.role)).join(', ')}.` : ''}</div>`}
       <div class="world-map" id="world-map"></div></div>`;
     $('.world-page').style.setProperty('--oc', office.accent);
     $('.world-mode')?.addEventListener('click', (e) => {

@@ -9,6 +9,7 @@
 //   crowd.actors                    name -> { at, heading, path, status, atSeat }
 //
 // No browser code here, so it is tested directly.
+import { crewKey } from './crew.js';
 import { findPath, pathLength, pointAlong, spotsIn } from './nav.js';
 
 // Where seats go in a room: its middle, leaving the top edge (walls and furniture) and the bottom edge (the label).
@@ -20,7 +21,9 @@ export const inner = ([x1, y1, x2, y2]) => {
 
 // An office's seats (agent -> point), how each one is sat on (agent -> { face, chair, fixed }), the seats of roles
 // planned but not yet filled ([{ role, at, face, chair, fixed }]), the spots idle agents wander to (in its break and
-// meeting rooms), and which of those spots are chairs to sit on (perches: "x,y" -> face). A room's seats are the chairs drawn on its map (maps.js `seats`), in order; when a room
+// meeting rooms), and which of those spots are chairs to sit on (perches: "x,y" -> face). An office's robot crew
+// (offices.js `crew`) sits in its planned roles' seats: each robot is in `seats` and `how` under crewKey(id), listed
+// in `crew`, and its role is no longer an empty planned seat. A room's seats are the chairs drawn on its map (maps.js `seats`), in order; when a room
 // has more people than chairs, or none drawn, the rest are spread over the room and get a desk of their own in 3D.
 export function officeLayout(office, map, grid) {
   const rooms = new Map(map.rooms.map((r) => [r.id, r]));
@@ -50,12 +53,22 @@ export function officeLayout(office, map, grid) {
     });
   }
   const planned = [];
+  const crew = [];
+  const robotFor = new Map((office.crew || []).map((c) => [c.role, c]));
   for (const [room, roles] of byRoom((office.planned || []).map((p) => [p.role, p.room]))) {
-    placesIn(room, roles.length).forEach((place, i) => planned.push({ role: roles[i], ...place }));
+    placesIn(room, roles.length).forEach((place, i) => {
+      const robot = robotFor.get(roles[i]);
+      if (!robot) return planned.push({ role: roles[i], ...place });
+      const key = crewKey(robot.id);
+      seats.set(key, place.at);
+      how.set(key, place);
+      crew.push({ key, ...robot });
+      return undefined;
+    });
   }
   const wander = map.rooms.filter((r) => r.kind === 'break' || r.kind === 'meet').flatMap((r) => spotsIn(grid, inner(r.box), 6, 110));
   wander.push(...perches.map((p) => p.at));
-  return { seats, how, planned, wander, perches: new Map(perches.map((p) => [p.at.join(), p.face])) };
+  return { seats, how, planned, crew, wander, perches: new Map(perches.map((p) => [p.at.join(), p.face])) };
 }
 
 // Where an office pet may trot to: a few spots in every named room.

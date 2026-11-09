@@ -13,6 +13,7 @@
 import { avatarHTML, mountAvatars, setAvatarStatus } from '../gems/avatar.js';
 import { identityFor } from '../gems/identities.js';
 import { normalizeState, STATE_LABEL } from '../gems/status.js';
+import { badgeOf, roleText } from './crew.js';
 import { AT_SEAT, createCrowd, officeLayout, petPlaces } from './crowd.js';
 import { createPet, sheet } from './pet.js';
 import { floorsOf } from './maps.js';
@@ -26,7 +27,8 @@ export function createWorld(container, { office, map, onOpen, label = (name) => 
   // The name on an agent's tag: its Gem name, or its job title when it has no Gem of its own.
   const gemName = (name) => (identityFor(name).name === name ? label(name) : identityFor(name).name);
   const roomById = new Map(map.rooms.map((r) => [r.id, r]));
-  const { seats: seatOf, planned, wander } = officeLayout(office, map, grid);
+  const { seats: seatOf, planned, crew, wander } = officeLayout(office, map, grid);
+  const crewBy = new Map(crew.map((c) => [c.key, c])); // the office's robots (crew.js): front end only
   const crowd = createCrowd({ grid, seats: seatOf, wander, speed: SPEED });
 
   container.innerHTML = `
@@ -93,7 +95,10 @@ export function createWorld(container, { office, map, onOpen, label = (name) => 
     el.type = 'button';
     el.className = 'wv-agent';
     el.dataset.agent = name;
-    el.innerHTML = `${avatarHTML(name, { size: 'sm', mode: 'badge' })}<span class="wv-name">${esc(gemName(name))}</span><span class="wv-doing" hidden></span>`;
+    const robot = crewBy.get(name);
+    el.innerHTML = robot
+      ? `<img class="wv-bot" src="${badgeOf(robot.look)}" alt=""><span class="wv-name">${esc(robot.name)}</span>`
+      : `${avatarHTML(name, { size: 'sm', mode: 'badge' })}<span class="wv-name">${esc(gemName(name))}</span><span class="wv-doing" hidden></span>`;
     stage.append(el);
     const at = [...seatOf.get(name)];
     place(el, at);
@@ -246,6 +251,12 @@ export function createWorld(container, { office, map, onOpen, label = (name) => 
     const el = e.target.closest('.wv-agent');
     if (!el) return;
     const a = actors.get(el.dataset.agent);
+    const robot = crewBy.get(a.name);
+    if (robot) {
+      pop.innerHTML = `<b>${esc(robot.name)}</b><span class="muted"> · ${esc(robot.role)}</span><div><span class="st-pill st-paused">In training</span></div><p>A robot of the ${esc(office.team.toLowerCase())} crew. It has no skills or tasks yet: it shows where the ${esc(roleText(robot.role))} will work.</p>`;
+      pop.hidden = false;
+      return;
+    }
     const st = normalizeState(a.status);
     pop.innerHTML = `<b>${esc(gemName(a.name))}</b><span class="muted"> · ${esc(label(a.name))}</span><div><span class="st-pill st-${esc(st)}">${esc(STATE_LABEL[st])}</span></div>${a.doing ? `<p>${esc(a.doing)}</p>` : ''}<button type="button" class="small primary" data-open="${esc(a.name)}">Open its page</button>`;
     pop.hidden = false;

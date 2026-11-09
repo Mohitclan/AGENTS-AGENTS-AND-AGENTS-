@@ -8,6 +8,8 @@
 //   classic  true when the office also has the older 2D and 3D views (#/), which show this team too
 //   view3d   true when the office can also be shown in 3D (world/world3d.js), built from its map
 //   pet      'dog' for the office dog (world/pet.js), which wanders the floor
+//   crew     robots that sit in some planned roles' seats until real agents exist: { id, name, role, look }, the
+//            role one of `planned`, the look one of world/crew.js. Front end only: no skills or tasks
 //
 // No browser code here, so the registry is checked by the tests.
 
@@ -58,6 +60,13 @@ export const OFFICES = [
       { role: 'Tech lead', room: 'ops' },
       { role: 'DevOps engineer', room: 'ops' },
     ],
+    crew: [
+      { id: 'pixel', name: 'Pixel', role: 'Frontend developer', look: 'buddy' },
+      { id: 'root', name: 'Root', role: 'Backend developer', look: 'shadow' },
+      { id: 'mochi', name: 'Mochi', role: 'Product designer', look: 'sweetie' },
+      { id: 'probe', name: 'Probe', role: 'QA tester', look: 'curious' },
+      { id: 'kube', name: 'Kube', role: 'DevOps engineer', look: 'wink' },
+    ],
   },
   {
     id: 'social',
@@ -77,6 +86,13 @@ export const OFFICES = [
       { role: 'Designer', room: 'design' },
       { role: 'Video editor', room: 'edit' },
       { role: 'Photographer', room: 'shoot' },
+    ],
+    crew: [
+      { id: 'sunny', name: 'Sunny', role: 'Content planner', look: 'buddy' },
+      { id: 'reel', name: 'Reel', role: 'Video editor', look: 'shadow' },
+      { id: 'rosie', name: 'Rosie', role: 'Designer', look: 'sweetie' },
+      { id: 'quill', name: 'Quill', role: 'Copywriter', look: 'curious' },
+      { id: 'snap', name: 'Snap', role: 'Photographer', look: 'wink' },
     ],
   },
 ];

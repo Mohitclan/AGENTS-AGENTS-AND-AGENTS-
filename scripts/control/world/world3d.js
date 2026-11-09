@@ -21,11 +21,13 @@ import { mergeGeometries } from '/vendor/three/examples/jsm/utils/BufferGeometry
 import { identityFor } from '../gems/identities.js';
 import { normalizeState, STATE_LABEL } from '../gems/status.js';
 import { Character, loadRig } from '../office3d/characters.js';
+import { faceOf, LOOKS, roleText } from './crew.js';
 import { AT_SEAT, createCrowd, officeLayout, petPlaces, SPEED } from './crowd.js';
 import { floorsOf, turnOf } from './maps.js';
 import { createPet, DOG, sheet } from './pet.js';
 import { buildGrid, findPath, nearestFree, stepWithin, standable } from './nav.js';
 import { createKit } from './props3d.js';
+import { RobotBuddy } from './robot3d.js';
 
 const M = 0.01; // metres per map unit
 const PET = '__pet'; // what "follow" holds while following the office dog
@@ -58,9 +60,10 @@ export function webgl3dAvailable() {
 
 export async function createWorld3D(container, { office, map, label = (n) => n, onOpen }) {
   const grid = buildGrid(map);
-  const { seats, how, planned, wander, perches } = officeLayout(office, map, grid);
+  const { seats, how, planned, crew, wander, perches } = officeLayout(office, map, grid);
   const crowd = createCrowd({ grid, seats, wander });
-  const gemName = (name) => (identityFor(name).name === name ? label(name) : identityFor(name).name);
+  const crewBy = new Map(crew.map((c) => [c.key, c])); // the office's robots (crew.js): front end only
+  const gemName = (name) => crewBy.get(name)?.name || (identityFor(name).name === name ? label(name) : identityFor(name).name);
   const to3 = ([x, y], h = 0) => new THREE.Vector3(x * M, h, y * M);
   const mood = { light: 1, glow: 0, ...map.mood };
   const seatYaw = (name) => yawOf(how.get(name)?.face);
@@ -225,8 +228,17 @@ export async function createWorld3D(container, { office, map, label = (n) => n, 
 
   // ---- the people ----
   const names = [...seats.keys()];
-  const rigs = await Promise.all(names.map((n) => loadRig('people', n)));
-  const rig0 = rigs[0] || (await loadRig('people', ''));
+  const agentNames = names.filter((n) => !crewBy.has(n));
+  const rigs = new Map(await Promise.all(agentNames.map(async (n) => [n, await loadRig('people', n)])));
+  const rig0 = rigs.get(agentNames[0]) || (await loadRig('people', ''));
+  const faces = {};
+  await Promise.all([...new Set(crew.map((c) => c.look))].map(async (look) => {
+    const tex = await loader.loadAsync(faceOf(look));
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    faces[look] = tex;
+    disposables.push(tex);
+  }));
 
   // The furniture from the map, then a chair at every seat. A seat the map draws (maps.js `seats`) is at a desk that
   // is already there; any other seat gets a desk of its own, in front of the person.
@@ -244,9 +256,11 @@ export async function createWorld3D(container, { office, map, label = (n) => n, 
   scene.add(furniture);
 
   const people = new Map();
-  names.forEach((name, i) => {
-    const id = identityFor(name);
-    const ch = new Character(rigs[i], { name, color: id.theme?.primary || '#a58ff0' });
+  names.forEach((name) => {
+    const robot = crewBy.get(name);
+    const ch = robot
+      ? new RobotBuddy(LOOKS[robot.look], { name, face: faces[robot.look] })
+      : new Character(rigs.get(name), { name, color: identityFor(name).theme?.primary || '#a58ff0' });
     ch.root.position.copy(to3(seats.get(name)));
     ch.root.rotation.y = seatYaw(name);
     ch.sitNow();
@@ -254,7 +268,7 @@ export async function createWorld3D(container, { office, map, label = (n) => n, 
     scene.add(ch.root);
     const tag = document.createElement('button');
     tag.type = 'button';
-    tag.className = 'w3-tag';
+    tag.className = robot ? 'w3-tag crew' : 'w3-tag';
     tag.dataset.agent = name;
     tag.innerHTML = `<span class="w3-name">${esc(gemName(name))}</span><span class="wv-doing" hidden></span>`;
     tagLayer.append(tag);
@@ -390,7 +404,7 @@ export async function createWorld3D(container, { office, map, label = (n) => n, 
     }
     setMode('walk');
     root.focus({ preventScroll: true });
-    showHelp('Walk with W A S D or the arrow keys, drag to look around, hold Shift to run. Esc takes you back to the overview.');
+    showHelp('Walk with W A S D or the arrow keys, drag to look around, hold Shift to run, or click the mini-map to jump. Esc takes you back to the overview.');
   };
   const rideWith = (name) => {
     if (rider) {
@@ -474,6 +488,15 @@ export async function createWorld3D(container, { office, map, label = (n) => n, 
   mini.height = Math.round(map.h * miniScale);
   const mctx = mini.getContext('2d');
   const toMini = ([x, y]) => [(x + map.w / 2) * miniScale, (y + map.h / 2) * miniScale];
+  // Click a spot on the mini-map to step there (the nearest open floor to it).
+  mini.addEventListener('click', (e) => {
+    const r = mini.getBoundingClientRect();
+    const to = [((e.clientX - r.left) / r.width) * map.w - map.w / 2, ((e.clientY - r.top) / r.height) * map.h - map.h / 2];
+    const cell = standable(map, ...to) ? null : nearestFree(grid, ...to);
+    if (!cell && !standable(map, ...to)) return;
+    if (mode !== 'walk') walkIn();
+    me.at = cell ? grid.toPoint(...cell) : to;
+  });
   let miniAt = 0;
   const drawMini = (now) => {
     if (now - miniAt < 90) return;
@@ -671,6 +694,12 @@ export async function createWorld3D(container, { office, map, label = (n) => n, 
   const showCard = (name) => {
     const p = people.get(name);
     if (!p) return;
+    const robot = crewBy.get(name);
+    if (robot) {
+      pop.innerHTML = `<b>${esc(robot.name)}</b><span class="muted"> · ${esc(robot.role)}</span><div><span class="st-pill st-paused">In training</span></div><p>A robot of the ${esc(office.team.toLowerCase())} crew. It has no skills or tasks yet: it shows where the ${esc(roleText(robot.role))} will work.</p><div class="w3-pop-actions"><button type="button" class="small" data-follow="${esc(name)}">Follow</button><button type="button" class="small" data-ride="${esc(name)}">Ride along</button></div>`;
+      pop.hidden = false;
+      return;
+    }
     const st = normalizeState(p.status);
     pop.innerHTML = `<b>${esc(gemName(name))}</b><span class="muted"> · ${esc(label(name))}</span><div><span class="st-pill st-${esc(st)}">${esc(STATE_LABEL[st])}</span></div>${p.doing ? `<p>${esc(p.doing)}</p>` : ''}<div class="w3-pop-actions"><button type="button" class="small" data-follow="${esc(name)}">Follow</button><button type="button" class="small" data-ride="${esc(name)}">Ride along</button><button type="button" class="small primary" data-open="${esc(name)}">Open its page</button></div>`;
     pop.hidden = false;

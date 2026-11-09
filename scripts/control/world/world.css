@@ -106,7 +106,7 @@
 .w3-where { position: absolute; left: 12px; top: 12px; z-index: 5; font-size: 12px; font-weight: 600; color: #fff; background: rgba(10, 15, 30, .82); border: 1px solid var(--line2); border-radius: 99px; padding: 5px 12px; }
 .w3-help { position: absolute; left: 50%; bottom: 14px; translate: -50% 0; z-index: 5; max-width: min(560px, 80%); text-align: center; font-size: 13px; color: #fff; background: rgba(10, 15, 30, .86); border-radius: 12px; padding: 8px 14px; pointer-events: none; }
 .w3-where[hidden], .w3-help[hidden], .w3-pad[hidden], .w3-mini[hidden] { display: none; }
-.w3-mini { position: absolute; right: 12px; top: 52px; z-index: 5; border-radius: 10px; border: 1px solid var(--line2); background: rgba(10, 15, 30, .85); box-shadow: 0 8px 24px rgba(0, 0, 0, .4); pointer-events: none; }
+.w3-mini { position: absolute; right: 12px; top: 52px; z-index: 5; border-radius: 10px; border: 1px solid var(--line2); background: rgba(10, 15, 30, .85); box-shadow: 0 8px 24px rgba(0, 0, 0, .4); cursor: crosshair; }
 .w3-pad { position: absolute; left: 12px; bottom: 12px; z-index: 5; display: grid; grid-template-columns: repeat(3, 40px); grid-template-rows: repeat(2, 40px); gap: 4px; }
 .w3-pad button { padding: 0; font-size: 14px; background: rgba(18, 26, 48, .9); touch-action: none; user-select: none; }
 .w3-pad [data-move="fwd"] { grid-column: 2; grid-row: 1; }
@@ -115,3 +115,11 @@
 .w3-pad [data-move="turnR"] { grid-column: 3; grid-row: 2; }
 .w3.inside .w3-canvas { cursor: grab; }
 .w3.inside .wv-pop { bottom: 110px; }
+
+/* ---- the robot crew (world/crew.js) ---- */
+.wv-bot { width: 44px; height: 44px; border-radius: 50%; display: block; background: #fff; box-shadow: 0 0 0 2px var(--oc, #4c8dff), 0 4px 12px rgba(0, 0, 0, .35); }
+.wv-agent.left .wv-bot { scale: -1 1; }
+.wv-agent.walking .wv-bot { animation: wv-bob .36s ease-in-out infinite alternate; }
+.w3-tag.crew .w3-name { border: 1px solid var(--oc, #4c8dff); }
+.office-faces img { width: 30px; height: 30px; margin-left: -10px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 2px #0b0f1d; }
+@media (prefers-reduced-motion: reduce) { .wv-agent.walking .wv-bot { animation: none; } }

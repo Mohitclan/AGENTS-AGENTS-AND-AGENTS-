@@ -602,7 +602,7 @@ const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/cs
 const STATIC_FILES = /^(app\.js|app\.css|signin\.js|(gems|office3d|world)\/[\w-]+\.(js|css))$/;
 // The 3D office: its character model, and the Three.js files it uses (copied in by
 // scripts/vendor-three.mjs). Both are cached for a day; everything else is no-store.
-const ASSET_FILES = /^assets\/((people\/)?[\w-]+\.glb|people\/Textures\/[\w-]+\.png|world\/[\w-]+\.jpg|sounds\/[\w-]+\.(mp3|wav)|dog\/[\w-]+\.png)$/;
+const ASSET_FILES = /^assets\/((people\/)?[\w-]+\.glb|people\/Textures\/[\w-]+\.png|world\/[\w-]+\.jpg|crew\/[\w-]+\.png|sounds\/[\w-]+\.(mp3|wav)|dog\/[\w-]+\.png)$/;
 const THREE_FILES = /^vendor\/three\/(build\/three\.(module|core)\.js|examples\/jsm\/(loaders|controls|utils|environments)\/\w+\.js)$/;
 const isLocal = (host) => /^(127\.0\.0\.1|localhost)(:\d+)?$/.test(host || '');
 const goodHost = (host, site) => (site ? host === site : isLocal(host));

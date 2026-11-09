@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
+import { badgeOf, crewKey, faceOf, LOOKS, roleText } from '../control/world/crew.js';
 import { AT_SEAT, createCrowd, officeLayout } from '../control/world/crowd.js';
 import { floorsOf, MAPS, SOLID, turnOf } from '../control/world/maps.js';
 import { buildGrid, clearLine, distToSegment, findPath, inBlock, pathLength, pointAlong, spotsIn, standable, stepWithin } from '../control/world/nav.js';
@@ -201,6 +202,45 @@ describe('the offices', () => {
   });
 });
 
+describe('the robot crew', () => {
+  const agents = new Set(readdirSync(join(ROOT, '.claude', 'agents')).map((f) => f.replace(/\.md$/, '')));
+  const file = (url) => join(ROOT, 'scripts', 'control', url.replace(/^\//, ''));
+
+  it('gives each studio five robots in planned roles, with a look whose face and badge exist, apart from the agents', () => {
+    const ids = OFFICES.flatMap((o) => (o.crew || []).map((c) => c.id));
+    assert.equal(new Set(ids).size, ids.length, 'every robot has its own id');
+    for (const o of OFFICES.filter((x) => x.crew)) {
+      assert.equal(o.crew.length, 5, `${o.id} has five robots`);
+      assert.equal(new Set(o.crew.map((c) => c.role)).size, 5, 'one robot per role');
+      for (const c of o.crew) {
+        assert.ok(o.planned.some((p) => p.role === c.role), `${c.name} sits in a planned role (${c.role})`);
+        assert.ok(LOOKS[c.look], `${c.look} is a look`);
+        assert.ok(existsSync(file(faceOf(c.look))) && existsSync(file(badgeOf(c.look))), `${c.look} pictures`);
+        assert.ok(!agents.has(c.id) && !agents.has(c.name.toLowerCase()), `${c.name} is not mistaken for an agent`);
+      }
+      assert.deepEqual(new Set(o.crew.map((c) => c.look)), new Set(Object.keys(LOOKS)), `${o.id} uses all five looks`);
+    }
+    assert.equal(roleText('QA tester'), 'QA tester');
+    assert.equal(roleText('Video editor'), 'video editor');
+  });
+
+  it('seats each robot in the seat of its role, where a visitor can walk, and leaves only the other roles as empty seats', () => {
+    for (const o of OFFICES.filter((x) => x.crew)) {
+      const map = MAPS[o.map];
+      const grid = buildGrid(map);
+      const { seats, crew, planned } = officeLayout(o, map, grid);
+      assert.equal(crew.length, o.crew.length);
+      for (const c of o.crew) {
+        const at = seats.get(crewKey(c.id));
+        assert.ok(at, `${c.name} has a seat`);
+        assert.ok(findPath(grid, map.entrance.at, at), `${c.name}'s seat can be walked to`);
+        assert.ok(!planned.some((p) => p.role === c.role), `${c.role} is no longer an empty seat`);
+      }
+      assert.equal(planned.length, o.planned.length - o.crew.length);
+    }
+  });
+});
+
 describe('the offices on mission control', () => {
   const repo = makeCopy();
   let base;
@@ -217,6 +257,10 @@ describe('the offices on mission control', () => {
   it('serves the map code, its stylesheet and the pictures', async () => {
     for (const f of ['world/worldview.js', 'world/world3d.js', 'world/props3d.js', 'world/crowd.js', 'world/nav.js', 'world/maps.js', 'world/offices.js', 'world/world.css']) assert.equal((await fetch(`${base}/${f}`)).status, 200, f);
     for (const f of ['dev-floor', 'dev-boardroom', 'social-office', 'social-neon']) assert.equal((await fetch(`${base}/assets/world/${f}.jpg`)).status, 200, f);
+    for (const f of ['world/crew.js', 'world/robot3d.js']) assert.equal((await fetch(`${base}/${f}`)).status, 200, f);
+    const face = await fetch(`${base}/assets/crew/buddy-face.png`);
+    assert.equal(face.headers.get('content-type'), 'image/png');
+    assert.equal((await fetch(`${base}/assets/crew/buddy-face.svg`)).status, 404, 'only the crew pictures');
     const pic = await fetch(`${base}/assets/world/campus-blue.jpg`);
     assert.equal(pic.status, 200);
     assert.equal(pic.headers.get('content-type'), 'image/jpeg');
