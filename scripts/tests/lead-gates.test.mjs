@@ -204,6 +204,23 @@ describe('hardened gate', () => {
     assert.match(line('Corrected'), /Stop.*no evidence/);
     assert.equal(repo.run('leads.mjs', 'supersede', id, '9', 'nope').code, 1);
   });
+  it('supersedes a whole revision from one file, or nothing when any line is wrong', () => {
+    qualified(lead('Batch', 'https://batch.example', {
+      evidence: [{ claim: 'Old A', url: 'https://batch.example/a', signal: 'published' }, { claim: 'Old B', url: 'https://batch.example/b', signal: 'published' }, { claim: 'Still true', url: 'https://batch.example/c', signal: 'published' }],
+    }));
+    const id = byCompany('Batch').id;
+    const write = (name, rows) => writeFileSync(repo.path('pipeline', 'inbox', name), rows.map((r) => JSON.stringify(r)).join('\n'));
+    write('fix-bad.jsonl', [{ id, n: 0, why: 'moved' }, { id, n: 7, why: 'no such item' }]);
+    const bad = repo.run('leads.mjs', 'supersede', '--from', 'pipeline/inbox/fix-bad.jsonl');
+    assert.equal(bad.code, 1);
+    assert.match(bad.stderr + bad.stdout, /Nothing was changed[\s\S]*line 2/);
+    assert.ok(!byCompany('Batch').evidence[0].superseded, 'all or none');
+    write('fix.jsonl', [{ id, n: 0, why: 'the page moved' }, { id, n: 1, why: 'the date is older' }]);
+    assert.equal(repo.run('leads.mjs', 'supersede', '--from', 'pipeline/inbox/fix.jsonl').code, 0);
+    const fixed = byCompany('Batch');
+    assert.deepEqual(fixed.evidence.map((e) => !!e.superseded), [true, true, false]);
+    assert.equal(fixed.history.filter((h) => h.event === 'supersede').length, 2);
+  });
   it('updates a next action and records it', () => {
     const id = byCompany('Fresh').id;
     assert.equal(repo.run('leads.mjs', 'next', id, 'Recheck', 'the', 'launch').code, 0);

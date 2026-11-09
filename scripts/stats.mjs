@@ -185,10 +185,12 @@ const cellsOf = (line) => line.trim().replace(/^\||\|$/g, '').split('|').map((c)
 const plain = (s) => s.replace(/[*`]/g, '').trim();
 
 // "T-20261030-01-review.md" is round 1, "...-review-r2.md" and "...-r2.md" are round 2.
-// A lettered sub-task ("T-20261103-09a-r1.md") is its own task.
+// A lettered sub-task ("T-20261103-09a-r1.md") is its own task. One part of a batch reviewed in parallel names its
+// lead ("T-20261109-02-L-1ac84fe1-r1.md"): the task's review is all its parts together.
 export function reviewName(file) {
-  const m = /^(T-\d{8}-\d{2}[a-z]?)(?:-review)?(?:-r(\d+))?\.md$/.exec(file);
-  return m ? { task: m[1], round: m[2] ? Number(m[2]) : 1 } : null;
+  const m = /^(T-\d{8}-\d{2}[a-z]?)(?:-review)?(?:-(L-[0-9a-f]{6,}))?(?:-r(\d+))?\.md$/.exec(file);
+  if (!m) return null;
+  return m[2] ? { task: m[1], round: m[3] ? Number(m[3]) : 1, part: m[2] } : { task: m[1], round: m[3] ? Number(m[3]) : 1 };
 }
 
 // A table lists drafts only if its first column is not a list of checks, items or rules.
@@ -262,7 +264,7 @@ export function reviewStats(files, min = DEFAULT_MIN) {
     const parsed = parseReview(f.text);
     if (parsed.warning) warnings.push(`${f.name}: ${parsed.warning}`);
     if (!tasks.has(id.task)) tasks.set(id.task, []);
-    tasks.get(id.task).push({ file: f.name, round: id.round, ...parsed });
+    tasks.get(id.task).push({ file: f.name, round: id.round, part: id.part || '', ...parsed });
   }
   const rows = [];
   const gaps = [];
@@ -272,10 +274,12 @@ export function reviewStats(files, min = DEFAULT_MIN) {
   let reviewCount = 0;
   for (const [task, list] of [...tasks].sort(([a], [b]) => a.localeCompare(b))) {
     list.sort((a, b) => a.round - b.round);
-    const first = list[0];
+    const first = { round: list[0].round, results: list.filter((r) => r.round === list[0].round).flatMap((r) => r.results) };
     const hasFirst = first.round === 1;
-    // A file for round N proves rounds 1 to N took place, even when an earlier file is missing.
-    const rounds = Math.max(list.length, list[list.length - 1].round);
+    // A file for round N proves rounds 1 to N took place, even when an earlier file is missing. Parts of one batch
+    // are reviewed side by side, so the rounds are those of the part that needed the most.
+    const parts = Map.groupBy(list, (r) => r.part);
+    const rounds = Math.max(...[...parts.values()].map((p) => Math.max(p.length, p[p.length - 1].round)));
     if (!hasFirst) gaps.push(`${task}: no round 1 review file (earliest is r${first.round}); left out of the first-review pass rate; revisions are counted from the highest round (r${list[list.length - 1].round}), so the earlier review is counted as having happened`);
     revisions += rounds - 1;
     reviewCount += list.length;

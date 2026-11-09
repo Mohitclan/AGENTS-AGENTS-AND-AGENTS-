@@ -13,6 +13,7 @@
 //   node scripts/leads.mjs hold <id> "<reason>" --owner <who>   stop all outreach to a lead until a person releases it
 //   node scripts/leads.mjs release <id> "<note>"                lift a hold
 //   node scripts/leads.mjs supersede <id> <n> "<why>"           mark evidence item n as wrong or out of date
+//   node scripts/leads.mjs supersede --from <file.jsonl>        many at once, one {"id", "n", "why"} a line: all or none
 //   node scripts/leads.mjs next <id> "<action>"                 update a lead's next action
 import { createHash } from 'node:crypto';
 import {
@@ -604,6 +605,41 @@ function supersede(id, n, why) {
   console.log(`Evidence ${n} on ${lead.company} is marked superseded.`);
 }
 
+// A revision's corrections in one go: every line of the file is checked first, and nothing changes unless all are good.
+function supersedeMany(file) {
+  if (!file) fail('Usage: node scripts/leads.mjs supersede --from <file.jsonl>');
+  const path = resolve(ROOT, file);
+  if (!existsSync(path)) fail(`No file ${file}`);
+  const items = readFileSync(path, 'utf8').split(/\r?\n/).filter((l) => l.trim()).map((line, i) => {
+    try {
+      return JSON.parse(line);
+    } catch {
+      return fail(`Line ${i + 1} of ${file} isn't JSON.`);
+    }
+  });
+  if (!items.length) fail(`${file} has no lines.`);
+  lock();
+  const leads = load();
+  const problems = [];
+  items.forEach(({ id, n, why }, i) => {
+    const lead = leads.find((l) => l.id === id);
+    if (!lead) problems.push(`line ${i + 1}: no lead with id ${id}`);
+    else if (!Number.isInteger(n) || !lead.evidence?.[n]) problems.push(`line ${i + 1}: ${id} has no evidence item ${n}`);
+    if (!String(why ?? '').trim()) problems.push(`line ${i + 1}: say why the evidence is wrong or out of date`);
+  });
+  if (problems.length) fail(`Nothing was changed:\n  ${problems.join('\n  ')}`);
+  const touched = new Set();
+  for (const { id, n, why } of items) {
+    const lead = leads.find((l) => l.id === id);
+    lead.evidence[n].superseded = { why: why.trim(), at: today() };
+    lead.history.push({ at: today(), event: 'supersede', note: `evidence ${n}: ${why.trim()}` });
+    lead.updated_at = today();
+    touched.add(lead.company);
+  }
+  save(leads);
+  console.log(`Marked ${items.length} evidence item${items.length === 1 ? '' : 's'} superseded on ${[...touched].join(', ')}.`);
+}
+
 function setNext(id, action) {
   if (!id || !action?.trim()) fail('Usage: node scripts/leads.mjs next <id> "<action>"');
   const lead = changeLead(id, (l) => {
@@ -688,7 +724,8 @@ switch (command) {
     release(args[0], args.slice(1).join(' '));
     break;
   case 'supersede':
-    supersede(args[0], args[1], args.slice(2).join(' '));
+    if (args[0] === '--from') supersedeMany(args[1]);
+    else supersede(args[0], args[1], args.slice(2).join(' '));
     break;
   case 'next':
     setNext(args[0], args.slice(1).join(' '));

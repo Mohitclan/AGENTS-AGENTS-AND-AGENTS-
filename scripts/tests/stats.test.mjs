@@ -180,6 +180,7 @@ test('reviewName: round numbers and old file names', () => {
   assert.deepEqual(reviewName('T-20261030-01-review-r3.md'), { task: 'T-20261030-01', round: 3 });
   assert.deepEqual(reviewName('T-20261101-09-r2.md'), { task: 'T-20261101-09', round: 2 });
   assert.equal(reviewName('notes.md'), null);
+  assert.deepEqual(reviewName('T-20261109-02-L-1ac84fe1-r2.md'), { task: 'T-20261109-02', round: 2, part: 'L-1ac84fe1' });
 });
 
 test('reviews: revisions are reviews minus one, not REVISE verdicts', () => {
@@ -234,6 +235,20 @@ test('reviews: a lettered sub-task review file is read, not skipped', () => {
   const s = reviewStats([{ name: 'T-20261103-09a-r1.md', text: review('**Verdict: PASS.**') }, { name: 'T-20261103-09b-r1.md', text: review('**Verdict: REVISE.**') }], 1);
   assert.equal(s.skipped_files.length, 0);
   assert.equal(s.tasks, 2);
+});
+
+test('reviews: a batch reviewed in parallel, one file per lead, counts as one task with one revision round', () => {
+  const s = reviewStats([
+    { name: 'T-20261109-02-L-aaaaaaaa-r1.md', text: review('**Verdict: PASS, 88/100.**') },
+    { name: 'T-20261109-02-L-bbbbbbbb-r1.md', text: review('**Verdict: PASS, 85/100.**') },
+    { name: 'T-20261109-02-L-cccccccc-r1.md', text: review('**Verdict: REVISE, 70/100.**') },
+    { name: 'T-20261109-02-L-cccccccc-r2.md', text: review('**Verdict: PASS, 86/100.**') },
+  ], 1);
+  assert.equal(s.tasks, 1);
+  assert.equal(s.per_task[0].reviews, 4);
+  assert.equal(s.per_task[0].revisions, 1, 'only the third lead went round again');
+  assert.equal(s.first_review_results, 3);
+  assert.equal(s.per_task[0].first_review, 'PASS + PASS + REVISE');
 });
 
 test('reviews: a check table is not read as drafts, and a table that contradicts the headline raises a warning', () => {

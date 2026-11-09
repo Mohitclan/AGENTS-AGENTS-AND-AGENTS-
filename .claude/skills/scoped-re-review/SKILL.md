@@ -24,3 +24,4 @@ Second rounds either redo everything (costly) or miss what the fix itself broke.
 6. **Re-score only the criteria the fixes touched.** Carry the others forward, with a note.
 7. **For code, still run the covering tests yourself.** The code rubric needs your own run.
 8. **A wording change after a PASS** gets this short check before the report.
+9. **Write about 400 words:** the reviewed file and the verdict line, a table of the earlier blocking fixes (number, verdict, file:line), any new problem in the changed lines, the re-scored criteria. Don't repeat the first review. A batch re-reviewed in parallel gets one such file per part that had blocking fixes; parts that passed aren't re-reviewed.

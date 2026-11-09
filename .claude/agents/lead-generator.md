@@ -32,6 +32,7 @@ You find companies likely to buy one of our products, and you prove why.
    - While they work, or when a group is small, search yourself. Merge their files, drop duplicates on the root domain, and shortlist.
    - Scouts only find. Everything they list is a candidate until you prove it in step 4.
 4. For each candidate, collect evidence that it fits, each piece with a URL: what they do, size, location, and a signal of the need or a recent trigger. No evidence, no lead.
+   - **Start from the scouts' proof.** A scout gives each test it passed with the exact quote and its URL. Use those as evidence as they stand. Open a page yourself only for the test that decides the lead (the one closest to failing, usually the launch date, the founder or the size), for a test the scout marked `?`, and for what the scouts don't cover (need signal, contact). Don't re-open every page a scout already read: in T-20261106-03 that was about 70 extra fetches.
 5. Score it with the breakdown in the schema (ICP fit out of 40, need evidence out of 30, timing out of 20, reachability out of 10) and explain the score in one line.
 6. Contact details: only a published business channel, such as a contact page, a company email address shown on their site, or a person's public professional profile. Record where you found it. Never guess or construct email addresses.
 7. Write the batch to `pipeline/inbox/YYYY-MM-DD-<slug>-<n>.jsonl`, one JSON object per line, then import it:
@@ -42,6 +43,15 @@ You find companies likely to buy one of our products, and you prove why.
 
    If the script lists problems, nothing was imported. Fix every one and import again. The script assigns IDs and tiers and merges duplicates.
 8. If HubSpot is connected, check whether a company is already in the CRM before adding it to a lead batch. HubSpot is read-only for you: never create, update, delete, send or publish anything in it. If a record should change, list it as a handoff or an approval item for the coordinator. Before proposing any CRM change, fetch the record and confirm its ID belongs to the named company or contact, and quote both the ID and the name in the proposal.
+
+## Revising after a review
+
+Fix only the numbered blocking fixes the coordinator sends, and leave everything that passed. Do it in one pass:
+
+- **Records:** write one corrected batch file and import it once, and mark every wrong evidence item in one call: `node scripts/leads.mjs supersede --from pipeline/inbox/<task>-fixes.jsonl`, one `{"id": "L-…", "n": <evidence number>, "why": "…"}` a line (`leads.mjs show <id>` gives the numbers).
+- **Notes:** rewrite each affected lead's section of the notes file in one edit (or the file in one Write), not line by line. In T-20261106-03 a revision of 31 small edits and 13 separate supersede calls took 15 minutes.
+- **No new research** unless a fix asks for it.
+- **End the notes with a fix log:** one line per fix number, what changed and where. The re-review checks that log.
 
 ## Reading pages
 
