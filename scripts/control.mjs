@@ -27,7 +27,7 @@ import { BRAND, faviconHref, lockupSvg } from './control/gems/logo.js';
 import { askGuide, guideContext } from './guide.mjs';
 import { listSongs, sendSong } from './music.mjs';
 import { projectsApi } from './projects.mjs';
-import { approveAndSend, draftEmails, logRequest, outreachState, planApproval, planDrafts } from './outreach.mjs';
+import { approveAndSend, decideEmails, draftEmails, logRequest, outreachState, planApproval, planDrafts, planEmails } from './outreach.mjs';
 import { answerQuestion, answersTask, dismissQuestions, markSent, questionsState } from './questions.mjs';
 
 const DEFAULT_PORT = 4318;
@@ -765,9 +765,10 @@ function main() {
           return json(res, 200, { message: 'Signed out.' }, { 'Set-Cookie': cookieHeader('', site, 0) });
         }
         if (!signedIn) return json(res, 401, { message: 'Sign in first.' });
-        // Outreach: a person asks the team to draft emails for leads, or approves drafts that passed review. Both
-        // come from the page (button or voice) or from scripts/outreach.mjs, with the same same-site check as tasks.
-        if (path === '/api/outreach/draft' || path === '/api/outreach/approve') {
+        // Outreach: a person asks the team to draft emails for leads, approves drafts that passed review, or ticks
+        // (approve) or crosses (decline) single emails. All come from the page (buttons or voice) or from
+        // scripts/outreach.mjs, with the same same-site check as tasks.
+        if (path === '/api/outreach/draft' || path === '/api/outreach/approve' || path === '/api/outreach/decide') {
           if (!sameSite(from)) return json(res, 403, { message: 'Use the team page itself.' });
           let ask;
           try {
@@ -787,6 +788,19 @@ function main() {
             const when = full ? `It starts by itself when the plan's ${full} window resets.` : started ? 'It is starting now.' : 'It starts after the current task.';
             const skipped = plan.skipped.length ? ` Not drafted: ${plan.skipped.join('; ')}.` : '';
             return json(res, 200, { message: `Drafting emails for ${plan.ids.length} lead(s) in ${added.id}. ${when}${skipped}`, id: added.id, leads: plan.ids });
+          }
+          if (path === '/api/outreach/decide') {
+            const decision = ask.decision === 'decline' ? 'decline' : ask.decision === 'approve' ? 'approve' : null;
+            if (!decision) return json(res, 400, { message: 'Say approve or decline.' });
+            const pick = planEmails(ROOT, ask.emails === 'all' || !ask.emails ? 'all' : [].concat(ask.emails), decision);
+            if (pick.error) return json(res, 409, { message: pick.error });
+            const which = pick.labels.length > 3 ? `${pick.labels.length} emails` : pick.labels.join(', ');
+            decideEmails(ROOT, pick.refs, decision, by, ask.note).then((r) => {
+              lastSig = '';
+              if (decision === 'decline') return json(res, 200, { message: `Declined ${which}: ${pick.refs.length === 1 ? 'it' : 'they'} won't be sent.`, emails: pick.refs });
+              return json(res, r.ok ? 200 : 500, { message: r.ok ? `Approved ${which}: ${r.sent} [TEST] cop${r.sent === 1 ? 'y' : 'ies'} sent to the pilot test recipients.` : `Approved, but sending had a problem: ${r.text.split('\n').slice(-3).join(' ')}`, emails: pick.refs, detail: r.text });
+            });
+            return undefined;
           }
           const plan = planApproval(ROOT, ask.drafts === 'all' || !ask.drafts ? 'all' : [].concat(ask.drafts));
           if (plan.error) return json(res, 409, { message: plan.error });

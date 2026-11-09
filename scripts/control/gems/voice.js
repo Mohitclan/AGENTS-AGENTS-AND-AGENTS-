@@ -36,7 +36,7 @@ const AGENT_WORDS = {
   developer: ['developer', 'code buddy', 'dev'],
   'seo-aeo': ['seo and aeo', 'rank gem', 'seo', 'aeo'],
 };
-const PAGES = { home: '#/', office: '#/', working: '#/working', team: '#/team', 'the team': '#/team', overview: '#/overview', logs: '#/logs', leads: '#/leads', outreach: '#/outreach', drafts: '#/outreach', emails: '#/outreach', offices: '#/offices', 'all offices': '#/offices', questions: '#/questions', 'my questions': '#/questions', 'sales office': '#/world/sales', 'sales and marketing': '#/world/sales', hq: '#/world/sales', 'developer studio': '#/world/developer', 'developer office': '#/world/developer', 'social media studio': '#/world/social', 'social media office': '#/world/social', reports: '#/reports', approvals: '#/flags', 'needs you': '#/flags', gallery: '#/gems', gems: '#/gems' };
+const PAGES = { home: '#/', office: '#/', working: '#/working', team: '#/team', 'the team': '#/team', overview: '#/overview', logs: '#/logs', leads: '#/leads', outreach: '#/outreach', drafts: '#/outreach', emails: '#/emails', 'pending emails': '#/emails', 'drafted emails': '#/emails', 'my emails': '#/emails', offices: '#/offices', 'all offices': '#/offices', questions: '#/questions', 'my questions': '#/questions', 'sales office': '#/world/sales', 'sales and marketing': '#/world/sales', hq: '#/world/sales', 'developer studio': '#/world/developer', 'developer office': '#/world/developer', 'social media studio': '#/world/social', 'social media office': '#/world/social', reports: '#/reports', approvals: '#/flags', 'needs you': '#/flags', gallery: '#/gems', gems: '#/gems' };
 
 function load() {
   try {
@@ -86,8 +86,32 @@ export function taskFor(text) {
 // stays a task for the team.
 const MAILS = '(?:e-?mails?|mails?|drafts?|outreach)';
 const names = (s) => s.split(/\s*(?:,|\band\b|&)\s*/).map((x) => x.trim()).filter(Boolean);
+// One email at a time, as on the Emails page: "approve email 2 for puzari", "send the first email to puzari",
+// "decline email 2 for puzari", "don't send the third email to puzari", "decline the emails for puzari" (all its
+// waiting ones), "approve all pending emails", "decline all pending emails".
+const NTH = { one: 1, first: 1, two: 2, second: 2, three: 3, third: 3, four: 4, fourth: 4, five: 5, fifth: 5, six: 6, sixth: 6 };
+const YES = '(?:approve|tick|accept|send)';
+const NO = "(?:decline|reject|cross|cancel|skip|stop|don't send|do not send)";
+const NUM = `(\\d+|${Object.keys(NTH).join('|')})`;
+const nth = (w) => (/^\d+$/.test(w) ? Number(w) : NTH[w]);
+export function emailIntent(s) {
+  for (const [verb, decision] of [[YES, 'approve'], [NO, 'decline']]) {
+    if (new RegExp(`^${verb}\\s+all\\s+(?:the\\s+)?(?:pending|waiting)\\s+(?:e-?mails?|mails?)$`).test(s)) return { kind: 'email', decision, emails: 'all' };
+    const a = new RegExp(`^${verb}\\s+(?:the\\s+)?(?:e-?mail|mail)\\s+(?:number\\s+)?${NUM}\\s+(?:for|to|of)\\s+(?:the\\s+)?(.+)$`).exec(s);
+    const b = new RegExp(`^${verb}\\s+(?:the\\s+)?${NUM}\\s+(?:e-?mail|mail)\\s+(?:for|to|of)\\s+(?:the\\s+)?(.+)$`).exec(s);
+    const m = a || b;
+    if (m && nth(m[1])) return { kind: 'email', decision, emails: names(m[2]).map((who) => `${who}:${nth(m[1])}`) };
+  }
+  const allOf = new RegExp(`^${NO}\\s+(?:the\\s+)?(?:e-?mails?|mails?|drafts?)\\s+(?:for|to)\\s+(?:the\\s+)?(.+)$`).exec(s);
+  if (allOf) return { kind: 'email', decision: 'decline', emails: names(allOf[1]) };
+  if (/^(?:decline|reject)\s+(?:all|everything)(?:\s+(?:the\s+)?(?:e-?mails?|mails?|drafts?))?$/.test(s)) return { kind: 'email', decision: 'decline', emails: 'all' };
+  return null;
+}
+
 export function outreachIntent(t) {
   const s = t.replace(/^(please|ok|okay|yes|go ahead and|go ahead)\s+/, '').replace(/\s+please$/, '');
+  const email = emailIntent(s);
+  if (email) return email;
   if (new RegExp(`^(?:confirm|start|do)\\s+(?:the\\s+)?(?:drafts?|drafting)(?:\\s+(?:for\\s+)?(?:them|all|all of them|the new leads))?$`).test(s)) return { kind: 'draft', leads: 'new' };
   const draft = new RegExp(`^(?:draft|write)\\s+(?:the\\s+)?${MAILS}?\\s*(?:for|to)\\s+(?:the\\s+)?(.+)$`).exec(s) || /^draft\s+(them|all|all of them|the new leads)$/.exec(s);
   if (draft) {
@@ -459,8 +483,9 @@ export function createVoice({ onTask, onRun, onCancel, onAsk, onOutreach, getAge
       return;
     }
     if (intent?.kind === 'music') return music(intent);
-    if ((intent?.kind === 'draft' || intent?.kind === 'approve') && onOutreach) {
-      if (intent.kind === 'approve') log('page', 'Approving and sending…');
+    if (['draft', 'approve', 'email'].includes(intent?.kind) && onOutreach) {
+      if (intent.kind === 'approve' || (intent.kind === 'email' && intent.decision === 'approve')) log('page', 'Approving and sending…');
+      else if (intent.kind === 'email') log('page', 'Declining…');
       try {
         const msg = await onOutreach(intent);
         log('team', msg);
@@ -500,7 +525,13 @@ export function createVoice({ onTask, onRun, onCancel, onAsk, onOutreach, getAge
       return;
     }
     try {
-      const { message, id } = await onTask(task);
+      const { message, id, quick } = await onTask(task);
+      if (quick) {
+        // Answered from the files at once (scripts/quick.mjs): no task was started.
+        log('team', message);
+        speak(message);
+        return;
+      }
       lastTask = id || null;
       log('team', message);
       const who = agent === 'coordinator' ? 'The Captain' : identityFor(agent).name;

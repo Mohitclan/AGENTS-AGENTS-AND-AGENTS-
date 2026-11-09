@@ -4,16 +4,20 @@
 //   1. A run that found leads shows them on the Outreach page ("This run found 3 leads"). Drafting them is a
 //      new Jarvis task, started by the page's button, a voice command, or a command that said "and draft".
 //   2. Drafts appear on the Outreach page once written, with their review. Only a PASS can be approved.
-//   3. Approving a draft sends it at once. While the pilot is on (ops/mail-config.json), that is [TEST]
-//      copies to the pilot test recipients only, through scripts/send-tests.mjs; the lead gets nothing.
-// Every request and approval is logged in ops/outreach.jsonl with who made it.
+//   3. Approving sends at once. While the pilot is on (ops/mail-config.json), that is [TEST] copies to the pilot
+//      test recipients only, through scripts/send-tests.mjs; the lead gets nothing. A person decides a whole draft
+//      (the Outreach page) or one email at a time (the Emails page: a tick sends that email, a cross declines it, and
+//      a declined email is never sent unless the person ticks it later). Approving a draft sends only its emails
+//      still waiting for a decision.
+// Every request and decision is logged in ops/outreach.jsonl with who made it.
 //
-//   node scripts/outreach.mjs [status]               what is ready to draft and to approve, in plain words
-//   node scripts/outreach.mjs draft new|<lead ...>   ask the team to draft emails (the newest run's leads, or named ones)
-//   node scripts/outreach.mjs approve all|<lead ...> approve drafts that passed review, and send them
+//   node scripts/outreach.mjs [status]                      what is ready to draft and to decide, in plain words
+//   node scripts/outreach.mjs draft new|<lead ...>          ask the team to draft emails (the newest run's leads, or named ones)
+//   node scripts/outreach.mjs approve all|<lead[:n] ...>    approve emails that passed review, and send them
+//   node scripts/outreach.mjs decline all|<lead[:n] ...>    decline emails, so they are not sent
 //
-// draft and approve go through mission control (it has to be running), the same way the page does. A lead can
-// be named by its ID (L-1ac84fe1) or by a word of its company name (puzari).
+// draft, approve and decline go through mission control (it has to be running), the same way the page does. A lead
+// can be named by its ID (L-1ac84fe1) or by a word of its company name (puzari); `puzari:2` is its second email.
 import { spawn } from 'node:child_process';
 import { appendFileSync, existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -111,11 +115,28 @@ function approvals(root) {
   return out;
 }
 
-// Every outreach draft for a lead, with its review and where it stands.
+// One email of a draft, as `<draft path>#<n>`.
+export const emailRef = (path, n) => `${path}#${n}`;
+
+// A person's decisions on single emails, newest last: "path#n" -> { decision, at, by, note }.
+function emailDecisions(root) {
+  const out = new Map();
+  for (const e of readJsonl(join(root, LOG))) {
+    if (e.kind === 'email-decision') for (const ref of e.emails || []) out.set(ref, { decision: e.decision, at: e.at, by: e.by, note: e.note || '' });
+  }
+  return out;
+}
+
+// Every outreach draft for a lead, with its review, where it stands, and each of its emails (`mails`):
+//   pending   passed review, waiting for a person's tick or cross
+//   approved  ticked (or its draft approved): sent as test copies
+//   declined  crossed: not sent
+//   waiting   its draft hasn't passed review yet
 export function draftsState(root = ROOT, leads = latestLeads(root), requested = openRequests(root, readJson(join(root, 'ops', 'queue.json'), []))) {
   const dir = join(root, OUTREACH);
   if (!existsSync(dir)) return [];
   const approved = approvals(root);
+  const decided = emailDecisions(root);
   const sends = readJsonl(join(root, 'ops', 'send-log.jsonl')).filter((e) => e.kind === 'outreach' && e.mode === 'test');
   return readdirSync(dir)
     .filter((n) => /^L-[0-9a-f]+\.md$/.test(n) && !['disqualified', 'lost'].includes(leads.get(n.replace(/\.md$/, ''))?.status))
@@ -125,24 +146,35 @@ export function draftsState(root = ROOT, leads = latestLeads(root), requested = 
       const text = readFileSync(join(dir, n), 'utf8');
       const changed = mtime(join(dir, n));
       const review = root === ROOT ? reviewOf(path) : null; // reviewOf reads this folder's reviews
+      const since = (d) => d && Date.parse(d.at) >= changed; // a decision on an older version doesn't count
       const ok = approved.get(path);
-      const approvedNow = ok && Date.parse(ok.at) >= changed;
       const sent = sends.filter((e) => e.draft === path && Date.parse(e.at) >= changed).length;
-      const state = approvedNow ? 'approved'
-        : !review ? (requested.has(id) || Date.now() - changed < 86_400_000 ? 'in-review' : 'unreviewed')
+      const reviewState = !review ? (requested.has(id) || Date.now() - changed < 86_400_000 ? 'in-review' : 'unreviewed')
         : review.verdict !== 'PASS' ? 'revise'
         : review.stale ? 'changed'
         : 'ready';
+      // Each email: the newest decision on it since the draft last changed, the draft's own approval included.
+      const mails = emailNumbers(text).map((n) => {
+        const own = decided.get(emailRef(path, n));
+        const pick = [since(ok) && { decision: 'approve', at: ok.at, by: ok.by }, since(own) && own].filter(Boolean).sort((a, b) => a.at.localeCompare(b.at)).pop();
+        const state = pick ? (pick.decision === 'approve' ? 'approved' : 'declined') : reviewState === 'ready' ? 'pending' : 'waiting';
+        return { n, state, by: pick?.by || '', at: pick?.at || '', note: pick?.note || '', sent: sends.filter((e) => e.draft === path && e.email === n && Date.parse(e.at) >= changed).length };
+      });
+      const count = (st) => mails.filter((m) => m.state === st).length;
+      const allDecided = mails.length > 0 && !count('pending') && !count('waiting');
+      const state = allDecided ? (count('approved') ? 'approved' : 'declined') : reviewState;
+      const lastBy = mails.filter((m) => m.by).sort((a, b) => a.at.localeCompare(b.at)).pop()?.by || ok?.by || 'a person';
       const why = {
-        approved: `Approved by ${ok?.by || 'a person'}${sent ? `; ${sent} test email(s) sent` : ''}`,
+        approved: `${count('declined') ? `${count('approved')} approved, ${count('declined')} declined` : 'Approved'} by ${lastBy}${sent ? `; ${sent} test email(s) sent` : ''}`,
+        declined: `Declined by ${lastBy}: not sent`,
         'in-review': 'Waiting for its review',
         unreviewed: 'Never reviewed: ask the team to draft this lead again',
         revise: `Review says ${review?.verdict || 'no verdict'}: being revised`,
         changed: 'Changed after its review: needs a re-review',
-        ready: 'Passed review: ready for your approval',
+        ready: count('approved') + count('declined') ? `Passed review: ${count('pending')} of ${mails.length} emails still waiting for your decision` : 'Passed review: ready for your approval',
       }[state];
       const lead = leads.get(id);
-      return { path, lead: id, company: lead?.company || id, emails: emailNumbers(text).length, review: review ? { file: review.file, verdict: review.verdict, stale: review.stale } : null, state, why, at: new Date(changed).toISOString(), sent };
+      return { path, lead: id, company: lead?.company || id, emails: mails.length, mails, review: review ? { file: review.file, verdict: review.verdict, stale: review.stale, score: review.score ?? null } : null, state, why, at: new Date(changed).toISOString(), sent };
     })
     .sort((a, b) => b.at.localeCompare(a.at));
 }
@@ -179,7 +211,28 @@ export function outreachState(root = ROOT) {
       return { task: t.id, title: t.task, finished: t.finished, leads: found, ready: found.filter((l) => l.state === 'ready').map((l) => l.id) };
     })
     .filter((r) => r.leads.length);
-  return { runs, drafts, ready: drafts.filter((d) => d.state === 'ready').length };
+  return { runs, drafts, ready: drafts.filter((d) => d.state === 'ready').length, emails: emailsOf(root, drafts), pending: drafts.reduce((n, d) => n + d.mails.filter((m) => m.state === 'pending').length, 0) };
+}
+
+// Every drafted email, newest draft first, as the Emails page lists them: who it is for, which of the draft's
+// emails it is, its subject and text as the reader gets them, and where it stands.
+function emailsOf(root, drafts) {
+  const sender = readJson(join(root, 'ops', 'mail-config.json'), {}).sender || {};
+  return drafts.flatMap((d) => {
+    const text = readFileSync(join(root, d.path), 'utf8');
+    return d.mails.map((m) => {
+      const { subject, body } = parseEmail(text, m.n);
+      let filled = body;
+      try { filled = fillPlaceholders(body, sender); } catch { /* keep the placeholders */ }
+      const why = {
+        pending: 'Passed review: tick to send, cross to stop it',
+        approved: `Approved by ${m.by || 'a person'}${m.sent ? `; ${m.sent} test cop${m.sent === 1 ? 'y' : 'ies'} sent` : ''}`,
+        declined: `Declined by ${m.by || 'a person'}${m.note ? `: ${m.note}` : ''}. Not sent`,
+        waiting: d.why,
+      }[m.state];
+      return { ref: emailRef(d.path, m.n), draft: d.path, lead: d.lead, company: d.company, n: m.n, of: d.mails.length, subject, body: String(filled).trim(), state: m.state, why, sent: m.sent, review: d.review, at: m.at || d.at };
+    });
+  });
 }
 
 // Turns what a person named into lead IDs: IDs, draft paths, or a word of a company name.
@@ -192,7 +245,9 @@ export function resolveLeads(names, leads) {
     const id = /L-[0-9a-f]{8}/.exec(name)?.[0];
     if (id && leads.has(id)) { out.push(id); continue; }
     const word = name.toLowerCase();
-    const hits = [...leads.values()].filter((l) => String(l.company || '').toLowerCase().includes(word));
+    const squash = (x) => x.replace(/[^a-z0-9]/g, ''); // "puzari cloud", as a voice hears it, finds PuzariCloud
+    let hits = [...leads.values()].filter((l) => String(l.company || '').toLowerCase().includes(word));
+    if (!hits.length && squash(word).length > 2) hits = [...leads.values()].filter((l) => squash(String(l.company || '').toLowerCase()).includes(squash(word)));
     if (hits.length === 1) out.push(hits[0].id);
     else unknown.push(hits.length ? `${name} (matches ${hits.length} leads)` : name);
   }
@@ -253,12 +308,67 @@ export function planApproval(root, which) {
   return { drafts: chosen.map((d) => d.path), companies: chosen.map((d) => d.company) };
 }
 
-// Logs the approval and sends the drafts (pilot: [TEST] copies only, by send-tests.mjs). Resolves to
-// { ok, sent, text }. It runs in the background of the server, so the page stays live while emails go out.
+// Approves whole drafts: every email of theirs still waiting for a decision is approved and sent; an email the
+// person declined stays declined.
 export function approveAndSend(root, drafts, by = 'a person') {
-  appendFileSync(join(root, LOG), `${JSON.stringify({ at: new Date().toISOString(), kind: 'approve', drafts, by })}\n`);
+  const refs = draftsState(root).filter((d) => drafts.includes(d.path)).flatMap((d) => d.mails.filter((m) => m.state === 'pending').map((m) => emailRef(d.path, m.n)));
+  return decideEmails(root, refs, 'approve', by);
+}
+
+// Which emails a person's tick (approve) or cross (decline) is for. `which` is 'all' (every email waiting for a
+// decision) or a list of: { draft, n } from the page, `<draft path>#<n>`, or a lead's name with an optional email
+// number (`puzari`, `puzari:2`, `L-1ac84fe1#2`). A lead named without a number means all its waiting emails.
+// Approve takes an email that is waiting or was declined; decline takes only one that is waiting (an approved
+// email has been sent). Returns { refs, labels } or { error }.
+export function planEmails(root, which, decision) {
+  if (!['approve', 'decline'].includes(decision)) return { error: 'Say approve or decline.' };
+  const leads = latestLeads(root);
+  const drafts = draftsState(root, leads);
+  const label = (d, n) => `email ${n} for ${d.company}`;
+  if (which === 'all' || (Array.isArray(which) && which.length === 1 && /^all$/i.test(String(which[0])))) {
+    const all = drafts.flatMap((d) => d.mails.filter((m) => m.state === 'pending').map((m) => ({ d, n: m.n })));
+    if (!all.length) return { error: 'No email is waiting for your decision.' };
+    return { refs: all.map(({ d, n }) => emailRef(d.path, n)), labels: all.map(({ d, n }) => label(d, n)) };
+  }
+  const chosen = [];
+  const problems = [];
+  for (const item of [].concat(which)) {
+    const raw = typeof item === 'object' && item ? `${item.draft}#${item.n}` : String(item).trim();
+    const m = /^(.*?)(?:\s*[#:]\s*(\d+))?$/.exec(raw);
+    const name = m[1].trim();
+    const n = m[2] ? Number(m[2]) : null;
+    let draft = drafts.find((d) => d.path === name);
+    if (!draft) {
+      const r = resolveLeads([name], leads);
+      if (r.unknown.length) { problems.push(`I couldn't find ${r.unknown.join(', ')}`); continue; }
+      draft = drafts.find((d) => d.lead === r.ids[0]);
+      if (!draft) { problems.push(`${leads.get(r.ids[0])?.company || name} has no drafted emails yet`); continue; }
+    }
+    const mails = draft.mails.filter((x) => (n === null ? x.state === 'pending' : x.n === n));
+    if (n !== null && !mails.length) { problems.push(`${draft.company} has no email ${n}`); continue; }
+    if (n === null && !mails.length) { problems.push(`${draft.company} has no email waiting for your decision`); continue; }
+    for (const x of mails) {
+      // An approved email whose test copies all failed to go may be approved again, to try once more.
+      const ok = decision === 'approve' ? ['pending', 'declined'].includes(x.state) || (x.state === 'approved' && !x.sent) : x.state === 'pending';
+      if (ok) chosen.push({ d: draft, n: x.n });
+      else problems.push(`${label(draft, x.n)} ${x.state === 'approved' ? 'is already approved and sent' : x.state === 'declined' ? 'is already declined' : `can't be decided yet (${draft.why.toLowerCase()})`}`);
+    }
+  }
+  if (problems.length) return { error: `${problems.join('; ')}.`.replace(/^./, (c) => c.toUpperCase()) };
+  const seen = new Set();
+  const unique = chosen.filter(({ d, n }) => !seen.has(emailRef(d.path, n)) && seen.add(emailRef(d.path, n)));
+  return { refs: unique.map(({ d, n }) => emailRef(d.path, n)), labels: unique.map(({ d, n }) => label(d, n)) };
+}
+
+// Logs a person's decision on single emails. Approved ones are sent at once (pilot: [TEST] copies only, by
+// send-tests.mjs); declined ones are only logged. Resolves to { ok, sent, text }. It runs in the background of the
+// server, so the page stays live while emails go out.
+export function decideEmails(root, refs, decision, by = 'a person', note = '') {
+  if (!refs.length) return Promise.resolve({ ok: true, sent: 0, text: '' });
+  appendFileSync(join(root, LOG), `${JSON.stringify({ at: new Date().toISOString(), kind: 'email-decision', decision, emails: refs, by, ...(note ? { note: String(note).slice(0, 200) } : {}) })}\n`);
+  if (decision !== 'approve') return Promise.resolve({ ok: true, sent: 0, text: '' });
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [join(root, 'scripts', 'send-tests.mjs'), ...drafts], { cwd: root });
+    const child = spawn(process.execPath, [join(root, 'scripts', 'send-tests.mjs'), ...refs], { cwd: root });
     let out = '';
     child.stdout.on('data', (d) => (out += d));
     child.stderr.on('data', (d) => (out += d));
@@ -279,6 +389,11 @@ function statusText(s) {
   }
   const ready = s.drafts.filter((d) => d.state === 'ready');
   lines.push(ready.length ? `${ready.length} draft(s) waiting for approval: ${ready.map((d) => d.company).join(', ')}.` : 'No draft is waiting for approval.');
+  const pending = s.emails.filter((e) => e.state === 'pending');
+  if (pending.length) {
+    lines.push(`${pending.length} email(s) waiting for your tick or cross:`);
+    for (const e of pending) lines.push(`  - ${e.company} email ${e.n} of ${e.of}: "${e.subject}"`);
+  }
   const other = s.drafts.filter((d) => ['in-review', 'revise', 'changed', 'unreviewed'].includes(d.state));
   if (other.length) lines.push(`Still in progress: ${other.map((d) => `${d.company} (${d.why.toLowerCase()})`).join('; ')}.`);
   return lines.join('\n');
@@ -305,14 +420,14 @@ async function main() {
     process.exitCode = r.ok ? 0 : 1;
     return undefined;
   }
-  if (cmd === 'approve') {
-    if (!rest.length) return console.error('Say which: node scripts/outreach.mjs approve all|<lead ...>');
-    const r = await post('/api/outreach/approve', { drafts: /^all$/i.test(rest[0]) ? 'all' : rest, by: 'voice' });
+  if (cmd === 'approve' || cmd === 'decline') {
+    if (!rest.length) return console.error(`Say which: node scripts/outreach.mjs ${cmd} all|<lead[:email number] ...>`);
+    const r = await post('/api/outreach/decide', { emails: /^all$/i.test(rest[0]) ? 'all' : rest, decision: cmd, by: 'voice' });
     console.log(r.message);
     process.exitCode = r.ok ? 0 : 1;
     return undefined;
   }
-  console.error('usage: node scripts/outreach.mjs [status] | draft new|<lead ...> | approve all|<lead ...>');
+  console.error('usage: node scripts/outreach.mjs [status] | draft new|<lead ...> | approve all|<lead[:n] ...> | decline all|<lead[:n] ...>');
   process.exitCode = 1;
   return undefined;
 }

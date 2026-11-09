@@ -114,6 +114,7 @@ function shell() {
       <a href="#/logs" data-nav="logs">Logs</a>
       <a href="#/leads" data-nav="leads">Leads</a>
       <a href="#/outreach" data-nav="outreach">Outreach <b class="count" id="outreach-count"></b></a>
+      <a href="#/emails" data-nav="emails" class="nav-sub">Emails <b class="count" id="emails-count"></b></a>
       <a href="#/questions" data-nav="questions">Questions <b class="count" id="question-count"></b></a>
       <a href="#/reports" data-nav="reports">Reports</a>
       <a href="#/flags" data-nav="flags">Needs you <b class="count" id="flag-count"></b></a>
@@ -241,6 +242,7 @@ function updateShell(snap) {
   $('#flag-count').textContent = snap.flags.length || '';
   const waiting = (snap.outreach?.ready || 0) + (snap.outreach?.runs || []).reduce((n, r) => n + r.ready.length, 0);
   $('#outreach-count').textContent = waiting || '';
+  $('#emails-count').textContent = snap.outreach?.pending || '';
   $('#question-count').textContent = snap.questions?.open || '';
   $('#live').className = `live ${snap.live ? 'on' : ''}`;
   $('#live').innerHTML = snap.live ? '<i></i>Live' : '<i></i>Idle';
@@ -1216,8 +1218,8 @@ const reportsView = {
 // The same two actions work by voice: "draft emails for the new leads", "approve all drafts".
 const LEAD_PILL = { ready: 'p-queued', drafting: 'p-running', drafted: 'p-done', held: 'p-needs_approval', closed: 'p-failed', 'not-qualified': 'p-new' };
 const LEAD_LABEL = { ready: 'Ready to draft', drafting: 'Drafting', drafted: 'Drafted', held: 'On hold', closed: 'Closed', 'not-qualified': 'Not qualified' };
-const DRAFT_PILL = { ready: 'p-needs_approval', approved: 'p-done', 'in-review': 'p-running', revise: 'p-failed', changed: 'p-failed', unreviewed: 'p-new' };
-const DRAFT_LABEL = { ready: 'Ready to approve', approved: 'Approved', 'in-review': 'In review', revise: 'Being revised', changed: 'Needs re-review', unreviewed: 'Not reviewed' };
+const DRAFT_PILL = { ready: 'p-needs_approval', approved: 'p-done', declined: 'p-failed', 'in-review': 'p-running', revise: 'p-failed', changed: 'p-failed', unreviewed: 'p-new' };
+const DRAFT_LABEL = { ready: 'Ready to approve', approved: 'Approved', declined: 'Declined', 'in-review': 'In review', revise: 'Being revised', changed: 'Needs re-review', unreviewed: 'Not reviewed' };
 
 // A draft's emails in the side panel, as the reader gets them, with a link to the full file and its notes.
 async function openEmails(path, company) {
@@ -1257,7 +1259,7 @@ async function outreachAction(button, path, body) {
 
 const outreachView = {
   build() {
-    $('#view').innerHTML = `<div class="page-h"><h1>Outreach</h1><p class="muted">Leads the team found, and the emails drafted for them. Nothing is drafted until you ask, and nothing is sent until you approve. Approving sends the draft: during the pilot, as [TEST] copies to Purab, Tanvi and Mohit only, never to the lead. By voice: <q>draft emails for the new leads</q>, <q>approve all drafts</q>.</p></div>
+    $('#view').innerHTML = `<div class="page-h"><h1>Outreach</h1><p class="muted">Leads the team found, and the emails drafted for them. Nothing is drafted until you ask, and nothing is sent until you approve. Approving sends the draft: during the pilot, as [TEST] copies to Purab, Tanvi and Mohit only, never to the lead. To decide one email at a time, with a tick or a cross, open <a href="#/emails">Emails</a>. By voice: <q>draft emails for the new leads</q>, <q>approve all drafts</q>.</p></div>
       <section class="card"><div class="sec-h"><h2>New leads from runs</h2></div><div id="or-runs"></div></section>
       <section class="card"><div class="sec-h"><h2>Drafted emails</h2><button type="button" class="primary small" id="or-approve-all" hidden></button></div><ul class="rows" id="or-drafts"></ul></section>`;
     $('#view').addEventListener('click', (e) => {
@@ -1294,6 +1296,86 @@ const outreachView = {
     $('#or-drafts').innerHTML = o.drafts.length
       ? o.drafts.map((d) => `<li><div class="row-top"><a href="#" data-mails="${esc(d.path)}" data-company="${esc(d.company)}"><b>${esc(d.company)}</b></a> <span class="pill ${DRAFT_PILL[d.state] || ''}">${esc(DRAFT_LABEL[d.state] || d.state)}</span>${d.review ? verdictChip(d.review.verdict) : ''}<span class="muted tiny">${d.emails} email${d.emails === 1 ? '' : 's'} · ${esc(ago(d.at))}</span>${d.state === 'ready' ? `<button type="button" class="primary small or-approve" data-or="approve" data-lead="${esc(d.lead)}">Approve and send</button>` : ''}</div><div class="muted tiny">${esc(d.why)} · <a href="#" data-mails="${esc(d.path)}" data-company="${esc(d.company)}">read the emails</a></div></li>`).join('')
       : '<li class="muted">No emails drafted yet.</li>';
+  },
+};
+
+// Emails: every drafted email one at a time, under Outreach in the menu. A tick sends that email (during the pilot,
+// [TEST] copies to the three test recipients only), a cross declines it so it is never sent. Only emails whose
+// draft passed review can be decided. By voice: "approve email 1 for puzari", "decline email 2 for puzari",
+// "approve all pending emails".
+const EMAIL_TABS = [['pending', 'Pending'], ['all', 'All drafted'], ['approved', 'Sent'], ['declined', 'Declined']];
+const EMAIL_LABEL = { pending: 'Waiting for you', approved: 'Sent', declined: 'Declined', waiting: 'In review' };
+const EMAIL_PILL = { pending: 'p-needs_approval', approved: 'p-done', declined: 'p-failed', waiting: 'p-running' };
+
+async function decideEmail(button, emails, decision) {
+  const card = button.closest('.em-card');
+  card?.classList.add('busy');
+  for (const b of card ? card.querySelectorAll('button') : [button]) b.disabled = true;
+  try {
+    const r = await api('/api/outreach/decide', { emails, decision, by: 'a person on the page' });
+    toast(r.message);
+  } catch (error) {
+    toast(error.message, true);
+    card?.classList.remove('busy');
+    for (const b of card ? card.querySelectorAll('button') : [button]) b.disabled = false;
+  }
+}
+
+const emailsView = {
+  tab: 'pending',
+  open: new Set(),
+  build() {
+    $('#view').innerHTML = `<div class="page-h"><h1>Emails</h1><p class="muted">Every email the team drafted, one at a time. <b>✓</b> sends it, <b>✗</b> stops it. During the pilot ✓ sends [TEST] copies to Purab, Tanvi and Mohit only, never to the lead. Only emails whose draft passed review can be sent. By voice: <q>approve email 1 for PuzariCloud</q>, <q>decline email 2 for PuzariCloud</q>, <q>approve all pending emails</q>.</p></div>
+      <div class="em-bar"><div class="em-tabs" role="tablist" aria-label="Which emails">${EMAIL_TABS.map(([k, label]) => `<button type="button" role="tab" data-tab="${k}">${label} <b data-n="${k}"></b></button>`).join('')}</div><button type="button" class="primary small" id="em-all" hidden></button></div>
+      <div class="em-list" id="em-list"></div>`;
+    $('#view').addEventListener('click', (e) => {
+      const tab = e.target.closest('[data-tab]');
+      if (tab) {
+        emailsView.tab = tab.dataset.tab;
+        emailsView.update(store.snap);
+        return;
+      }
+      const more = e.target.closest('[data-more]');
+      if (more) {
+        const ref = more.dataset.more;
+        if (emailsView.open.has(ref)) emailsView.open.delete(ref);
+        else emailsView.open.add(ref);
+        more.closest('.em-card').classList.toggle('open', emailsView.open.has(ref));
+        more.textContent = emailsView.open.has(ref) ? 'Show less' : 'Read all';
+        return;
+      }
+      const b = e.target.closest('[data-decide]');
+      if (b) decideEmail(b, [b.closest('.em-card').dataset.ref], b.dataset.decide);
+    });
+    $('#em-all').addEventListener('click', (e) => decideEmail(e.currentTarget, 'all', 'approve'));
+  },
+  update(snap) {
+    const all = snap?.outreach?.emails || [];
+    const tabs = { pending: all.filter((m) => m.state === 'pending'), all, approved: all.filter((m) => m.state === 'approved'), declined: all.filter((m) => m.state === 'declined') };
+    for (const b of $$('[data-tab]')) {
+      b.setAttribute('aria-selected', String(b.dataset.tab === emailsView.tab));
+      $(`[data-n="${b.dataset.tab}"]`).textContent = tabs[b.dataset.tab].length || '';
+    }
+    const allBtn = $('#em-all');
+    allBtn.hidden = emailsView.tab !== 'pending' || tabs.pending.length < 2;
+    allBtn.textContent = `✓ Approve all ${tabs.pending.length}`;
+    const shown = tabs[emailsView.tab];
+    const empty = { pending: 'No email is waiting for you. New drafts appear here once they pass review.', all: 'No emails drafted yet. Ask for drafts on the Outreach page or by voice.', approved: 'Nothing sent yet.', declined: 'Nothing declined.' }[emailsView.tab];
+    $('#em-list').innerHTML = shown.length
+      ? shown.map((m) => {
+        const open = emailsView.open.has(m.ref);
+        const acts = m.state === 'pending'
+          ? `<button type="button" class="em-yes" data-decide="approve" title="Approve and send" aria-label="Approve and send email ${m.n} for ${esc(m.company)}">✓</button><button type="button" class="em-no" data-decide="decline" title="Decline: don't send" aria-label="Decline email ${m.n} for ${esc(m.company)}">✗</button>`
+          : m.state === 'declined' ? `<button type="button" class="em-yes small-yes" data-decide="approve" aria-label="Send email ${m.n} for ${esc(m.company)} after all">✓ Send after all</button>`
+          : m.state === 'approved' && !m.sent ? `<button type="button" class="em-yes small-yes" data-decide="approve" aria-label="Try sending email ${m.n} for ${esc(m.company)} again">✓ Try sending again</button>` : '';
+        return `<article class="em-card s-${esc(m.state)}${open ? ' open' : ''}" data-ref="${esc(m.ref)}">
+          <header class="em-head"><b>${esc(m.company)}</b><span class="muted tiny">Email ${m.n} of ${m.of}</span><span class="pill ${EMAIL_PILL[m.state] || ''}">${esc(EMAIL_LABEL[m.state] || m.state)}</span>${m.review ? verdictChip(m.review.verdict, m.review.score) : ''}<span class="em-act">${acts}</span></header>
+          <div class="em-subj">${esc(m.subject || '(no subject)')}</div>
+          <div class="em-body">${esc(m.body)}</div>
+          <footer class="em-foot"><button type="button" class="link" data-more="${esc(m.ref)}">${open ? 'Show less' : 'Read all'}</button><span class="muted tiny">${esc(m.why)}${m.at ? ` · ${esc(ago(m.at))}` : ''}</span><a href="#" class="tiny" data-file="${esc(m.draft)}">full draft and review notes</a></footer>
+        </article>`;
+      }).join('')
+      : `<p class="muted em-empty">${esc(empty)}</p>`;
   },
 };
 
@@ -1769,7 +1851,7 @@ const worldView = {
 
 // ---- routing and the stream ----------------------------------------------------------------------
 
-const VIEWS = { offices: officesView, world: worldView, questions: questionsView, home, working, team: teamView, overview, logs, leads: leadsView, outreach: outreachView, reports: reportsView, flags: flagsView, agent: agentView, gems: gemsView, float: floatView };
+const VIEWS = { offices: officesView, world: worldView, questions: questionsView, home, working, team: teamView, overview, logs, leads: leadsView, outreach: outreachView, emails: emailsView, reports: reportsView, flags: flagsView, agent: agentView, gems: gemsView, float: floatView };
 let current = '';
 
 function route() {
@@ -1932,7 +2014,9 @@ const voice = createVoice({
   onCancel: async (id) => (await api(`/api/tasks/${id}/cancel`, {})).message,
   onAsk: (question, history) => api('/api/ask', { question, history }),
   onRun: async () => (await api('/api/run', {})).message,
-  onOutreach: async ({ kind, leads, drafts }) => (await api(`/api/outreach/${kind}`, kind === 'draft' ? { leads, by: 'voice' } : { drafts, by: 'voice' })).message,
+  onOutreach: async ({ kind, leads, drafts, emails, decision }) => (kind === 'email'
+    ? await api('/api/outreach/decide', { emails, decision, by: 'voice' })
+    : await api(`/api/outreach/${kind}`, kind === 'draft' ? { leads, by: 'voice' } : { drafts, by: 'voice' })).message,
   getAgents: () => store.snap?.agents,
   navigate: (hash) => {
     location.hash = hash;

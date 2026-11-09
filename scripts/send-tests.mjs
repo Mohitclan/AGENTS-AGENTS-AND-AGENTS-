@@ -7,6 +7,8 @@
 //
 //   node scripts/send-tests.mjs --since <ISO time> [--dry-run]    drafts changed since then (Jarvis)
 //   node scripts/send-tests.mjs <draft> [<draft> ...] [--dry-run]  these drafts
+//   node scripts/send-tests.mjs <draft>#<n> [...] [--dry-run]      only email n of a draft (a person's tick on the
+//                                                                  Emails page); mix freely with whole drafts
 //
 // A draft counts as passed when the newest review that names it in its header (above the
 // **Verdict: line) is newer than the draft and says PASS. A copy already sent since the draft last
@@ -57,6 +59,17 @@ function draftsSince(sinceMs) {
     .sort();
 }
 
+// The drafts to send and, for each, which emails: a whole draft (null) or only the numbers named as <draft>#<n>.
+export function parseTargets(args) {
+  const out = new Map();
+  for (const raw of args) {
+    const [draft, n] = raw.replace(/\\/g, '/').split('#');
+    if (!n) out.set(draft, null);
+    else if (out.get(draft) !== null) out.set(draft, new Set([...(out.get(draft) || []), Number(n)]));
+  }
+  return out;
+}
+
 function main() {
   const argv = process.argv.slice(2);
   const dryRun = argv.includes('--dry-run');
@@ -66,7 +79,8 @@ function main() {
     console.error('usage: node scripts/send-tests.mjs --since <ISO time> | <draft> [<draft> ...]  [--dry-run]');
     process.exit(1);
   }
-  const drafts = at >= 0 ? draftsSince(sinceMs) : argv.filter((a) => !a.startsWith('--')).map((a) => a.replace(/\\/g, '/'));
+  const targets = at >= 0 ? new Map(draftsSince(sinceMs).map((d) => [d, null])) : parseTargets(argv.filter((a) => !a.startsWith('--')));
+  const drafts = [...targets.keys()];
   if (at < 0 && !drafts.length) {
     console.error('usage: node scripts/send-tests.mjs --since <ISO time> | <draft> [<draft> ...]  [--dry-run]');
     process.exit(1);
@@ -101,7 +115,8 @@ function main() {
     }
     lines.push(`- ${draft} (review ${review.file}: PASS)`);
     const changed = mtime(draft);
-    for (const n of emailNumbers(readFileSync(join(ROOT, draft), 'utf8'))) {
+    const only = targets.get(draft);
+    for (const n of emailNumbers(readFileSync(join(ROOT, draft), 'utf8')).filter((x) => !only || only.has(x))) {
       for (const to of testers) {
         const who = names[to] ? `${names[to]} <${to}>` : to;
         const done = log.some((e) => e.kind === 'outreach' && e.mode === 'test' && e.draft === draft && e.email === n && e.to === to.toLowerCase() && Date.parse(e.at) >= changed);
