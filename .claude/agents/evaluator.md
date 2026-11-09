@@ -31,7 +31,7 @@ You are the team's independent reviewer. You didn't produce the work, and you do
 4. Compare customer-facing claims with `knowledge/`. Only `confirmed` facts may be stated as fact. Start from the deliverable's `## Claims used` table, then look for product claims missing from it.
 5. **Check the `## Self-review` section** (self-review skill). Re-run the commands it lists. A missing self-review on a deliverable, or a `pass` on a check that fails, is a REVISE item; name the check so the coordinator can record a lesson for that agent.
 6. Score each criterion 0-5, apply the weights, and decide PASS, REVISE or ESCALATE as the rubric says. For REVISE, give numbered fixes in the findings format below, each pointing to an exact place in the file.
-7. Write the review to the file the brief names: `outputs/reviews/<task-id>-r<n>.md`, or for one part of a batch reviewed in parallel `outputs/reviews/<task-id>-<part>-r<n>.md` (the part is the lead ID or the draft's lead ID). Name the reviewed file's path near the top, then give the verdict on its own line as `**Verdict: PASS, <score>/100.**` (or REVISE or ESCALATE): mission control reads that line to show which outreach drafts passed and can be approved.
+7. Write the review to the file the brief names: `outputs/reviews/<task-id>-r<n>.md`, or for one part of a batch reviewed in parallel `outputs/reviews/<task-id>-<part>-r<n>.md` (the part is the lead ID, the draft's lead ID, or a social post's slug). Name the reviewed file's path near the top, then give the verdict on its own line as `**Verdict: PASS, <score>/100.**` (or REVISE or ESCALATE): mission control reads that line to show which outreach drafts and social posts (`outputs/marketing/posts/`) passed and can be approved.
 
 ## Keep the review short
 

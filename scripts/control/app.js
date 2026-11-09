@@ -115,6 +115,7 @@ function shell() {
       <a href="#/leads" data-nav="leads">Leads</a>
       <a href="#/outreach" data-nav="outreach">Outreach <b class="count" id="outreach-count"></b></a>
       <a href="#/emails" data-nav="emails" class="nav-sub">Emails <b class="count" id="emails-count"></b></a>
+      <a href="#/posts" data-nav="posts">Posts <b class="count" id="posts-count" title="Reviewed posts and new conversations waiting for you"></b></a>
       <a href="#/questions" data-nav="questions">Questions <b class="count" id="question-count"></b></a>
       <a href="#/reports" data-nav="reports">Reports</a>
       <a href="#/flags" data-nav="flags">Needs you <b class="count" id="flag-count"></b></a>
@@ -244,6 +245,7 @@ function updateShell(snap) {
   $('#outreach-count').textContent = waiting || '';
   $('#emails-count').textContent = snap.outreach?.pending || '';
   $('#question-count').textContent = snap.questions?.open || '';
+  $('#posts-count').textContent = snap.posts?.counts?.waiting || '';
   $('#live').className = `live ${snap.live ? 'on' : ''}`;
   $('#live').innerHTML = snap.live ? '<i></i>Live' : '<i></i>Idle';
   $('#top-run').innerHTML = snap.running ? `<b>${esc(snap.running.id)}</b> ${esc(snap.running.title)}` : '<span class="muted">No task running. Give the team one on the overview.</span>';
@@ -1849,10 +1851,191 @@ const worldView = {
   },
 };
 
+// ---- Posts: be where buyers ask --------------------------------------------------------------------
+// Two tabs. Posts: social posts the marketing agent drafted; a tick approves one that passed review (then Copy text and a
+// link to the channel's compose page appear), a cross declines it, and "Mark posted" records that a person posted it.
+// Conversations: public posts where people ask for what the product does, each with a suggested reply to copy.
+// Nothing is posted from here or by any agent: the page only helps a person post by hand.
+const PO_FILTERS = {
+  posts: [['pending', 'To decide'], ['approved', 'Ready to post'], ['posted', 'Posted'], ['declined', 'Declined'], ['all', 'All']],
+  conversations: [['new', 'New'], ['posted', 'Replied'], ['skipped', 'Skipped'], ['all', 'All']],
+};
+const PO_LABEL = { pending: 'Waiting for you', approved: 'Ready to post', posted: 'Posted', declined: 'Declined', waiting: 'In review', new: 'New', skipped: 'Skipped' };
+const PO_PILL = { pending: 'p-needs_approval', approved: 'p-queued', posted: 'p-done', declined: 'p-failed', waiting: 'p-running', new: 'p-needs_approval', skipped: 'p-new' };
+const safeHref = (url) => (/^https?:\/\/[^\s"'<>]+$/i.test(String(url || '')) ? String(url) : '');
+
+async function copyToClipboard(button, text, what) {
+  const label = button.textContent;
+  try {
+    await navigator.clipboard.writeText(text);
+    button.textContent = 'Copied ✓';
+    toast(`${what} copied.`);
+    setTimeout(() => { if (button.isConnected) button.textContent = label; }, 1800);
+  } catch {
+    toast("Couldn't copy. Select the text on the page and copy it yourself.", true);
+  }
+}
+
+async function decidePostItem(button, id, decision, note = '') {
+  const card = button.closest('.po-card');
+  const buttons = card ? [...card.querySelectorAll('button')] : [button];
+  card?.classList.add('busy');
+  for (const b of buttons) b.disabled = true;
+  try {
+    const r = await api('/api/posts/decide', { id, decision, note, by: 'a person on the page' });
+    toast(r.message);
+    postsView.marking = null;
+    postsView.link = '';
+  } catch (error) {
+    toast(error.message, true);
+    card?.classList.remove('busy');
+    for (const b of buttons) b.disabled = false;
+  }
+}
+
+const postsView = {
+  tab: 'posts',
+  filter: { posts: 'pending', conversations: 'new' },
+  open: new Set(),
+  marking: null, // the id of the card whose "Mark posted" link box is open
+  link: '',
+  build() {
+    postsView.marking = null;
+    postsView.link = '';
+    $('#view').innerHTML = `<div class="page-h"><h1>Posts</h1><p class="muted">Be where buyers ask. <b>Posts</b> are what the marketing agent drafted; <b>Conversations</b> are public posts where people ask for what our products do, each with a suggested reply. Nothing is posted for you, by this page or by any agent: copy the text, post it yourself, then mark it posted. Only a post that passed review can be approved.</p></div>
+      <div id="po-root">
+        <div class="po-bar"><div class="po-tabs" role="tablist" aria-label="Posts or conversations">${[['posts', 'Posts'], ['conversations', 'Conversations']].map(([k, label]) => `<button type="button" role="tab" data-ptab="${k}">${label} <b data-pn="${k}"></b></button>`).join('')}</div></div>
+        <div class="po-filters" id="po-filters" role="group" aria-label="Show"></div>
+        <div class="po-list" id="po-list"></div>
+      </div>`;
+    const root = $('#po-root');
+    root.addEventListener('click', (e) => {
+      const tab = e.target.closest('[data-ptab]');
+      if (tab) {
+        postsView.tab = tab.dataset.ptab;
+        postsView.marking = null;
+        postsView.update(store.snap);
+        return;
+      }
+      const filter = e.target.closest('[data-pfilter]');
+      if (filter) {
+        postsView.filter[postsView.tab] = filter.dataset.pfilter;
+        postsView.marking = null;
+        postsView.update(store.snap);
+        return;
+      }
+      const card = e.target.closest('.po-card');
+      const id = card?.dataset.id;
+      const b = e.target.closest('button[data-do]');
+      if (!card || !b) return;
+      const snap = store.snap?.posts || {};
+      const item = [...(snap.posts || []), ...(snap.conversations || [])].find((x) => x.id === id);
+      const act = b.dataset.do;
+      if (act === 'more') {
+        if (postsView.open.has(id)) postsView.open.delete(id);
+        else postsView.open.add(id);
+        card.classList.toggle('open', postsView.open.has(id));
+        b.textContent = postsView.open.has(id) ? 'Show less' : 'Read all';
+      } else if (act === 'copy-text') copyToClipboard(b, item?.text || '', 'The post');
+      else if (act === 'copy-comment') copyToClipboard(b, item?.comment || '', 'The first comment');
+      else if (act === 'copy-reply') copyToClipboard(b, item?.reply || '', 'The reply');
+      else if (act === 'mark') {
+        postsView.marking = id;
+        postsView.link = '';
+        postsView.update(store.snap);
+        $(`.po-card[data-id="${CSS.escape(id)}"] .po-link`)?.focus();
+      } else if (act === 'cancel') {
+        postsView.marking = null;
+        postsView.update(store.snap);
+      } else if (act === 'save') decidePostItem(b, id, 'posted', postsView.link.trim());
+      else if (['approve', 'decline', 'skip'].includes(act)) decidePostItem(b, id, act);
+    });
+    root.addEventListener('input', (e) => {
+      if (e.target.matches('.po-link')) postsView.link = e.target.value;
+    });
+    root.addEventListener('keydown', (e) => {
+      if (!e.target.matches('.po-link')) return;
+      if (e.key === 'Enter') decidePostItem(e.target, e.target.closest('.po-card').dataset.id, 'posted', postsView.link.trim());
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        postsView.marking = null;
+        postsView.update(store.snap);
+      }
+    });
+  },
+  update(snap) {
+    const data = snap?.posts || { posts: [], conversations: [], counts: {} };
+    const tab = postsView.tab;
+    const items = data[tab] || [];
+    const wanted = postsView.filter[tab];
+    const shown = wanted === 'all' ? items : items.filter((x) => x.state === wanted);
+    for (const b of $$('[data-ptab]')) {
+      b.setAttribute('aria-selected', String(b.dataset.ptab === tab));
+      const waiting = b.dataset.ptab === 'posts' ? data.counts?.posts : data.counts?.conversations;
+      $(`[data-pn="${b.dataset.ptab}"]`).textContent = waiting || '';
+    }
+    // The person is typing a link: a live update must not rebuild the box under them.
+    if (postsView.marking && $('#po-list .po-link:focus')) return;
+    $('#po-filters').innerHTML = PO_FILTERS[tab].map(([k, label]) => {
+      const n = k === 'all' ? items.length : items.filter((x) => x.state === k).length;
+      return `<button type="button" data-pfilter="${k}" aria-pressed="${k === wanted}">${label}${n ? ` <b>${n}</b>` : ''}</button>`;
+    }).join('');
+    const empty = {
+      posts: { pending: 'No post is waiting for you. The marketing agent drafts new ones every Monday; they appear here once they pass review.', approved: 'No approved post is waiting to be posted.', posted: 'Nothing marked posted yet.', declined: 'Nothing declined.', all: 'No posts drafted yet.' },
+      conversations: { new: 'No new conversations. The buyer-intent watch looks for them every night.', posted: 'You have not marked any reply as posted yet.', skipped: 'Nothing skipped.', all: 'No conversations found yet.' },
+    }[tab][wanted];
+    $('#po-list').innerHTML = shown.length ? shown.map((x) => (tab === 'posts' ? postCard(x) : talkCard(x))).join('') : `<p class="muted po-empty">${esc(empty)}</p>`;
+  },
+};
+
+// The box a person types the link to their own post in. It is optional.
+const markBox = (id) => (postsView.marking === id
+  ? `<div class="po-mark"><label class="sr" for="po-link-${esc(id)}">Link to your post (optional)</label><input class="po-link" id="po-link-${esc(id)}" type="url" placeholder="Link to your post (optional)" value="${esc(postsView.link)}" autocomplete="off"><button type="button" class="primary small" data-do="save">Save</button><button type="button" class="ghost small" data-do="cancel">Cancel</button></div>`
+  : '');
+
+function postCard(p) {
+  const open = postsView.open.has(p.id);
+  const over = p.limit && p.chars > p.limit;
+  const compose = safeHref(p.compose);
+  let acts = '';
+  if (p.state === 'pending') acts = `<button type="button" class="po-yes" data-do="approve" title="Approve" aria-label="Approve the ${esc(p.label)} post">✓</button><button type="button" class="po-no" data-do="decline" title="Decline: don't post" aria-label="Decline the ${esc(p.label)} post">✗</button>`;
+  else if (p.state === 'waiting') acts = `<button type="button" class="po-no" data-do="decline" title="Decline: don't post" aria-label="Decline the ${esc(p.label)} post">✗</button>`;
+  else if (p.state === 'declined' && p.gate === 'ready') acts = `<button type="button" class="po-yes po-small" data-do="approve" aria-label="Approve the ${esc(p.label)} post after all">✓ Approve after all</button>`;
+  const post = p.state === 'approved'
+    ? `<div class="po-post"><button type="button" class="primary small" data-do="copy-text">Copy text</button>${p.comment ? '<button type="button" class="small" data-do="copy-comment">Copy first comment</button>' : ''}${compose ? `<a class="po-open" href="${esc(compose)}" target="_blank" rel="noopener noreferrer">Open ${esc(p.label)} ↗</a>` : ''}<button type="button" class="small" data-do="mark">Mark posted</button></div>${markBox(p.id)}`
+    : p.state === 'posted' && p.link && safeHref(p.link) ? `<div class="po-post"><a class="po-open" href="${esc(safeHref(p.link))}" target="_blank" rel="noopener noreferrer">Open the post ↗</a></div>` : '';
+  const review = p.review ? `${verdictChip(p.review.verdict, p.review.score)}${p.review.stale ? '<span class="muted tiny">changed since</span>' : ''}` : '<span class="pill p-new">Not reviewed</span>';
+  return `<article class="po-card s-${esc(p.state)}${open ? ' open' : ''}" data-id="${esc(p.id)}">
+    <header class="po-head"><span class="po-ch">${esc(p.label)}</span><span class="muted tiny">${esc(p.date)}${p.product ? ` · ${esc(p.product)}` : ''}</span><span class="pill ${PO_PILL[p.state] || ''}">${esc(PO_LABEL[p.state] || p.state)}</span>${review}<span class="po-act">${acts}</span></header>
+    ${p.title ? `<div class="po-title">${esc(p.title)}</div>` : ''}
+    <div class="po-text">${esc(p.text)}</div>
+    ${p.comment ? `<div class="po-comment"><span class="muted tiny">First comment</span><div>${esc(p.comment)}</div></div>` : ''}
+    <div class="po-foot"><button type="button" class="link" data-do="more">${open ? 'Show less' : 'Read all'}</button><span class="tiny${over ? ' bad-text' : ' muted'}">${p.chars}${p.limit ? ` / ${p.limit}` : ''} characters</span><span class="muted tiny">${esc(p.why)}${p.at && ['approved', 'declined', 'posted'].includes(p.state) ? ` · ${esc(ago(p.at))}` : ''}</span>${p.review ? `<a href="#" class="tiny" data-file="${esc(p.review.file)}">review notes</a>` : ''}</div>
+    ${post}
+  </article>`;
+}
+
+function talkCard(c) {
+  const url = safeHref(c.url);
+  const actions = c.state === 'new' || c.state === 'skipped'
+    ? `<div class="po-post">${c.reply ? '<button type="button" class="primary small" data-do="copy-reply">Copy reply</button>' : ''}${url ? `<a class="po-open" href="${esc(url)}" target="_blank" rel="noopener noreferrer">Open the post ↗</a>` : ''}<button type="button" class="small" data-do="mark">Mark posted</button>${c.state === 'new' ? '<button type="button" class="ghost small" data-do="skip">Skip</button>' : ''}</div>${markBox(c.id)}`
+    : `<div class="po-post">${url ? `<a class="po-open" href="${esc(url)}" target="_blank" rel="noopener noreferrer">Open the post ↗</a>` : ''}${c.link && safeHref(c.link) ? `<a class="po-open" href="${esc(safeHref(c.link))}" target="_blank" rel="noopener noreferrer">Your reply ↗</a>` : ''}</div>`;
+  return `<article class="po-card s-${esc(c.state)}" data-id="${esc(c.id)}">
+    <header class="po-head"><span class="po-ch">${esc(c.where || 'Web')}</span><span class="muted tiny">${c.posted ? `posted ${esc(c.posted)} · ` : ''}found ${esc(c.date)}</span><span class="pill ${PO_PILL[c.state] || ''}">${esc(PO_LABEL[c.state] || c.state)}</span>${c.review ? verdictChip(c.review.verdict, c.review.score) : ''}</header>
+    ${c.title ? `<div class="po-title">${esc(c.title)}</div>` : ''}
+    ${c.quote ? `<blockquote class="po-quote">${esc(c.quote)}</blockquote>` : ''}
+    ${c.fit ? `<p class="po-fit"><span class="muted tiny">Why it fits</span> ${esc(c.fit)}</p>` : ''}
+    ${c.reply ? `<div class="po-reply"><span class="muted tiny">Suggested reply</span><div class="po-reply-text">${esc(c.reply)}</div></div>` : '<p class="muted tiny">No suggested reply was written for this one.</p>'}
+    <div class="po-foot"><span class="muted tiny">${esc(c.why)}${c.state !== 'new' && c.at ? ` · ${esc(ago(c.at))}` : ''}</span></div>
+    ${actions}
+  </article>`;
+}
+
 // ---- routing and the stream ----------------------------------------------------------------------
 
 const VIEWS = { offices: officesView, world: worldView, questions: questionsView, home, working, team: teamView, overview, logs, leads: leadsView, outreach: outreachView, emails: emailsView, reports: reportsView, flags: flagsView, agent: agentView, gems: gemsView, float: floatView };
 let current = '';
+VIEWS.posts = postsView;
 
 function route() {
   const [page, arg] = location.hash.replace(/^#\/?/, '').split('/');

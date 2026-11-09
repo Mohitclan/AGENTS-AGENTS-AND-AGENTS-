@@ -29,6 +29,7 @@ import { listSongs, sendSong } from './music.mjs';
 import { projectsApi } from './projects.mjs';
 import { approveAndSend, decideEmails, draftEmails, logRequest, outreachState, planApproval, planDrafts, planEmails } from './outreach.mjs';
 import { answerQuestion, answersTask, dismissQuestions, markSent, questionsState } from './questions.mjs';
+import { decidePost, postsState } from './posts.mjs';
 
 const DEFAULT_PORT = 4318;
 const STATIC = join(ROOT, 'scripts', 'control');
@@ -460,6 +461,23 @@ function questionsCached(root) {
   return questionsMemo.value;
 }
 
+// The Posts page's state (social posts and conversations), rebuilt only when a post, an intent file, a review or a
+// decision changes. Review files are stamped one by one: a review is sometimes rewritten in place.
+let postsMemo = { key: '', value: null };
+function postsCached(root) {
+  const stamp = (rel) => { try { return statSync(join(root, rel)).mtimeMs; } catch { return 0; } };
+  const dir = (rel) => (existsSync(join(root, rel)) ? readdirSync(join(root, rel)).map((n) => `${n}:${stamp(`${rel}/${n}`)}`).join(',') : '');
+  const key = [dir('outputs/marketing/posts'), dir('outputs/research/intent'), dir('outputs/reviews'), stamp('ops/posts.jsonl'), new Date().toISOString().slice(0, 10)].join('|');
+  if (key !== postsMemo.key) {
+    try {
+      postsMemo = { key, value: postsState(root) };
+    } catch (error) {
+      postsMemo = { key, value: { posts: [], conversations: [], counts: { posts: 0, conversations: 0, waiting: 0 }, channels: {}, error: error.message } };
+    }
+  }
+  return postsMemo.value;
+}
+
 export function snapshot(root = ROOT) {
   const base = collect(root);
   const roster = loadRoster(root);
@@ -533,6 +551,7 @@ export function snapshot(root = ROOT) {
     live: !!live,
     outreach: outreachCached(root),
     questions: questionsCached(root),
+    posts: postsCached(root),
     running: base.running ? { id: base.running.id, title: base.running.title, started: base.running.started } : null,
     usage: base.usage,
     kpis: {
@@ -592,6 +611,9 @@ function signature(root) {
   for (const dir of ['ops/runs', 'outputs/reviews', 'outputs/reports', 'outputs/research', 'outputs/outreach', 'outputs/sales', 'outputs/dev', 'knowledge/products', 'knowledge/proposals']) {
     for (const f of list(root, dir, dir === 'ops/runs' ? '.log' : '.md')) add(`${dir}/${f}`);
   }
+  // The Posts page: drafted posts, the buyer-intent finds and what a person decided.
+  add('ops/posts.jsonl');
+  for (const dir of ['outputs/marketing/posts', 'outputs/research/intent']) for (const f of list(root, dir)) add(`${dir}/${f}`);
   return createHash('sha1').update(parts.join('\n')).digest('hex');
 }
 
@@ -810,6 +832,21 @@ function main() {
             json(res, r.ok ? 200 : 500, { message: r.ok ? `Approved ${plan.companies.join(', ')}: ${r.sent} email(s) sent ${where}.` : `Approved, but sending had a problem: ${r.text.split('\n').slice(-3).join(' ')}`, detail: r.text });
           });
           return undefined;
+        }
+        // Posts: a person approves or declines a drafted post, marks a post or a reply as posted by hand, or skips a
+        // conversation. Only the page makes these calls (same-site check); this only records the decision, and nothing is
+        // ever posted by the app or an agent.
+        if (path === '/api/posts/decide') {
+          if (!sameSite(from)) return json(res, 403, { message: 'Use the team page itself.' });
+          let ask;
+          try {
+            ask = JSON.parse(body || '{}');
+          } catch {
+            return json(res, 400, { message: 'That request could not be read.' });
+          }
+          const r = decidePost(ROOT, String(ask.id || ''), String(ask.decision || ''), String(ask.by || 'a person on the page').slice(0, 60), ask.note);
+          if (r.ok) lastSig = '';
+          return json(res, r.status, { message: r.message });
         }
         // Questions for you: a person answers or dismisses a question from a report, or sends the answers to the team.
         if (path.startsWith('/api/questions/')) {

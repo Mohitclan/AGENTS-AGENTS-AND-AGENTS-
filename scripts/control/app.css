@@ -511,3 +511,46 @@ label.check { flex-direction: row !important; align-items: center; gap: 6px; fon
 .em-foot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
 .em-foot .link { background: none; border: 0; padding: 0; color: var(--accent2, #8fb4ff); font-size: 12px; cursor: pointer; }
 .em-empty { padding: 30px 0; text-align: center; }
+
+/* ---- Posts: be where buyers ask (social posts and conversations to answer, all posted by hand) ---- */
+.po-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.po-tabs { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.po-tabs button { border-radius: 99px; padding: 7px 18px; font-size: 14px; background: var(--panel); color: var(--muted); border: 1px solid var(--line2); }
+.po-tabs button[aria-selected="true"] { background: var(--panel2); color: var(--text); border-color: var(--accent, #6c5cff); }
+.po-tabs b { margin-left: 4px; font-size: 11px; background: var(--warn); color: #241600; border-radius: 99px; padding: 0 6px; }
+.po-tabs b:empty { display: none; }
+.po-filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.po-filters button { border-radius: 99px; padding: 3px 12px; font-size: 12px; background: transparent; color: var(--muted); border: 1px solid var(--line); }
+.po-filters button[aria-pressed="true"] { background: var(--panel2); color: var(--text); border-color: var(--line2); }
+.po-filters b { margin-left: 3px; font-weight: 600; color: var(--text); }
+.po-list { display: flex; flex-direction: column; gap: 12px; }
+.po-card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; transition: opacity .2s, border-color .2s; }
+.po-card.s-pending, .po-card.s-new { border-color: rgba(255, 176, 32, .45); }
+.po-card.s-approved { border-color: rgba(76, 141, 255, .5); }
+.po-card.s-posted, .po-card.s-declined, .po-card.s-skipped { opacity: .72; }
+.po-card.busy { opacity: .5; pointer-events: none; }
+.po-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.po-ch { font-weight: 700; }
+.po-act { margin-left: auto; display: inline-flex; gap: 8px; }
+.po-yes, .po-no { width: 40px; height: 40px; border-radius: 50%; padding: 0; font-size: 18px; font-weight: 700; display: grid; place-items: center; border: 1px solid transparent; }
+.po-yes { background: rgba(47, 210, 124, .16); color: #5be39b; border-color: rgba(47, 210, 124, .5); }
+.po-yes:hover { background: #2fd27c; color: #06210f; }
+.po-no { background: rgba(255, 92, 92, .14); color: #ff8a8a; border-color: rgba(255, 92, 92, .45); }
+.po-no:hover { background: #ff5c5c; color: #2a0505; }
+.po-yes.po-small { width: auto; height: auto; border-radius: 99px; padding: 5px 12px; font-size: 12px; }
+.po-title { margin: 10px 0 0; font-weight: 600; }
+.po-text { margin-top: 8px; white-space: pre-wrap; color: var(--muted); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
+.po-card.open .po-text { display: block; -webkit-line-clamp: unset; color: var(--text); }
+.po-comment { margin-top: 10px; padding: 8px 12px; border-left: 3px solid var(--line2); white-space: pre-wrap; color: var(--muted); }
+.po-quote { margin: 10px 0 0; padding: 8px 14px; border-left: 3px solid var(--info); background: rgba(76, 141, 255, .07); border-radius: 0 10px 10px 0; color: var(--text); font-style: italic; }
+.po-fit { margin: 8px 0 0; color: var(--muted); }
+.po-reply { margin-top: 10px; padding: 10px 12px; background: var(--bg2); border: 1px solid var(--line); border-radius: 10px; }
+.po-reply-text { white-space: pre-wrap; line-height: 1.5; margin-top: 4px; }
+.po-foot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+.po-foot .link { background: none; border: 0; padding: 0; color: var(--accent2, #8fb4ff); font-size: 12px; cursor: pointer; }
+.po-post { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.po-open { display: inline-block; font-size: 12px; padding: 4px 10px; border: 1px solid var(--line2); border-radius: 10px; background: var(--panel2); color: var(--text); }
+.po-open:hover { text-decoration: none; border-color: var(--info); }
+.po-mark { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.po-link { flex: 1 1 260px; min-width: 0; }
+.po-empty { padding: 30px 0; text-align: center; }
