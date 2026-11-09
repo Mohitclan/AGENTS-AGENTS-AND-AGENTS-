@@ -30,6 +30,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync,
 import { join } from 'node:path';
 import { ROOT, isMain, printTable } from './_shared.mjs';
 import { addTask as dashboardAddTask, startQueued as dashboardStartQueued } from './dashboard.mjs';
+import { SCHEDULED_TASKS as POST_TASKS } from './posts.mjs';
 
 export const CATCH_UP_HOURS = 6;
 const SCRIPT_TIMEOUT_MS = 120_000;
@@ -42,7 +43,8 @@ export const DEFAULT_SCHEDULE = [
     name: 'Nightly lead sweep',
     kind: 'task',
     every: 'daily 02:00',
-    task: 'Nightly lead sweep for motionrepo: only products launched in the last 2 days on the launch boards in the lead-sources skill (Product Hunt, Show HN, Peerlist, the Indian launch boards). Prove at most 5 leads, stop early when nothing new turns up, and stop at leads: no drafts.',
+    // Peerlist is left out: the lead-sources skill says only a person can read it, so a sweep would only spend fetches on it.
+    task: 'Nightly lead sweep for motionrepo: only products launched in the last 2 days on the launch boards in the lead-sources skill that agents can read (Product Hunt, Show HN, the Indian launch boards). Prove at most 5 leads, stop early when nothing new turns up, and stop at leads: no drafts.',
     enabled: true,
     last_run: null,
     skip_over: 0.6,
@@ -56,6 +58,8 @@ export const DEFAULT_SCHEDULE = [
     enabled: true,
     last_run: null,
   },
+  // The buyer-intent watch and the weekly social posts (scripts/posts.mjs): their drafts wait on the Posts page.
+  ...POST_TASKS.map((t) => ({ kind: 'task', enabled: true, last_run: null, ...t })),
 ];
 
 // ---- when ----------------------------------------------------------------------------------------

@@ -328,14 +328,16 @@ describe('the schedule file', () => {
   });
   after(() => rmSync(dir, { recursive: true, force: true }));
 
-  it('starts with the nightly lead sweep and the weekly report', () => {
-    const [nightly, weekly] = DEFAULT_SCHEDULE;
+  it('starts with the nightly lead sweep, the weekly report, the buyer-intent watch and the weekly posts', () => {
+    const [nightly, weekly, intent, posts] = DEFAULT_SCHEDULE;
     assert.equal(nightly.id, 'nightly-leads');
     assert.equal(nightly.every, 'daily 02:00');
     assert.equal(nightly.enabled, true);
     assert.equal(nightly.skip_over, 0.6);
-    assert.match(nightly.task, /^Nightly lead sweep for motionrepo: only products launched in the last 2 days on the launch boards in the lead-sources skill \(Product Hunt, Show HN, Peerlist, the Indian launch boards\)\. Prove at most 5 leads, stop early when nothing new turns up, and stop at leads: no drafts\.$/);
+    assert.match(nightly.task, /^Nightly lead sweep for motionrepo: only products launched in the last 2 days on the launch boards in the lead-sources skill that agents can read \(Product Hunt, Show HN, the Indian launch boards\)\. Prove at most 5 leads, stop early when nothing new turns up, and stop at leads: no drafts\.$/);
     assert.deepEqual([weekly.id, weekly.kind, weekly.every, weekly.script, weekly.enabled], ['weekly-report', 'script', 'weekly mon 09:00', 'weekly.mjs', true]);
+    assert.deepEqual([intent.id, intent.kind, intent.every, intent.enabled, intent.skip_over], ['buyer-intent-watch', 'task', 'daily 03:00', true, 0.6]);
+    assert.deepEqual([posts.id, posts.kind, posts.every, posts.enabled], ['weekly-social-posts', 'task', 'weekly mon 10:00', true]);
     // the committed file holds the defaults (what a running server writes into it, last_run and a note, is its own)
     const shape = ({ last_run, last_note, enabled, ...rest }) => rest;
     assert.deepEqual(JSON.parse(readFileSync(new URL('../../ops/schedule.json', import.meta.url), 'utf8')).map(shape), DEFAULT_SCHEDULE.map(shape));
@@ -343,7 +345,7 @@ describe('the schedule file', () => {
 
   it('creates ops/schedule.json when it is missing, and leaves an existing one alone', () => {
     assert.equal(existsSync(join(dir, 'ops', 'schedule.json')), false);
-    assert.equal(loadSchedule(dir).length, 2, 'a missing file reads as the defaults');
+    assert.equal(loadSchedule(dir).length, 4, 'a missing file reads as the defaults');
     assert.equal(existsSync(join(dir, 'ops', 'schedule.json')), false, 'reading writes nothing');
     ensureSchedule(dir);
     assert.deepEqual(JSON.parse(readFileSync(join(dir, 'ops', 'schedule.json'), 'utf8')), DEFAULT_SCHEDULE);
@@ -408,7 +410,7 @@ describe('the Reports page: schedules over HTTP', () => {
 
   it('puts the schedules and the weekly reports into the page state', async () => {
     const { schedule } = await (await fetch(`${base}/api/state`)).json();
-    assert.deepEqual(schedule.entries.map((e) => [e.id, e.when, e.enabled]), [['nightly-leads', 'Every day at 02:00', true], ['weekly-report', 'Every Monday at 09:00', true]]);
+    assert.deepEqual(schedule.entries.map((e) => [e.id, e.when, e.enabled]), [['nightly-leads', 'Every day at 02:00', true], ['weekly-report', 'Every Monday at 09:00', true], ['buyer-intent-watch', 'Every day at 03:00', true], ['weekly-social-posts', 'Every Monday at 10:00', true]]);
     assert.ok(schedule.entries.every((e) => e.last_run === null && typeof e.next === 'string'));
     assert.deepEqual(schedule.weekly.map((w) => [w.week, w.path]), [['2026-11-02', 'outputs/reports/weekly-2026-11-02.md']]);
   });
@@ -426,7 +428,7 @@ describe('the Reports page: schedules over HTTP', () => {
     assert.equal(JSON.parse(readFileSync(repo.path('ops', 'schedule.json'), 'utf8')).find((e) => e.id === 'nightly-leads').enabled, false);
     assert.equal(JSON.parse(readFileSync(repo.path('ops', 'schedule.json'), 'utf8')).find((e) => e.id === 'weekly-report').enabled, true);
     const { schedule } = await (await fetch(`${base}/api/state`)).json();
-    assert.deepEqual(schedule.entries.map((e) => [e.id, e.enabled, e.next === null]), [['nightly-leads', false, true], ['weekly-report', true, false]]);
+    assert.deepEqual(schedule.entries.map((e) => [e.id, e.enabled, e.next === null]).slice(0, 2), [['nightly-leads', false, true], ['weekly-report', true, false]]);
     const on = await post('/api/schedule/toggle', { id: 'nightly-leads', enabled: true });
     assert.deepEqual([on.status, on.message], [200, 'Nightly lead sweep is on.']);
   });
@@ -443,7 +445,7 @@ describe('the Reports page: schedules over HTTP', () => {
 
   it('writes the weekly report itself when its entry runs, with no Claude session', () => {
     // the week is named here so the test does not depend on today's date; the default entry names none
-    const entries = loadSchedule(repo.dir).map((e) => (e.id === 'nightly-leads' ? { ...e, enabled: false } : { ...e, script: 'weekly.mjs --week 2026-11-02' }));
+    const entries = loadSchedule(repo.dir).map((e) => (e.kind === 'task' ? { ...e, enabled: false } : { ...e, script: 'weekly.mjs --week 2026-11-02' }));
     saveSchedule(repo.dir, entries);
     const f = fakes();
     const r = runDue(repo.dir, at(9, 9, 0), f);

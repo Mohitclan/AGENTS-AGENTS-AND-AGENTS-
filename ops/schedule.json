@@ -4,7 +4,7 @@
     "name": "Nightly lead sweep",
     "kind": "task",
     "every": "daily 02:00",
-    "task": "Nightly lead sweep for motionrepo: only products launched in the last 2 days on the launch boards in the lead-sources skill (Product Hunt, Show HN, Peerlist, the Indian launch boards). Prove at most 5 leads, stop early when nothing new turns up, and stop at leads: no drafts.",
+    "task": "Nightly lead sweep for motionrepo: only products launched in the last 2 days on the launch boards in the lead-sources skill that agents can read (Product Hunt, Show HN, the Indian launch boards). Prove at most 5 leads, stop early when nothing new turns up, and stop at leads: no drafts.",
     "enabled": true,
     "last_run": null,
     "skip_over": 0.6
@@ -17,5 +17,25 @@
     "script": "weekly.mjs",
     "enabled": true,
     "last_run": null
+  },
+  {
+    "kind": "task",
+    "enabled": true,
+    "last_run": null,
+    "id": "buyer-intent-watch",
+    "name": "Buyer-intent watch",
+    "every": "daily 03:00",
+    "task": "Buyer-intent watch for motionrepo: with the buyer-intent-search skill, find up to 8 public posts from the last 2 days where people ask how to make a launch video, a demo or docs from a repo, or complain about the tools they use; save them with a suggested reply each to outputs/research/intent/<date>.md; post nothing.",
+    "skip_over": 0.6
+  },
+  {
+    "kind": "task",
+    "enabled": true,
+    "last_run": null,
+    "id": "weekly-social-posts",
+    "name": "Weekly social posts",
+    "every": "weekly mon 10:00",
+    "task": "Draft this week's social posts for motionrepo: 3 LinkedIn posts in the founder's voice (linkedin-founder skill), 2 X posts and 1 dev.to post outline, from confirmed facts only, each saved to outputs/marketing/posts/ and reviewed by the evaluator; publish nothing.",
+    "skip_over": 0.6
   }
 ]
