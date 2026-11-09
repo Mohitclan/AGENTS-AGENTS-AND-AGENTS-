@@ -1,6 +1,7 @@
 // Mission control's page. One state stream from /api/stream keeps every view current; agent pages,
-// logs and documents are fetched when opened. Nothing here can send an email or approve anything:
-// the only actions are giving the team a task, starting waiting tasks and cancelling a queued one.
+// logs and documents are fetched when opened. Nothing here sends an email by itself: the actions are giving the
+// team a task, starting waiting tasks, cancelling a queued one, and a person's ticks and crosses on the Outreach
+// and Emails pages (during the pilot a tick sends test copies only; the Emails page's go-live panel ends the pilot).
 import { avatarHTML, badgeImg, mountAvatars, setAvatarStatus } from './gems/avatar.js';
 import { createDock } from './gems/dock.js';
 import { createGallery } from './gems/gallery.js';
@@ -1352,13 +1353,20 @@ const outreachView = {
   },
 };
 
-// Emails: every drafted email one at a time, under Outreach in the menu. A tick sends that email (during the pilot,
-// [TEST] copies to the three test recipients only), a cross declines it so it is never sent. Only emails whose
-// draft passed review can be decided. By voice: "approve email 1 for puzari", "decline email 2 for puzari",
-// "approve all pending emails".
-const EMAIL_TABS = [['pending', 'Pending'], ['all', 'All drafted'], ['approved', 'Sent'], ['declined', 'Declined']];
-const EMAIL_LABEL = { pending: 'Waiting for you', approved: 'Sent', declined: 'Declined', waiting: 'In review' };
-const EMAIL_PILL = { pending: 'p-needs_approval', approved: 'p-done', declined: 'p-failed', waiting: 'p-running' };
+// Emails: every drafted email one at a time, under Outreach in the menu. A tick sends that email, a cross declines it
+// so it is never sent. While the pilot is on, a tick sends [TEST] copies to the test recipients only. With the pilot
+// off (the go-live panel at the top), a tick sends to the lead for real, and Email 2 or 3 ticked before its day is
+// scheduled for that day. Only emails whose draft passed review can be decided. The Replies tab lists the answers our
+// emails got, each with a button to have the team draft an answer; the drafted answer then appears here like any
+// other email. By voice: "approve email 1 for puzari", "decline email 2 for puzari", "approve all pending emails".
+const EMAIL_TABS = [['pending', 'Pending'], ['scheduled', 'Scheduled'], ['all', 'All drafted'], ['approved', 'Sent'], ['declined', 'Declined'], ['replies', 'Replies']];
+const EMAIL_LABEL = { pending: 'Waiting for you', approved: 'Sent', declined: 'Declined', waiting: 'In review', scheduled: 'Scheduled', skipped: 'Skipped' };
+const EMAIL_PILL = { pending: 'p-needs_approval', approved: 'p-done', declined: 'p-failed', waiting: 'p-running', scheduled: 'p-queued', skipped: 'p-failed' };
+const emailLabel = (m) => (m.state === 'scheduled' ? (m.dueText ? `Scheduled for ${m.dueText}` : 'Scheduled') : m.state === 'approved' && m.retry ? 'Approved, not sent' : EMAIL_LABEL[m.state] || m.state);
+const REPLY_LABEL = { interested: 'Interested', question: 'Question', not_interested: 'Not interested', reply: 'Reply', opt_out: 'Opt-out', complaint: 'Complaint', bounce: 'Bounce', auto_reply: 'Auto-reply' };
+const REPLY_PILL = { interested: 'p-done', question: 'p-running', not_interested: 'p-new', reply: 'p-queued', opt_out: 'p-failed', complaint: 'p-failed', bounce: 'p-failed', auto_reply: 'p-new' };
+const READY_MARK = { ok: '✓', missing: '✗', unknown: '?' };
+const READY_TEXT = { ok: 'ok', missing: 'missing', unknown: "couldn't check" };
 
 async function decideEmail(button, emails, decision) {
   const card = button.closest('.em-card');
@@ -1374,14 +1382,97 @@ async function decideEmail(button, emails, decision) {
   }
 }
 
+// The mailbox checklist (SPF, DMARC, DKIM and the settings) in the go-live panel. Looked up on the server, so it is
+// fetched when the page opens and on "Check again", not on every update.
+async function loadReadiness(fresh) {
+  if (!$('#gl-list')) return;
+  $('#gl-list').innerHTML = '<li class="muted">Checking the mailbox…</li>';
+  try {
+    const r = await api(`/api/mail/readiness${fresh ? '?fresh=1' : ''}`);
+    if (!$('#gl-list')) return; // the page was left meanwhile
+    $('#gl-list').innerHTML = r.items.map((i) => `<li class="gl-item s-${esc(i.status)}"><span class="gl-mark" aria-hidden="true">${READY_MARK[i.status] || '?'}</span><div><div><b>${esc(i.label)}</b> <span class="gl-state">${esc(READY_TEXT[i.status] || i.status)}</span></div>${i.detail ? `<div class="muted tiny">${esc(i.detail)}</div>` : ''}${i.fix ? `<div class="gl-fix">${esc(i.fix)}</div>` : ''}</div></li>`).join('');
+    $('#gl-sum').textContent = r.ok ? 'Everything checked is ok.' : `${r.missing} to fix${r.unknown ? `, ${r.unknown} could not be checked` : ''}.`;
+  } catch (error) {
+    if ($('#gl-list')) $('#gl-list').innerHTML = `<li class="muted">${esc(error.message)}</li>`;
+  }
+}
+
+// End the pilot (live true, after "go live" is typed) or go back to it.
+async function setPilotMode(live) {
+  const buttons = $$('#gl button');
+  for (const b of buttons) b.disabled = true;
+  try {
+    const r = await api('/api/pilot', { live, confirm: $('#gl-type').value, by: 'a person on the page' });
+    toast(r.message);
+    $('#gl-confirm').hidden = true;
+  } catch (error) {
+    toast(error.message, true);
+  } finally {
+    for (const b of buttons) b.disabled = false;
+    $('#gl-go').disabled = $('#gl-type').value.trim().toLowerCase() !== 'go live';
+  }
+}
+
+// Asks the sales agent to draft the answer to one reply.
+async function draftAnswer(button, reply) {
+  button.disabled = true;
+  try {
+    toast((await api('/api/outreach/reply-draft', { reply, by: 'a person on the page' })).message);
+  } catch (error) {
+    toast(error.message, true);
+    button.disabled = false;
+  }
+}
+
+function emailCard(m, live) {
+  const open = emailsView.open.has(m.ref);
+  const who = esc(m.company);
+  const acts = m.state === 'pending'
+    ? `<button type="button" class="em-yes" data-decide="approve" title="${live ? 'Approve and send to the lead' : 'Approve and send a test copy'}" aria-label="Approve and send email ${m.n} for ${who}">✓</button><button type="button" class="em-no" data-decide="decline" title="Decline: don't send" aria-label="Decline email ${m.n} for ${who}">✗</button>`
+    : m.state === 'scheduled' ? `<button type="button" class="em-no small-no" data-decide="decline" aria-label="Cancel the scheduled email ${m.n} for ${who}">✗ Cancel</button>`
+    : m.state === 'declined' ? `<button type="button" class="em-yes small-yes" data-decide="approve" aria-label="Send email ${m.n} for ${who} after all">✓ Send after all</button>`
+    : m.state === 'approved' && m.retry ? `<button type="button" class="em-yes small-yes" data-decide="approve" aria-label="Try sending email ${m.n} for ${who} again">✓ Try sending again</button>` : '';
+  const head = m.kind === 'answer' ? `<span class="muted tiny">Answer to ${esc(m.reply?.fromName || m.reply?.from || 'a reply')}</span>` : `<span class="muted tiny">Email ${m.n} of ${m.of}</span>`;
+  // With the pilot off, say where a tick would send it, so a person sees the address before ticking.
+  const to = !live ? '' : m.to ? `<div class="em-to tiny muted">To: ${m.toName ? `${esc(m.toName)} ` : ''}&lt;${esc(m.to)}&gt;</div>` : `<div class="em-to tiny bad-text">${esc(m.cannotSend)}</div>`;
+  return `<article class="em-card s-${esc(m.state)}${open ? ' open' : ''}" data-ref="${esc(m.ref)}">
+    <header class="em-head"><b>${who}</b>${head}<span class="pill ${EMAIL_PILL[m.state] || ''}">${esc(emailLabel(m))}</span>${m.review ? verdictChip(m.review.verdict, m.review.score) : ''}<span class="em-act">${acts}</span></header>
+    ${to}<div class="em-subj">${esc(m.subject || '(no subject)')}</div>
+    <div class="em-body">${esc(m.body)}</div>
+    <footer class="em-foot"><button type="button" class="link" data-more="${esc(m.ref)}">${open ? 'Show less' : 'Read all'}</button><span class="muted tiny">${esc(m.why)}${m.at ? ` · ${esc(ago(m.at))}` : ''}</span><a href="#" class="tiny" data-file="${esc(m.draft)}">full draft and review notes</a></footer>
+  </article>`;
+}
+
+function replyCard(r) {
+  const key = `reply:${r.id}`;
+  const open = emailsView.open.has(key);
+  const state = r.draft ? `Answer drafted. <a href="#" data-file="${esc(r.draft)}">Read it</a>, then tick it under Pending to send it to ${esc(r.fromName || r.from)}.`
+    : r.drafting ? `Drafting the answer in <code>${esc(r.drafting)}</code>.`
+    : r.canDraft ? `${r.requested ? 'A draft was asked for, but none was written. ' : ''}<button type="button" class="primary small" data-reply-draft="${esc(r.id)}">Draft an answer</button>`
+    : r.kind !== 'reply' ? 'No answer is drafted for this kind of reply.'
+    : !r.lead ? 'This reply is not tied to a lead.' : 'No answer can be drafted: the lead is closed.';
+  return `<article class="em-card rp-card${open ? ' open' : ''}" data-ref="${esc(key)}">
+    <header class="em-head"><b>${esc(r.fromName || r.from)}</b><span class="muted tiny">${r.fromName ? `${esc(r.from)} · ` : ''}${esc(r.company || 'unknown company')}</span><span class="pill ${REPLY_PILL[r.label] || ''}">${esc(REPLY_LABEL[r.label] || r.label)}</span>${r.mode && r.mode !== 'live' ? `<span class="pill">${esc(r.mode)} send</span>` : ''}<span class="muted tiny rp-when">${esc(ago(r.received))}</span></header>
+    <div class="em-subj">${esc(r.subject || '(no subject)')}</div>
+    <div class="em-body">${esc(r.text || '(no text saved)')}</div>
+    <footer class="em-foot"><button type="button" class="link" data-more="${esc(key)}">${open ? 'Show less' : 'Read all'}</button><span class="muted tiny">${state}</span>${r.file ? `<a href="#" class="tiny" data-file="${esc(r.file)}">saved reply</a>` : ''}</footer>
+  </article>`;
+}
+
 const emailsView = {
   tab: 'pending',
   open: new Set(),
+  onClick: null,
   build() {
-    $('#view').innerHTML = `<div class="page-h"><h1>Emails</h1><p class="muted">Every email the team drafted, one at a time. <b>✓</b> sends it, <b>✗</b> stops it. During the pilot ✓ sends [TEST] copies to Purab, Tanvi and Mohit only, never to the lead. Only emails whose draft passed review can be sent. By voice: <q>approve email 1 for PuzariCloud</q>, <q>decline email 2 for PuzariCloud</q>, <q>approve all pending emails</q>.</p></div>
+    $('#view').innerHTML = `<div class="page-h"><h1>Emails</h1><p class="muted" id="em-intro"></p></div>
+      <section class="card gl" id="gl">
+        <div class="gl-top"><span class="pill" id="gl-mode"></span><p class="muted" id="gl-what"></p><div class="gl-actions"><button type="button" class="primary small" id="gl-end">End the pilot…</button><button type="button" class="small" id="gl-back" hidden>Back to pilot</button></div></div>
+        <form class="gl-confirm" id="gl-confirm" hidden><label for="gl-type">Type <b>go live</b> to end the pilot. After that, a ✓ sends to the lead for real.</label><input id="gl-type" type="text" autocomplete="off" spellcheck="false" placeholder="go live"><button type="submit" class="primary small" id="gl-go" disabled>End the pilot</button><button type="button" class="small" id="gl-cancel">Cancel</button></form>
+        <div class="gl-ready"><div class="sec-h"><h2>Mailbox readiness</h2><span class="muted tiny" id="gl-sum"></span><button type="button" class="small" id="gl-recheck">Check again</button></div><ul class="gl-list" id="gl-list"></ul></div>
+      </section>
       <div class="em-bar"><div class="em-tabs" role="tablist" aria-label="Which emails">${EMAIL_TABS.map(([k, label]) => `<button type="button" role="tab" data-tab="${k}">${label} <b data-n="${k}"></b></button>`).join('')}</div><button type="button" class="primary small" id="em-all" hidden></button></div>
       <div class="em-list" id="em-list"></div>`;
-    $('#view').addEventListener('click', (e) => {
+    emailsView.onClick = (e) => {
       const tab = e.target.closest('[data-tab]');
       if (tab) {
         emailsView.tab = tab.dataset.tab;
@@ -1393,42 +1484,73 @@ const emailsView = {
         const ref = more.dataset.more;
         if (emailsView.open.has(ref)) emailsView.open.delete(ref);
         else emailsView.open.add(ref);
-        more.closest('.em-card').classList.toggle('open', emailsView.open.has(ref));
+        const card = more.closest('.em-card');
+        card.classList.toggle('open', emailsView.open.has(ref));
         more.textContent = emailsView.open.has(ref) ? 'Show less' : 'Read all';
+        return;
+      }
+      const ask = e.target.closest('[data-reply-draft]');
+      if (ask) {
+        draftAnswer(ask, ask.dataset.replyDraft);
         return;
       }
       const b = e.target.closest('[data-decide]');
       if (b) decideEmail(b, [b.closest('.em-card').dataset.ref], b.dataset.decide);
-    });
+    };
+    // the page's one click handler is taken off again when the page is left (see leave)
+    $('#view').addEventListener('click', emailsView.onClick);
     $('#em-all').addEventListener('click', (e) => decideEmail(e.currentTarget, 'all', 'approve'));
+    const typed = $('#gl-type');
+    $('#gl-end').addEventListener('click', () => {
+      $('#gl-confirm').hidden = false;
+      typed.value = '';
+      $('#gl-go').disabled = true;
+      typed.focus();
+    });
+    $('#gl-cancel').addEventListener('click', () => { $('#gl-confirm').hidden = true; });
+    typed.addEventListener('input', () => { $('#gl-go').disabled = typed.value.trim().toLowerCase() !== 'go live'; });
+    $('#gl-confirm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (typed.value.trim().toLowerCase() === 'go live') setPilotMode(true);
+    });
+    $('#gl-back').addEventListener('click', () => setPilotMode(false));
+    $('#gl-recheck').addEventListener('click', () => loadReadiness(true));
+    loadReadiness(false);
+  },
+  leave() {
+    if (emailsView.onClick) $('#view')?.removeEventListener('click', emailsView.onClick);
   },
   update(snap) {
-    const all = snap?.outreach?.emails || [];
-    const tabs = { pending: all.filter((m) => m.state === 'pending'), all, approved: all.filter((m) => m.state === 'approved'), declined: all.filter((m) => m.state === 'declined') };
+    const o = snap?.outreach || {};
+    const all = o.emails || [];
+    const replies = o.replies || [];
+    const live = !!o.pilot && !o.pilot.on; // no word from the server counts as the pilot: the safe side
+    $('#gl-mode').textContent = live ? 'Live: emails go to leads' : 'Pilot: test copies only';
+    $('#gl-mode').className = `pill ${live ? 'p-running' : 'p-needs_approval'}`;
+    $('#gl-what').textContent = live
+      ? `A ✓ sends the email to the lead for real. Email 2 or 3 ticked before its day is scheduled for that day, and goes only if nobody has replied. ${o.pilot.canRestore ? 'Back to pilot restores the test-only rule exactly as it was.' : 'No test recipients were set aside, so going back means adding them to ops/mail-config.json.'}`
+      : 'A ✓ sends a [TEST] copy to the test recipients only; nothing reaches a lead. Ending the pilot lets a ✓ send to the lead for real, and sends follow-ups on their day.';
+    $('#gl-end').hidden = live;
+    $('#gl-back').hidden = !live || !o.pilot.canRestore;
+    if (live) $('#gl-confirm').hidden = true;
+    $('#em-intro').innerHTML = `Every email the team drafted, one at a time. <b>✓</b> sends it, <b>✗</b> stops it. ${live ? 'With the pilot off, ✓ sends to the lead. Email 2 or 3 ticked early is scheduled for its working day.' : 'During the pilot ✓ sends [TEST] copies to Purab, Tanvi and Mohit only, never to the lead.'} Only emails whose draft passed review can be sent. By voice: <q>approve email 1 for PuzariCloud</q>, <q>decline email 2 for PuzariCloud</q>, <q>approve all pending emails</q>.`;
+    const tabs = { pending: all.filter((m) => m.state === 'pending'), scheduled: all.filter((m) => m.state === 'scheduled'), all, approved: all.filter((m) => m.state === 'approved'), declined: all.filter((m) => m.state === 'declined'), replies };
     for (const b of $$('[data-tab]')) {
       b.setAttribute('aria-selected', String(b.dataset.tab === emailsView.tab));
-      $(`[data-n="${b.dataset.tab}"]`).textContent = tabs[b.dataset.tab].length || '';
+      $(`[data-n="${b.dataset.tab}"]`).textContent = (b.dataset.tab === 'replies' ? replies.filter((r) => r.canDraft).length : tabs[b.dataset.tab].length) || '';
     }
     const allBtn = $('#em-all');
     allBtn.hidden = emailsView.tab !== 'pending' || tabs.pending.length < 2;
     allBtn.textContent = `✓ Approve all ${tabs.pending.length}`;
     const shown = tabs[emailsView.tab];
-    const empty = { pending: 'No email is waiting for you. New drafts appear here once they pass review.', all: 'No emails drafted yet. Ask for drafts on the Outreach page or by voice.', approved: 'Nothing sent yet.', declined: 'Nothing declined.' }[emailsView.tab];
-    $('#em-list').innerHTML = shown.length
-      ? shown.map((m) => {
-        const open = emailsView.open.has(m.ref);
-        const acts = m.state === 'pending'
-          ? `<button type="button" class="em-yes" data-decide="approve" title="Approve and send" aria-label="Approve and send email ${m.n} for ${esc(m.company)}">✓</button><button type="button" class="em-no" data-decide="decline" title="Decline: don't send" aria-label="Decline email ${m.n} for ${esc(m.company)}">✗</button>`
-          : m.state === 'declined' ? `<button type="button" class="em-yes small-yes" data-decide="approve" aria-label="Send email ${m.n} for ${esc(m.company)} after all">✓ Send after all</button>`
-          : m.state === 'approved' && !m.sent ? `<button type="button" class="em-yes small-yes" data-decide="approve" aria-label="Try sending email ${m.n} for ${esc(m.company)} again">✓ Try sending again</button>` : '';
-        return `<article class="em-card s-${esc(m.state)}${open ? ' open' : ''}" data-ref="${esc(m.ref)}">
-          <header class="em-head"><b>${esc(m.company)}</b><span class="muted tiny">Email ${m.n} of ${m.of}</span><span class="pill ${EMAIL_PILL[m.state] || ''}">${esc(EMAIL_LABEL[m.state] || m.state)}</span>${m.review ? verdictChip(m.review.verdict, m.review.score) : ''}<span class="em-act">${acts}</span></header>
-          <div class="em-subj">${esc(m.subject || '(no subject)')}</div>
-          <div class="em-body">${esc(m.body)}</div>
-          <footer class="em-foot"><button type="button" class="link" data-more="${esc(m.ref)}">${open ? 'Show less' : 'Read all'}</button><span class="muted tiny">${esc(m.why)}${m.at ? ` · ${esc(ago(m.at))}` : ''}</span><a href="#" class="tiny" data-file="${esc(m.draft)}">full draft and review notes</a></footer>
-        </article>`;
-      }).join('')
-      : `<p class="muted em-empty">${esc(empty)}</p>`;
+    const empty = {
+      pending: 'No email is waiting for you. New drafts appear here once they pass review.',
+      scheduled: 'Nothing is scheduled. A follow-up ticked before its day appears here until it goes.',
+      all: 'No emails drafted yet. Ask for drafts on the Outreach page or by voice.',
+      approved: 'Nothing sent yet.', declined: 'Nothing declined.',
+      replies: 'No replies yet. The inbox is read every 20 minutes while a mail password is set.',
+    }[emailsView.tab];
+    $('#em-list').innerHTML = shown.length ? shown.map((m) => (emailsView.tab === 'replies' ? replyCard(m) : emailCard(m, live))).join('') : `<p class="muted em-empty">${esc(empty)}</p>`;
   },
 };
 

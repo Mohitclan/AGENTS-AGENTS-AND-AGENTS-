@@ -11,8 +11,11 @@
 // --no-report skips the report email for a demo or test send (scripts/send-tests.mjs reports the batch).
 // Live mode: any other --to. Needs --approval <id> whose row in ops/approvals.md says Yes/Approved
 // and names the recipient. Live sends are refused when the recipient is suppressed, the copy fails
-// lint-copy, today's live sends have reached the daily limit, or the person or company has answered
-// (ops/replies.jsonl, kept by scripts/replies.mjs).
+// lint-copy, today's live sends have reached the daily limit, that email already went to that person,
+// or the person or company has answered (ops/replies.jsonl, kept by scripts/replies.mjs). The one
+// exception: a draft in outputs/outreach/replies/ is an answer to a reply, so a plain reply from its
+// recipient doesn't stop it (an opt-out, a complaint or a bounce still does). It marks the lead
+// `contacted` and logs to ops/send-log.jsonl.
 //
 // Secrets: the SMTP password comes from the SMTP_PASS environment variable, else from .env.
 // It is never printed or logged.
@@ -160,10 +163,11 @@ function latestReview(task) {
   return `outputs/reviews/${file}${m ? `: ${m[1]} ${m[2]}/100` : ''}`;
 }
 
-function lintEmail(subject, body) {
+// answer: the email answers a reply, so its subject may start with "Re:".
+function lintEmail(subject, body, answer = false) {
   const tmp = join(tmpdir(), `send-email-lint-${process.pid}.md`);
   writeFileSync(tmp, `## Email 1\n\nSubject: ${subject}\n\n${body}\n`);
-  const r = spawnSync(process.execPath, [join(ROOT, 'scripts', 'lint-copy.mjs'), tmp, '--type', 'email', '--no-log'], { encoding: 'utf8' });
+  const r = spawnSync(process.execPath, [join(ROOT, 'scripts', 'lint-copy.mjs'), tmp, '--type', 'email', '--no-log', ...(answer ? ['--answer'] : [])], { encoding: 'utf8' });
   rmSync(tmp, { force: true });
   const m = (r.stdout || '').match(/(\d+) failed, (\d+) warning/);
   return { ok: r.status === 0, text: m ? `${m[1]} failed, ${m[2]} warning(s)` : `exit ${r.status}` };
@@ -208,17 +212,19 @@ async function main() {
   const subject = demo ? `[DEMO] ${parsed.subject}` : test ? `[TEST] ${parsed.subject}` : parsed.subject;
 
   // Checks.
+  // A draft in outputs/outreach/replies/ answers a reply (see the header).
+  const isAnswer = /^outputs\/outreach\/replies\//.test(relative(ROOT, draftPath).replace(/\\/g, '/'));
   const suppressed = isSuppressed(to, readJsonl(SUPPRESSION));
   if (suppressed) die(`${to} is on the opt-out list (${suppressed.reason})`);
   if (!demo && !test) {
-    const answered = replyStop(to, readJsonl(REPLY_LOG));
+    const answered = replyStop(to, readJsonl(REPLY_LOG).filter((r) => !(isAnswer && r.kind === 'reply')));
     const when = (answered?.received || answered?.at || '').slice(0, 10);
     if (answered?.kind === 'bounce') die(`${answered.sent_to} bounced on ${when} (${answered.file}). Find another published contact`);
     if (answered) die(`${answered.from} answered on ${when} (${answered.kind}, ${answered.file}), so the sequence has stopped. A person decides what goes next`);
   }
   // A live send is always reported: the report is the record of a person's decision.
   if (args.noReport && !demo && !test) die('--no-report is only for demo and test sends');
-  const lint = lintEmail(parsed.subject, body);
+  const lint = lintEmail(parsed.subject, body, isAnswer);
   const log = readJsonl(SEND_LOG);
   const today = new Date().toISOString().slice(0, 10);
   const liveToday = log.filter((e) => e.mode === 'live' && e.kind === 'outreach' && e.at.startsWith(today)).length;
@@ -228,6 +234,9 @@ async function main() {
     const ok = approvalAllows(readFileSync(APPROVALS, 'utf8'), args.approval, to);
     if (!ok.ok) die(ok.why);
     if (!lint.ok) die(`lint-copy failed: ${lint.text}`);
+    // The same email never goes to the same person twice (a double click, two timers, a retry after a slow send).
+    const again = log.find((e) => e.kind === 'outreach' && e.mode === 'live' && e.email === n && e.to === to && e.draft === relative(ROOT, draftPath).replace(/\\/g, '/'));
+    if (again) die(`Email ${n} of ${again.draft} already went to ${to} on ${again.at.slice(0, 10)}`);
     if (liveToday >= config.daily_limit) die(`daily limit reached: ${liveToday} of ${config.daily_limit} live sends today`);
     if (lead && ['disqualified', 'lost', 'won'].includes(lead.status)) die(`${leadId} is ${lead.status}`);
     if (lead?.hold) die(`${leadId} is on hold: ${lead.hold.reason}`);

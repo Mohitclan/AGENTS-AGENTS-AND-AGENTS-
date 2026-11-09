@@ -564,3 +564,29 @@ label.check { flex-direction: row !important; align-items: center; gap: 6px; fon
 .po-mark { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
 .po-link { flex: 1 1 260px; min-width: 0; }
 .po-empty { padding: 30px 0; text-align: center; }
+.em-to { margin-top: 6px; }
+.em-card.s-scheduled { border-color: rgba(76, 141, 255, .45); }
+.em-card.s-skipped { opacity: .7; }
+.em-no.small-no { width: auto; height: auto; border-radius: 99px; padding: 5px 12px; font-size: 12px; }
+.em-card.rp-card .em-head .rp-when { margin-left: auto; }
+
+/* ---- Emails page: go live and replies ---- */
+.gl { margin-bottom: 14px; }
+.gl-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.gl-top p { margin: 0; flex: 1 1 320px; }
+.gl-actions { display: inline-flex; gap: 8px; }
+.gl-confirm { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; padding: 10px 12px; border: 1px solid var(--line2); border-radius: 10px; background: rgba(0, 0, 0, .18); }
+.gl-confirm[hidden] { display: none; }
+.gl-confirm label { flex: 1 1 260px; }
+.gl-confirm input { width: 140px; }
+.gl-ready { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.gl-ready .sec-h { margin-bottom: 4px; }
+.gl-ready .sec-h .muted { margin-left: auto; }
+.gl-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.gl-item { display: flex; align-items: flex-start; gap: 10px; }
+.gl-mark { flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 700; }
+.gl-item.s-ok .gl-mark { background: rgba(47, 210, 124, .16); color: #5be39b; }
+.gl-item.s-missing .gl-mark { background: rgba(255, 92, 92, .16); color: #ff8a8a; }
+.gl-item.s-unknown .gl-mark { background: rgba(255, 176, 32, .18); color: #ffd27a; }
+.gl-state { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.gl-fix { font-size: 12px; color: var(--warn); }

@@ -2,10 +2,11 @@
 // Automatic checks on a draft, run before the evaluator reads it: a machine can catch these for free.
 // Word lists live in evaluation/voice-rules.json. Every run is logged in ops/gate-log.jsonl.
 //
-//   node scripts/lint-copy.mjs <file> [--type general|email|social|seo] [--keyword "<phrase>"] [--no-log]
+//   node scripts/lint-copy.mjs <file> [--type general|email|social|seo] [--keyword "<phrase>"] [--no-log] [--answer]
 //   node scripts/lint-copy.mjs mine [--min 3]     failures that keep repeating, as candidate lessons
 //
 // Types: general (reports, proposals, plans), email (outreach sequences), social, seo (web pages, posts).
+// --answer (or a file in outputs/outreach/replies/) marks an email as the answer to a reply, so its subject may start with "Re:".
 // Exit 1 if anything fails. Warnings are for the author and the evaluator to judge.
 // Style signals (superlatives, unsourced quotes, vocabulary, rhythm, em dashes, tracking parameters,
 // email sequences) only ever warn; none of them is proof of anything about who wrote the text.
@@ -386,7 +387,7 @@ function splitEmails(lines, start) {
   });
 }
 
-function checkEmails(lines, start, report) {
+function checkEmails(lines, start, report, answer = false) {
   for (const email of splitEmails(lines, start)) {
     const part = lines.slice(email.from, email.to);
     const subjectAt = part.findIndex((l) => /^\W*subject\W*:/i.test(l));
@@ -395,7 +396,7 @@ function checkEmails(lines, start, report) {
     if (subjectAt < 0) report.fail('email-subject', email.from + 1, `email ${email.n} has no Subject line`);
     else {
       if (countWords(subject) > SUBJECT_MAX_WORDS) report.fail('email-subject', at(subjectAt), `subject is over ${SUBJECT_MAX_WORDS} words: "${subject}"`);
-      if (/^(re|fwd?)\s*:/i.test(subject) && email.n === 1) report.fail('email-subject', at(subjectAt), 'a first email can\'t pretend to be a reply or forward');
+      if (/^(re|fwd?)\s*:/i.test(subject) && email.n === 1 && !answer) report.fail('email-subject', at(subjectAt), 'a first email can\'t pretend to be a reply or forward');
     }
     const body = part.filter((l, k) => k !== subjectAt && !/^#/.test(l) && l.trim());
     const text = body.join(' ').replace(/[*_`]/g, '');
@@ -481,7 +482,7 @@ function checkSeo(lines, start, report, keyword) {
   });
 }
 
-function lint(file, type, keyword) {
+function lint(file, type, keyword, answer = false) {
   const lines = proseLines(readFileSync(file, 'utf8'));
   const start = bodyStart(lines);
   const report = new Report();
@@ -494,7 +495,7 @@ function lint(file, type, keyword) {
   checkUrls(lines, start, report);
   if (type === 'general') checkMutations(lines, start, report);
   if (type === 'email') {
-    checkEmails(lines, start, report);
+    checkEmails(lines, start, report, answer);
     checkSequence(lines, start, report);
   }
   if (type === 'social') checkSocial(lines, start, report);
@@ -550,12 +551,12 @@ const flag = (name) => {
 if (args[0] === 'mine') mine(Number(flag('min')) || 3);
 else {
   const fileArg = args[0];
-  if (!fileArg || fileArg.startsWith('--')) fail('Usage: node scripts/lint-copy.mjs <file> [--type general|email|social|seo] [--keyword "<phrase>"] [--no-log] | mine [--min 3]');
+  if (!fileArg || fileArg.startsWith('--')) fail('Usage: node scripts/lint-copy.mjs <file> [--type general|email|social|seo] [--keyword "<phrase>"] [--no-log] [--answer] | mine [--min 3]');
   const file = resolve(process.cwd(), fileArg);
   if (!existsSync(file)) fail(`No such file: ${fileArg}`);
   const type = flag('type') || 'general';
   if (!TYPES.includes(type)) fail(`--type must be one of: ${TYPES.join(', ')}`);
-  const report = lint(file, type, flag('keyword'));
+  const report = lint(file, type, flag('keyword'), args.includes('--answer') || toRel(file).startsWith('outputs/outreach/replies/'));
   if (!args.includes('--no-log')) logRun(file, type, report);
   for (const f of report.failures) console.log(`FAIL  ${f.line ? `line ${f.line}: ` : ''}${f.code}: ${f.message}`);
   for (const w of report.warnings) console.log(`warn  ${w.line ? `line ${w.line}: ` : ''}${w.code}: ${w.message}`);
