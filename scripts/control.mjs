@@ -28,6 +28,7 @@ import { askGuide, guideContext } from './guide.mjs';
 import { listSongs, sendSong } from './music.mjs';
 import { projectsApi } from './projects.mjs';
 import { approveAndSend, draftEmails, logRequest, outreachState, planApproval, planDrafts } from './outreach.mjs';
+import { answerQuestion, answersTask, dismissQuestions, markSent, questionsState } from './questions.mjs';
 
 const DEFAULT_PORT = 4318;
 const STATIC = join(ROOT, 'scripts', 'control');
@@ -443,6 +444,22 @@ function outreachCached(root) {
   return outreachMemo.value;
 }
 
+// The Questions page's state, rebuilt only when a report, an answer, a lead or the queue changes.
+let questionsMemo = { key: '', value: null };
+function questionsCached(root) {
+  const stamp = (rel) => { try { return statSync(join(root, rel)).mtimeMs; } catch { return 0; } };
+  const reports = existsSync(join(root, 'outputs', 'reports')) ? readdirSync(join(root, 'outputs', 'reports')).map((n) => `${n}:${stamp(`outputs/reports/${n}`)}`).join(',') : '';
+  const key = [reports, ...['ops/answers.jsonl', 'pipeline/leads.jsonl', 'ops/queue.json', 'ops/archive/archived.json'].map(stamp), new Date().toISOString().slice(0, 10)].join('|');
+  if (key !== questionsMemo.key) {
+    try {
+      questionsMemo = { key, value: questionsState(root) };
+    } catch (error) {
+      questionsMemo = { key, value: { open: 0, older: 0, unsent: 0, questions: [], error: error.message } };
+    }
+  }
+  return questionsMemo.value;
+}
+
 export function snapshot(root = ROOT) {
   const base = collect(root);
   const roster = loadRoster(root);
@@ -515,6 +532,7 @@ export function snapshot(root = ROOT) {
     at: new Date().toISOString(),
     live: !!live,
     outreach: outreachCached(root),
+    questions: questionsCached(root),
     running: base.running ? { id: base.running.id, title: base.running.title, started: base.running.started } : null,
     usage: base.usage,
     kpis: {
@@ -580,11 +598,11 @@ function signature(root) {
 // ---- the server ----------------------------------------------------------------------------------
 
 const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.glb': 'model/gltf-binary', '.png': 'image/png', '.jpg': 'image/jpeg' };
+const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.glb': 'model/gltf-binary', '.png': 'image/png', '.jpg': 'image/jpeg', '.mp3': 'audio/mpeg', '.wav': 'audio/wav' };
 const STATIC_FILES = /^(app\.js|app\.css|signin\.js|(gems|office3d|world)\/[\w-]+\.(js|css))$/;
 // The 3D office: its character model, and the Three.js files it uses (copied in by
 // scripts/vendor-three.mjs). Both are cached for a day; everything else is no-store.
-const ASSET_FILES = /^assets\/((people\/)?[\w-]+\.glb|people\/Textures\/[\w-]+\.png|world\/[\w-]+\.jpg)$/;
+const ASSET_FILES = /^assets\/((people\/)?[\w-]+\.glb|people\/Textures\/[\w-]+\.png|world\/[\w-]+\.jpg|sounds\/[\w-]+\.(mp3|wav)|dog\/[\w-]+\.png)$/;
 const THREE_FILES = /^vendor\/three\/(build\/three\.(module|core)\.js|examples\/jsm\/(loaders|controls|utils|environments)\/\w+\.js)$/;
 const isLocal = (host) => /^(127\.0\.0\.1|localhost)(:\d+)?$/.test(host || '');
 const goodHost = (host, site) => (site ? host === site : isLocal(host));
@@ -653,7 +671,7 @@ function main() {
   }, 20_000).unref();
 
   const send = (res, status, body, type = 'text/plain', extra = {}) => {
-    res.writeHead(status, { 'Content-Type': /^(model|image\/(png|jpeg))/.test(type) ? type : `${type}; charset=utf-8`, 'Content-Security-Policy': CSP, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', ...extra });
+    res.writeHead(status, { 'Content-Type': /^(model|image\/(png|jpeg)|audio\/)/.test(type) ? type : `${type}; charset=utf-8`, 'Content-Security-Policy': CSP, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', ...extra });
     res.end(body);
   };
   const json = (res, status, data, extra) => send(res, status, JSON.stringify(data), 'application/json', extra);
@@ -778,6 +796,37 @@ function main() {
             json(res, r.ok ? 200 : 500, { message: r.ok ? `Approved ${plan.companies.join(', ')}: ${r.sent} email(s) sent ${where}.` : `Approved, but sending had a problem: ${r.text.split('\n').slice(-3).join(' ')}`, detail: r.text });
           });
           return undefined;
+        }
+        // Questions for you: a person answers or dismisses a question from a report, or sends the answers to the team.
+        if (path.startsWith('/api/questions/')) {
+          if (!sameSite(from)) return json(res, 403, { message: 'Use the team page itself.' });
+          let ask;
+          try {
+            ask = JSON.parse(body || '{}');
+          } catch {
+            return json(res, 400, { message: 'That request could not be read.' });
+          }
+          const by = String(ask.by || 'a person on the page').slice(0, 60);
+          lastSig = '';
+          if (path === '/api/questions/answer') {
+            const r = answerQuestion(ROOT, { id: ask.id, choice: ask.choice, note: ask.note, release: ask.release || [], by });
+            return json(res, r.ok ? 200 : 400, { message: r.message });
+          }
+          if (path === '/api/questions/dismiss') {
+            const r = dismissQuestions(ROOT, ask.ids || [], by);
+            return json(res, r.ok ? 200 : 400, { message: r.message });
+          }
+          if (path === '/api/questions/send') {
+            const plan = answersTask(ROOT, by);
+            if (!plan) return json(res, 409, { message: 'There are no new answers to send.' });
+            const added = addTask(ROOT, plan.task);
+            if (!added.id) return json(res, 500, { message: `The task wasn't queued: ${added.error}` });
+            markSent(ROOT, plan.ids, added.id, by);
+            const { full, started } = startQueued(ROOT);
+            const when = full ? `It starts by itself when the plan's ${full} window resets.` : started ? 'It is starting now.' : 'It starts after the current task.';
+            return json(res, 200, { message: `Sent ${plan.ids.length} answer(s) to the team in ${added.id}. ${when}`, id: added.id });
+          }
+          return json(res, 404, { message: 'Not found.' });
         }
         // An approval row in ops/approvals.md: a person declines it from the Needs you page. A Yes is still given in
         // chat (the hook asks a person before any Yes is written), and outreach drafts are approved on the Outreach page.

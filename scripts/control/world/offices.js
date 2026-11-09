@@ -7,6 +7,7 @@
 //   planned  the roles a future team is expected to have, shown as empty seats until agents exist
 //   classic  true when the office also has the older 2D and 3D views (#/), which show this team too
 //   view3d   true when the office can also be shown in 3D (world/world3d.js), built from its map
+//   pet      'dog' for the office dog (world/pet.js), which wanders the floor
 //
 // No browser code here, so the registry is checked by the tests.
 
@@ -20,6 +21,7 @@ export const OFFICES = [
     accent: '#4c8dff',
     classic: true,
     view3d: true,
+    pet: 'dog',
     seats: {
       coordinator: 'cabin-01',
       'lead-generator': 'office-01',

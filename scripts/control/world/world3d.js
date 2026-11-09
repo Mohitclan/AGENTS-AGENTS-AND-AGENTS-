@@ -17,10 +17,12 @@ import { mergeGeometries } from '/vendor/three/examples/jsm/utils/BufferGeometry
 import { identityFor } from '../gems/identities.js';
 import { normalizeState, STATE_LABEL } from '../gems/status.js';
 import { Character, loadRig } from '../office3d/characters.js';
-import { AT_SEAT, createCrowd, officeLayout, SPEED } from './crowd.js';
+import { AT_SEAT, createCrowd, officeLayout, petPlaces, SPEED } from './crowd.js';
+import { createPet, DOG, sheet } from './pet.js';
 import { buildGrid } from './nav.js';
 
 const M = 0.01; // metres per map unit
+const PET = '__pet'; // what "follow" holds while following the office dog
 const WALL = { height: 1.05, thick: 0.14 };
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 // What a seated agent's hands do, by what it is doing (the layers of office3d/characters.js).
@@ -213,6 +215,38 @@ export async function createWorld3D(container, { office, map, label = (n) => n, 
     return { el, at: to3(s.at, 1.0) };
   });
 
+  // The office dog: a flat sprite that always faces the camera, its feet on the floor.
+  let pet = null;
+  let petSprite = null;
+  const petTex = {};
+  if (office.pet === 'dog') {
+    const loader = new THREE.TextureLoader();
+    await Promise.all(Object.keys(DOG).map(async (anim) => {
+      const tx = await loader.loadAsync(sheet(anim));
+      tx.magFilter = THREE.NearestFilter;
+      tx.minFilter = THREE.NearestFilter;
+      tx.colorSpace = THREE.SRGBColorSpace;
+      tx.repeat.set(1 / DOG[anim].frames, 1);
+      petTex[anim] = tx;
+      disposables.push(tx);
+    }));
+    pet = createPet({ grid, places: petPlaces(map, grid) });
+    petSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: petTex.idle, transparent: true, alphaTest: 0.5 }));
+    petSprite.center.set(0.5, 0);
+    petSprite.scale.set(1.4, 1.4, 1);
+    scene.add(petSprite);
+    disposables.push(petSprite.material);
+  }
+
+  const petTag = pet ? document.createElement('div') : null;
+  if (petTag) {
+    petTag.className = 'w3-tag pet';
+    petTag.dataset.pet = '1';
+    petTag.title = 'Follow the dog';
+    petTag.innerHTML = '<span class="w3-name">Office dog</span>';
+    tagLayer.append(petTag);
+  }
+
   // Room names, laid along each room's bottom edge.
   const roomTags = map.rooms.filter((r) => r.kind !== 'other').map((r) => {
     const el = document.createElement('div');
@@ -278,11 +312,24 @@ export async function createWorld3D(container, { office, map, label = (n) => n, 
       placeTag(p.tag, head.set(c.at[0] * M, p.seated ? 1.0 : 1.4, c.at[1] * M));
     }
     for (const name of arrived) settle(people.get(name));
+    if (pet) {
+      pet.step(dt);
+      const v = pet.look();
+      const tx = petTex[v.anim];
+      if (petSprite.material.map !== tx) {
+        petSprite.material.map = tx;
+        petSprite.material.needsUpdate = true;
+      }
+      const n = DOG[v.anim].frames;
+      tx.repeat.x = (v.left ? -1 : 1) / n; // a negative repeat mirrors the frame, so the dog faces where it runs
+      tx.offset.x = (v.left ? v.frame + 1 : v.frame) / n;
+      petSprite.position.set(v.at[0] * M, 0, v.at[1] * M);
+      placeTag(petTag, head.set(v.at[0] * M, 0.95, v.at[1] * M));
+    }
     for (const r of roomTags) placeTag(r.el, r.at);
     for (const s of plannedTags) placeTag(s.el, s.at);
     if (following) {
-      const c = crowd.actors.get(following);
-      const goal = to3(c.at, 0.6);
+      const goal = following === PET ? to3(pet.look().at, 0.3) : to3(crowd.actors.get(following).at, 0.6);
       const step = goal.sub(controls.target).multiplyScalar(Math.min(1, dt * 3));
       controls.target.add(step);
       camera.position.add(step);
@@ -332,12 +379,13 @@ export async function createWorld3D(container, { office, map, label = (n) => n, 
   });
   tagLayer.addEventListener('click', (e) => {
     const t = e.target.closest('.w3-tag');
-    if (t) showCard(t.dataset.agent);
+    if (t?.dataset.pet) follow(PET);
+    else if (t) showCard(t.dataset.agent);
   });
   const follow = (name) => {
-    following = name && people.has(name) ? name : null;
+    following = name === PET && pet ? PET : name && people.has(name) ? name : null;
     stopBtn.hidden = !following;
-    stopBtn.textContent = following ? `Stop following ${gemName(following)}` : 'Stop following';
+    stopBtn.textContent = !following ? 'Stop following' : `Stop following ${following === PET ? 'the dog' : gemName(following)}`;
   };
   pop.addEventListener('click', (e) => {
     const f = e.target.closest('[data-follow]');

@@ -13,7 +13,8 @@
 import { avatarHTML, mountAvatars, setAvatarStatus } from '../gems/avatar.js';
 import { identityFor } from '../gems/identities.js';
 import { normalizeState, STATE_LABEL } from '../gems/status.js';
-import { AT_SEAT, createCrowd, officeLayout } from './crowd.js';
+import { AT_SEAT, createCrowd, officeLayout, petPlaces } from './crowd.js';
+import { createPet, sheet } from './pet.js';
 import { buildGrid } from './nav.js';
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -89,6 +90,33 @@ export function createWorld(container, { office, map, onOpen, label = (name) => 
     actors.set(name, { name, el, status: 'idle', doing: '' });
   }
   mountAvatars(stage);
+
+  // The office dog: a sprite sheet stepped through by a small timer of its own (it moves even when no agent does).
+  let petTimer = 0;
+  if (office.pet === 'dog') {
+    const pet = createPet({ grid, places: petPlaces(map, grid) });
+    const el = document.createElement('div');
+    el.className = 'wv-pet';
+    el.setAttribute('aria-hidden', 'true');
+    el.innerHTML = '<i></i>';
+    stage.append(el);
+    const sprite = el.firstChild;
+    let shown = '';
+    let before = performance.now();
+    petTimer = setInterval(() => {
+      const now = performance.now();
+      pet.step(Math.min(0.25, (now - before) / 1000));
+      before = now;
+      const v = pet.look();
+      place(el, v.at);
+      if (v.anim !== shown) {
+        sprite.style.backgroundImage = `url(${sheet(v.anim)})`;
+        shown = v.anim;
+      }
+      sprite.style.backgroundPosition = `${-v.frame * 64}px 0`;
+      el.classList.toggle('left', v.left);
+    }, 70);
+  }
 
   // Walking: one animation loop that runs only while someone is on the move. The crowd decides where; this draws.
   let raf = 0;
@@ -226,6 +254,7 @@ export function createWorld(container, { office, map, onOpen, label = (name) => 
     },
     destroy() {
       clearInterval(timer);
+      clearInterval(petTimer);
       cancelAnimationFrame(raf);
       ro.disconnect();
       container.innerHTML = '';

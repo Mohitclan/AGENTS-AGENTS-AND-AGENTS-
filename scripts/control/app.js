@@ -10,6 +10,9 @@ import { BRAND, lockupSvg } from './gems/logo.js';
 import { createDemo } from './gems/simulator.js';
 import { normalizeState, STATE_LABEL } from './gems/status.js';
 import { playGate } from './gems/gate.js';
+import { chime, setSounds, soundsOn } from './gems/sounds.js';
+import { startTour } from './gems/tour.js';
+import { budgetWarning, STUCK_MIN, stuckAgents, taskBudget } from './gems/watch.js';
 import { createVoice } from './gems/voice.js';
 import { mountOffice } from './office3d/mount.js';
 import { MAPS } from './world/maps.js';
@@ -110,6 +113,7 @@ function shell() {
       <a href="#/logs" data-nav="logs">Logs</a>
       <a href="#/leads" data-nav="leads">Leads</a>
       <a href="#/outreach" data-nav="outreach">Outreach <b class="count" id="outreach-count"></b></a>
+      <a href="#/questions" data-nav="questions">Questions <b class="count" id="question-count"></b></a>
       <a href="#/reports" data-nav="reports">Reports</a>
       <a href="#/flags" data-nav="flags">Needs you <b class="count" id="flag-count"></b></a>
       <a href="#/gems" data-nav="gems">Gem gallery</a>
@@ -117,6 +121,7 @@ function shell() {
     <div class="side-h">Agents</div>
     <nav class="agents-nav" id="agents-nav" aria-label="Agents"></nav>
     <div class="side-foot" id="usage"></div>
+    <button class="ghost small side-tour" id="tour-btn">Take the tour</button>
     <button class="ghost small" id="signout" hidden>Sign out</button>
   </aside>
   <main class="main">
@@ -124,6 +129,8 @@ function shell() {
       <button class="menu ghost" id="menu" aria-label="Open menu">☰</button>
       <div class="live" id="live"></div>
       <div class="top-run" id="top-run"></div>
+      <div class="top-watch"><a class="top-stuck" id="top-stuck" hidden></a><div class="top-budget" id="top-budget" hidden></div>
+        <button type="button" class="ghost small top-sound" id="sound-toggle" aria-pressed="true" title="Sounds for finished tasks, drafts to approve, questions and warnings">Sounds on</button></div>
     </header>
     <div id="view" class="view"></div>
   </main>
@@ -138,6 +145,18 @@ function shell() {
   <div class="tokens" id="tokens" aria-hidden="true"></div>`;
 
   $('#menu').addEventListener('click', () => document.body.classList.toggle('side-open'));
+  $('#tour-btn').addEventListener('click', () => startTour({ force: true, navigate: (hash) => { location.hash = hash; } }));
+  const sound = $('#sound-toggle');
+  const paintSound = () => {
+    sound.textContent = soundsOn() ? 'Sounds on' : 'Sounds off';
+    sound.setAttribute('aria-pressed', String(soundsOn()));
+  };
+  paintSound();
+  sound.addEventListener('click', () => {
+    setSounds(!soundsOn());
+    paintSound();
+    chime('done'); // a sample, so you hear what they sound like
+  });
   const setNav = (open) => {
     document.documentElement.classList.toggle('nav-open', open);
     $('#nav-dot').setAttribute('aria-expanded', String(open));
@@ -221,6 +240,7 @@ function updateShell(snap) {
   $('#flag-count').textContent = snap.flags.length || '';
   const waiting = (snap.outreach?.ready || 0) + (snap.outreach?.runs || []).reduce((n, r) => n + r.ready.length, 0);
   $('#outreach-count').textContent = waiting || '';
+  $('#question-count').textContent = snap.questions?.open || '';
   $('#live').className = `live ${snap.live ? 'on' : ''}`;
   $('#live').innerHTML = snap.live ? '<i></i>Live' : '<i></i>Idle';
   $('#top-run').innerHTML = snap.running ? `<b>${esc(snap.running.id)}</b> ${esc(snap.running.title)}` : '<span class="muted">No task running. Give the team one on the overview.</span>';
@@ -1544,6 +1564,84 @@ const floatView = {
   },
 };
 
+// ---- questions for you: what the team's reports ask, as cards to answer ----------------------------------
+
+const questionsView = {
+  showOlder: false,
+  build() {
+    $('#view').innerHTML = `<div class="page-h"><h1>Questions for you</h1><p class="muted">What the team asked in its reports. Answer with a tap or in your own words; you can lift a lead's hold with your answer. Answers are saved here; <b>Send answers to the team</b> starts one task that applies them.</p></div>
+      <div class="q-bar" id="q-bar"></div><div id="q-list"></div><div id="q-older"></div>`;
+    $('#view').addEventListener('click', (e) => {
+      const pick = e.target.closest('[data-pick]');
+      if (pick) {
+        const card = pick.closest('.q-card');
+        for (const b of card.querySelectorAll('[data-pick]')) b.setAttribute('aria-pressed', String(b === pick && b.getAttribute('aria-pressed') !== 'true'));
+        return;
+      }
+      const save = e.target.closest('[data-save]');
+      if (save) return questionsView.save(save.closest('.q-card'), save);
+      const send = e.target.closest('[data-send]');
+      if (send) return questionsView.post(send, '/api/questions/send', {});
+      const dismiss = e.target.closest('[data-dismiss]');
+      if (dismiss) return questionsView.post(dismiss, '/api/questions/dismiss', { ids: dismiss.dataset.dismiss.split(',') });
+      const older = e.target.closest('[data-older]');
+      if (older) {
+        questionsView.showOlder = !questionsView.showOlder;
+        questionsView.update(store.snap);
+      }
+      return undefined;
+    });
+  },
+  async post(button, path, body) {
+    const label = button.textContent;
+    button.disabled = true;
+    try {
+      toast((await api(path, { ...body, by: 'a person on the page' })).message);
+    } catch (error) {
+      toast(error.message, true);
+    } finally {
+      button.disabled = false;
+      button.textContent = label;
+    }
+  },
+  save(card, button) {
+    const choice = card.querySelector('[data-pick][aria-pressed="true"]')?.dataset.pick || '';
+    const note = card.querySelector('textarea').value;
+    const release = [...card.querySelectorAll('[data-release]:checked')].map((c) => c.dataset.release);
+    if (!choice && !note.trim()) return toast('Tap an answer or write one first.', true);
+    return questionsView.post(button, '/api/questions/answer', { id: card.dataset.q, choice, note, release });
+  },
+  card(q) {
+    const leads = q.leads.filter((l) => l.held);
+    const answered = q.answer && !q.answer.dismissed;
+    const head = `<div class="q-top"><code>${esc(q.task)}</code>${q.due ? `<span class="pill ${q.due <= new Date().toISOString().slice(0, 10) ? 'p-failed' : 'p-needs_approval'}">Answer by ${esc(q.due)}</span>` : ''}${answered ? `<span class="pill p-done">Answered${q.answer.sent ? ', sent to the team' : ''}</span>` : ''}<a href="#" data-file="${esc(q.report)}">report</a></div><h3>${esc(q.title)}</h3>`;
+    const detail = `<details class="q-detail"${answered ? '' : ' open'}><summary>Details</summary><p>${esc(q.text)}</p></details>`;
+    if (answered) {
+      return `<article class="q-card done" data-q="${esc(q.id)}">${head}${detail}<p class="q-answer"><b>${esc(q.answer.choice || 'Answer')}</b>${q.answer.note ? `: ${esc(q.answer.note)}` : ''}<span class="muted tiny"> · ${esc(q.answer.by)}, ${esc(ago(q.answer.at))}${q.answer.released.length ? ` · hold lifted on ${q.answer.released.length} lead(s)` : ''}</span></p></article>`;
+    }
+    const picks = q.options.length
+      ? `<div class="q-picks">${q.options.map((o) => `<button type="button" class="q-pick" data-pick="${esc(o.label)}" aria-pressed="false"><b>${esc(o.label)}</b><span>${esc(o.detail)}</span></button>`).join('')}</div>`
+      : '';
+    const holds = leads.length ? `<div class="q-holds">${leads.map((l) => `<label class="check"><input type="checkbox" data-release="${esc(l.id)}"> Lift the hold on <b>${esc(l.company)}</b></label>`).join('')}</div>` : '';
+    return `<article class="q-card" data-q="${esc(q.id)}">${head}${detail}${picks}<textarea rows="2" placeholder="${q.options.length ? 'Add a note (optional)' : 'Your answer'}"></textarea>${holds}<div class="q-actions"><button type="button" class="primary small" data-save>Save answer</button><button type="button" class="ghost small" data-dismiss="${esc(q.id)}">Not relevant</button></div></article>`;
+  },
+  update(snap) {
+    const s = snap.questions || { questions: [] };
+    const current = s.questions.filter((q) => q.recent && !q.answer?.dismissed);
+    const older = s.questions.filter((q) => !q.recent && !q.answer);
+    $('#q-bar').innerHTML = `<span><b>${s.open}</b> open</span>${s.unsent ? `<button type="button" class="primary" data-send>Send ${s.unsent} answer${s.unsent === 1 ? '' : 's'} to the team</button>` : '<span class="muted">Answers you save here wait until you send them.</span>'}`;
+    // Keep what someone is typing: only redraw when the questions themselves change.
+    const sig = JSON.stringify(current.map((q) => [q.id, q.answer?.at]));
+    if (questionsView.sig !== sig) {
+      questionsView.sig = sig;
+      $('#q-list').innerHTML = current.length ? current.map((q) => questionsView.card(q)).join('') : '<section class="card"><p class="muted">No open questions from the last few days.</p></section>';
+    }
+    $('#q-older').innerHTML = older.length
+      ? `<div class="q-older-bar"><button type="button" class="ghost small" data-older>${questionsView.showOlder ? 'Hide' : 'Show'} ${older.length} older question${older.length === 1 ? '' : 's'}</button><button type="button" class="ghost small" data-dismiss="${esc(older.map((q) => q.id).join(','))}">Dismiss all older</button></div>${questionsView.showOlder ? older.map((q) => questionsView.card(q)).join('') : ''}`
+      : '';
+  },
+};
+
 // ---- the offices: choose an office, and each office's live map ---------------------------------------
 
 // Who works in an office right now, from the page's state.
@@ -1669,7 +1767,7 @@ const worldView = {
 
 // ---- routing and the stream ----------------------------------------------------------------------
 
-const VIEWS = { offices: officesView, world: worldView, home, working, team: teamView, overview, logs, leads: leadsView, outreach: outreachView, reports: reportsView, flags: flagsView, agent: agentView, gems: gemsView, float: floatView };
+const VIEWS = { offices: officesView, world: worldView, questions: questionsView, home, working, team: teamView, overview, logs, leads: leadsView, outreach: outreachView, reports: reportsView, flags: flagsView, agent: agentView, gems: gemsView, float: floatView };
 let current = '';
 
 function route() {
@@ -1719,9 +1817,80 @@ function render() {
   markNav();
 }
 
+// ---- what to tell a person: chips in the top bar, a toast and a sound when something changes --------------
+
+const watchState = { left: null, budgetTask: null, stuck: new Set() };
+
+// The stuck-agent chip and the time-budget chip. Also runs on a timer: time passes without any new state.
+function watchTick() {
+  const snap = store.snap;
+  if (!snap) return;
+  const stuck = stuckAgents(snap);
+  const chip = $('#top-stuck');
+  chip.hidden = !stuck.length;
+  if (stuck.length) {
+    chip.href = `#/agent/${stuck[0].name}`;
+    chip.textContent = stuck.length === 1 ? `${agentName(stuck[0].name)}: no new step for ${stuck[0].minutes} min` : `${stuck.length} agents with no new step for ${STUCK_MIN}+ min`;
+  }
+  for (const s of stuck) {
+    if (watchState.stuck.has(s.name)) continue;
+    watchState.stuck.add(s.name);
+    toast(`${agentName(s.name)} has shown no new step for ${s.minutes} minutes${s.doing ? ` (last: ${s.doing})` : ''}. It may be stuck on a slow page or a long check.`, true);
+    chime('ping');
+  }
+  for (const name of [...watchState.stuck]) if (!stuck.some((s) => s.name === name)) watchState.stuck.delete(name);
+
+  const b = taskBudget(snap);
+  const box = $('#top-budget');
+  box.hidden = !b;
+  if (!b) {
+    watchState.left = null;
+    watchState.budgetTask = null;
+    return;
+  }
+  if (watchState.budgetTask !== b.id) {
+    watchState.budgetTask = b.id;
+    watchState.left = null;
+  }
+  box.className = `top-budget ${b.level}`;
+  box.title = `Tasks usually take about ${b.budget} minutes (the last ten finished tasks)`;
+  box.innerHTML = `<span>${b.left >= 0 ? `${b.elapsed} of ${b.budget} min` : `${-b.left} min over`}</span><i><b></b></i>`;
+  box.querySelector('b').style.width = `${Math.min(100, (b.elapsed / b.budget) * 100)}%`;
+  const warn = budgetWarning(watchState.left, b.left);
+  if (warn !== null) {
+    toast(warn === 0 ? `${b.id} has gone past the usual ${b.budget} minutes.` : `${b.id}: about ${warn} minute${warn === 1 ? '' : 's'} left of the usual ${b.budget}.`, warn === 0);
+    chime('ping');
+  }
+  watchState.left = b.left;
+}
+
+// Chimes and toasts for changes between two states.
+function announceChanges(prev, snap) {
+  if (!prev) return;
+  if (prev.live && prev.running && (!snap.live || snap.running?.id !== prev.running.id)) {
+    const done = snap.tasks?.find((t) => t.id === prev.running.id);
+    toast(`${prev.running.id} ${done?.status === 'failed' ? 'stopped with a problem' : 'finished'}. Its report is ready.`, done?.status === 'failed');
+    chime('done');
+  }
+  const ready = (s) => s?.outreach?.ready || 0;
+  if (ready(snap) > ready(prev)) {
+    toast(`${ready(snap) - ready(prev)} draft(s) passed review and wait for your approval on the Outreach page.`);
+    chime('attention');
+  }
+  const asked = (s) => s?.questions?.open || 0;
+  if (asked(snap) > asked(prev)) {
+    toast(`The team has ${asked(snap) - asked(prev)} new question(s) for you.`);
+    chime('attention');
+  }
+}
+setInterval(watchTick, 20_000);
+
 function onState(snap) {
   if (snap.error) return toast(`The page couldn't read the team's files: ${snap.error}`, true);
+  const prev = store.snap;
   store.snap = snap;
+  announceChanges(prev, snap);
+  watchTick();
   updateShell(snap);
   render();
   animateNew(snap);
@@ -1748,7 +1917,11 @@ function connect() {
   setInterval(() => store.snap && render(), 30_000);
 }
 
-if (!location.hash.startsWith('#/float')) playIntro();
+if (!location.hash.startsWith('#/float')) {
+  playIntro();
+  // The first visit gets the tour, once the opening animation is over.
+  setTimeout(() => startTour({ navigate: (hash) => { location.hash = hash; } }), 4500);
+}
 shell();
 const dock = createDock({ onOpen: (name) => { location.hash = `#/agent/${name}`; } });
 // Talk to the team: browser speech to text, then the same task endpoint as the task box.

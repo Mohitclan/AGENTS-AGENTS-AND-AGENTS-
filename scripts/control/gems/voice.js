@@ -36,7 +36,7 @@ const AGENT_WORDS = {
   developer: ['developer', 'code buddy', 'dev'],
   'seo-aeo': ['seo and aeo', 'rank gem', 'seo', 'aeo'],
 };
-const PAGES = { home: '#/', office: '#/', working: '#/working', team: '#/team', 'the team': '#/team', overview: '#/overview', logs: '#/logs', leads: '#/leads', outreach: '#/outreach', drafts: '#/outreach', emails: '#/outreach', offices: '#/offices', 'all offices': '#/offices', 'sales office': '#/world/sales', 'sales and marketing': '#/world/sales', hq: '#/world/sales', 'developer studio': '#/world/developer', 'developer office': '#/world/developer', 'social media studio': '#/world/social', 'social media office': '#/world/social', reports: '#/reports', approvals: '#/flags', 'needs you': '#/flags', gallery: '#/gems', gems: '#/gems' };
+const PAGES = { home: '#/', office: '#/', working: '#/working', team: '#/team', 'the team': '#/team', overview: '#/overview', logs: '#/logs', leads: '#/leads', outreach: '#/outreach', drafts: '#/outreach', emails: '#/outreach', offices: '#/offices', 'all offices': '#/offices', questions: '#/questions', 'my questions': '#/questions', 'sales office': '#/world/sales', 'sales and marketing': '#/world/sales', hq: '#/world/sales', 'developer studio': '#/world/developer', 'developer office': '#/world/developer', 'social media studio': '#/world/social', 'social media office': '#/world/social', reports: '#/reports', approvals: '#/flags', 'needs you': '#/flags', gallery: '#/gems', gems: '#/gems' };
 
 function load() {
   try {

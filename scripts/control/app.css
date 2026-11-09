@@ -435,3 +435,49 @@ label.check { flex-direction: row !important; align-items: center; gap: 6px; fon
 }
 .job .more { margin-top: 8px; }
 .prob-why { margin: 2px 0; }
+
+/* Top bar: stuck agents, the task's time budget, the sound switch */
+.top-watch { margin-left: auto; margin-right: 58px; display: flex; align-items: center; gap: 10px; flex: none; } /* clear of the floating microphone */
+.top-stuck { font-size: 12px; font-weight: 600; color: #ffd0d5; background: rgba(255, 77, 94, .16); border: 1px solid rgba(255, 77, 94, .45); padding: 4px 10px; border-radius: 99px; white-space: nowrap; }
+.top-stuck:hover { text-decoration: none; filter: brightness(1.15); }
+.top-budget { display: flex; flex-direction: column; gap: 3px; min-width: 120px; font-size: 11px; color: var(--muted); }
+.top-budget i { display: block; height: 4px; border-radius: 99px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+.top-budget b { display: block; height: 100%; background: #3ddc97; transition: width .6s; }
+.top-budget.near span { color: #ffd38a; } .top-budget.near b { background: #ffb020; }
+.top-budget.over span { color: #ff9aa4; font-weight: 700; } .top-budget.over b { background: #ff4d5e; }
+.top-sound[aria-pressed="false"] { opacity: .6; }
+@media (max-width: 760px) { .top-budget { display: none; } .top-stuck { max-width: 150px; overflow: hidden; text-overflow: ellipsis; } }
+
+/* Questions for you */
+.q-bar { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+.q-card { border: 1px solid var(--line); border-radius: 14px; background: var(--bg2); padding: 14px 16px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 10px; }
+.q-card.done { opacity: .78; }
+.q-card h3 { margin: 0; font-size: 16px; }
+.q-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; }
+.q-top a { margin-left: auto; }
+.q-detail summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+.q-detail p { margin: 6px 0 0; line-height: 1.5; color: var(--text); }
+.q-picks { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; }
+.q-pick { display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 10px 12px; border-radius: 12px; }
+.q-pick span { font-size: 12px; color: var(--muted); }
+.q-pick[aria-pressed="true"] { border-color: #4c8dff; background: rgba(76, 141, 255, .16); box-shadow: 0 0 0 1px #4c8dff; }
+.q-card textarea { width: 100%; resize: vertical; font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--line2); border-radius: 10px; padding: 8px 10px; }
+.q-holds { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.q-actions { display: flex; gap: 8px; }
+.q-answer { margin: 0; }
+.q-older-bar { display: flex; gap: 8px; margin: 18px 0 10px; }
+
+/* The first-visit tour (gems/tour.js) */
+.tour { position: fixed; inset: 0; z-index: 9500; display: grid; place-items: center; padding: 16px; background: rgba(5, 8, 18, .62); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); animation: tour-in .25s ease-out; }
+.tour-card { width: min(520px, 100%); background: linear-gradient(180deg, #1a2546, #121a33); border: 1px solid var(--line2); border-radius: 20px; padding: 26px 26px 20px; box-shadow: 0 24px 70px rgba(0, 0, 0, .5); }
+.tour-icon { font-size: 34px; }
+.tour-step { margin-top: 6px; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+.tour-card h2 { margin: 4px 0 10px; font-size: 22px; }
+.tour-card p { margin: 0; line-height: 1.6; color: var(--muted); }
+.tour-dots { display: flex; gap: 6px; margin: 18px 0 14px; }
+.tour-dots i { width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, .15); }
+.tour-dots i.on { width: 22px; border-radius: 99px; background: #4c8dff; }
+.tour-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tour-gap { flex: 1; }
+.side-tour { margin: 0 10px 6px; }
+@keyframes tour-in { from { opacity: 0; } to { opacity: 1; } }

@@ -43,6 +43,9 @@ export function officeLayout(office, map, grid) {
   return { seats, planned, wander };
 }
 
+// Where an office pet may trot to: a few spots in every named room.
+export const petPlaces = (map, grid) => map.rooms.filter((r) => r.kind !== 'other').flatMap((r) => spotsIn(grid, inner(r.box), 3, 120));
+
 export const AT_SEAT = new Set(['working', 'researching', 'waiting', 'error', 'success']);
 export const SPEED = 140; // map units per second: about a walking pace when 100 units are a metre
 
