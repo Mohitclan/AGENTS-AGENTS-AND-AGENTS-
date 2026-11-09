@@ -69,7 +69,7 @@ coordinator ◀── FALLBACK note ──▶ outreach-fallback ──▶ evalua
 | Main memory is written only through the memory script; agents write only their own memory; the call and fallback logs can't be edited | The guard hook |
 | Removing memory and changing skills need you | The hook asks |
 | An opt-out is final, across every product | `leads.mjs suppress`: imports refused, outreach statuses blocked. `replies.mjs check` suppresses clear opt-out and complaint replies at once |
-| A real send needs a person | The hook asks before any `send-email.mjs` run that is not `--dry-run`, and before anyone writes a Yes into `ops/approvals.md`. A live send then marks the lead `contacted`. Pilot exception: after each task, Jarvis sends [TEST] copies of drafts that passed review to `pilot.test_recipients` only (`scripts/send-tests.mjs`, on while `pilot.auto_test_sends` is true) |
+| A real send needs a person | The hook asks before any `send-email.mjs` run that is not `--dry-run`, and before anyone writes a Yes into `ops/approvals.md`. A live send then marks the lead `contacted`. Pilot exception: after each task, Jarvis sends [TEST] copies of drafts that passed review to `pilot.test_recipients` only (`scripts/send-tests.mjs`, on while `pilot.auto_test_sends` is true). After a person ends the pilot on the Emails page (types `go live`), a tick there is that person's yes: the page writes the approval row, sends the email, and schedules a follow-up ticked early for its working day (`scripts/followups.mjs`). Nothing else ends the pilot |
 | Any answer stops the sequence | `replies.mjs` records replies, opt-outs and bounces in `ops/replies.jsonl`; `send-email.mjs` refuses a live send to anyone at a company that answered, or to an address that bounced |
 | Drafts pass automatic checks before review | `scripts/lint-copy.mjs`; the evaluator treats a failure as REVISE |
 | Drafts only, no invented facts, approval list, review before reporting | Agent instructions and `CLAUDE.md` |
@@ -174,6 +174,8 @@ node scripts/lint-copy.mjs <file> --type email      # automatic checks: general,
 node scripts/lint-copy.mjs mine                      # failures that keep repeating
 node scripts/send-email.mjs --draft <file> --email <n> --to <address> [--approval <A-id>] [--dry-run]   # one reviewed email; a live send needs a Yes row
 node scripts/send-tests.mjs <draft> | --since <ISO time> [--dry-run]   # pilot: [TEST] copies of passed drafts to the test recipients (Jarvis runs it after each task)
+node scripts/mail-check.mjs                          # is the sending mailbox ready for real email: SPF, DMARC, DKIM and the mail settings
+node scripts/followups.mjs [--dry-run]               # follow-ups a person scheduled on the Emails page: what is due (--dry-run: what would go now)
 node scripts/replies.mjs check [--dry-run]           # read the inbox for answers to our sends; act on opt-outs, replies and bounces
 node scripts/replies.mjs watch --every 15            # the same check every 15 minutes; keep the terminal open
 node scripts/replies.mjs list                        # answers recorded so far (saved in outputs/replies/)

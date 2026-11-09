@@ -28,6 +28,10 @@ import { askGuide, guideContext } from './guide.mjs';
 import { listSongs, sendSong } from './music.mjs';
 import { projectsApi } from './projects.mjs';
 import { approveAndSend, decideEmails, draftEmails, logRequest, outreachState, planApproval, planDrafts, planEmails } from './outreach.mjs';
+import { sendDue } from './followups.mjs';
+import { setPilot } from './golive.mjs';
+import { mailReadiness } from './mail-check.mjs';
+import { checkReplies, queueAnswer } from './reply-drafts.mjs';
 import { answerQuestion, answersTask, dismissQuestions, markSent, questionsState } from './questions.mjs';
 
 const DEFAULT_PORT = 4318;
@@ -433,7 +437,9 @@ let outreachMemo = { key: '', value: null };
 function outreachCached(root) {
   const stamp = (rel) => { try { return statSync(join(root, rel)).mtimeMs; } catch { return 0; } };
   const drafts = existsSync(join(root, 'outputs', 'outreach')) ? readdirSync(join(root, 'outputs', 'outreach')).map((n) => `${n}:${stamp(`outputs/outreach/${n}`)}`).join(',') : '';
-  const key = [drafts, ...['outputs/reviews', 'pipeline/leads.jsonl', 'ops/queue.json', 'ops/outreach.jsonl', 'ops/send-log.jsonl', 'ops/runs/jarvis.lock'].map(stamp)].join('|');
+  const answers = existsSync(join(root, 'outputs', 'outreach', 'replies')) ? readdirSync(join(root, 'outputs', 'outreach', 'replies')).map((n) => `${n}:${stamp(`outputs/outreach/replies/${n}`)}`).join(',') : '';
+  // the pilot switch, the replies and today's date (a follow-up's day) change what the Emails page shows too
+  const key = [drafts, answers, new Date().toISOString().slice(0, 10), ...['outputs/reviews', 'pipeline/leads.jsonl', 'ops/queue.json', 'ops/outreach.jsonl', 'ops/send-log.jsonl', 'ops/runs/jarvis.lock', 'ops/mail-config.json', 'ops/replies.jsonl'].map(stamp)].join('|');
   if (key !== outreachMemo.key) {
     try {
       outreachMemo = { key, value: outreachState(root) };
@@ -569,9 +575,10 @@ export function agentDetail(root, name) {
   };
 }
 
+const ANSWER_READABLE = /^outputs\/outreach\/replies\/[\w.-]+\.md$/; // drafted answers to replies, opened from the Emails page
 export function readFile(root, path) {
   const clean = String(path || '').replace(/^\/+/, '');
-  if (!READABLE.test(clean) || clean.includes('..')) return null;
+  if (!(READABLE.test(clean) || ANSWER_READABLE.test(clean)) || clean.includes('..')) return null;
   const text = read(root, clean);
   if (!text) return null;
   return { path: clean, title: clip(/^# (.+)$/m.exec(text)?.[1] || clean.split('/').pop(), 120), at: mtime(root, clean), owner: ownerOf(clean), html: renderMarkdown(text, clean) };
@@ -589,6 +596,8 @@ function signature(root) {
     }
   };
   ['ops/queue.json', 'ops/confirmations.jsonl', 'ops/board.md', 'ops/approvals.md', 'ops/messages.md', 'ops/fallbacks.md', 'ops/gate-log.jsonl', 'ops/send-log.jsonl', 'ops/replies.jsonl', 'pipeline/leads.jsonl', 'ops/runs/jarvis.lock', 'ops/runs/plan-limits.json'].forEach(add);
+  ['ops/mail-config.json', 'ops/outreach.jsonl'].forEach(add); // the pilot switch and the Emails page's decisions
+  for (const f of list(root, 'outputs/outreach/replies')) add(`outputs/outreach/replies/${f}`);
   for (const dir of ['ops/runs', 'outputs/reviews', 'outputs/reports', 'outputs/research', 'outputs/outreach', 'outputs/sales', 'outputs/dev', 'knowledge/products', 'knowledge/proposals']) {
     for (const f of list(root, dir, dir === 'ops/runs' ? '.log' : '.md')) add(`${dir}/${f}`);
   }
@@ -636,6 +645,7 @@ function main() {
     process.exit(1);
   }
 
+  let readyMemo = null; // the last mailbox check, for /api/mail/readiness
   // One shared ticker: when the files change, every open page gets the new state.
   const streams = new Set();
   let lastSig = '';
@@ -669,6 +679,24 @@ function main() {
   setInterval(() => {
     for (const res of streams) res.write(': keep-alive\n\n');
   }, 20_000).unref();
+  // Emails page: follow-ups a person scheduled go out on their day (every 10 minutes), and the inbox is read for
+  // replies (every 20 minutes, only when a mail password is configured), which may start a draft of an answer.
+  setInterval(() => {
+    sendDue(ROOT).then((r) => {
+      if (r.sent.length || r.skipped.length || r.failed.length) {
+        console.log(`Follow-ups: ${r.sent.length} sent, ${r.skipped.length} skipped, ${r.failed.length} failed.`);
+        lastSig = '';
+      }
+    }, (error) => console.error(`Follow-ups could not be checked: ${error.message}`));
+  }, 10 * 60_000).unref();
+  setInterval(() => {
+    checkReplies(ROOT).then((r) => {
+      if (r.ran) {
+        if (!r.ok) console.error(`Reading the inbox failed: ${r.text.split('\n').slice(-2).join(' ')}`);
+        lastSig = '';
+      }
+    }, (error) => console.error(`Replies could not be checked: ${error.message}`));
+  }, 20 * 60_000).unref();
 
   const send = (res, status, body, type = 'text/plain', extra = {}) => {
     res.writeHead(status, { 'Content-Type': /^(model|image\/(png|jpeg)|audio\/)/.test(type) ? type : `${type}; charset=utf-8`, 'Content-Security-Policy': CSP, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', ...extra });
@@ -721,6 +749,17 @@ function main() {
           const doc = draftEmails(ROOT, url.searchParams.get('draft'));
           return doc ? json(res, 200, doc) : json(res, 404, { message: 'That draft is not available here.' });
         }
+        // Is the sending mailbox ready for real email? (DNS and settings; the Emails page's go-live panel shows it.)
+        // Looked up at most once a minute unless the page asks again with ?fresh=1.
+        if (path === '/api/mail/readiness') {
+          const fresh = url.searchParams.get('fresh') === '1';
+          if (!fresh && readyMemo && Date.now() - readyMemo.at < 60_000) return json(res, 200, readyMemo.value);
+          mailReadiness(ROOT, process.env.MAIL_CHECK_DNS === 'off' ? { resolver: null } : {}).then(
+            (value) => { readyMemo = { at: Date.now(), value }; json(res, 200, value); },
+            (error) => json(res, 500, { message: `The mailbox check failed: ${error.message}` }),
+          );
+          return undefined;
+        }
         // Approval viewer endpoints
         const viewApproval = /^\/api\/approval\/([\w-]+)\/view$/.exec(path);
         if (viewApproval) {
@@ -765,6 +804,34 @@ function main() {
           return json(res, 200, { message: 'Signed out.' }, { 'Set-Cookie': cookieHeader('', site, 0) });
         }
         if (!signedIn) return json(res, 401, { message: 'Sign in first.' });
+        // The pilot switch, only from the page: ending the pilot needs the person to type "go live". Agents never do
+        // this, and there is no command for it.
+        if (path === '/api/pilot') {
+          let ask;
+          try {
+            ask = JSON.parse(body || '{}');
+          } catch {
+            return json(res, 400, { message: 'That request could not be read.' });
+          }
+          const live = ask.live === true;
+          if (live && String(ask.confirm || '').trim().toLowerCase() !== 'go live') return json(res, 400, { message: 'Type go live to end the pilot.' });
+          const r = setPilot(ROOT, live, String(ask.by || 'a person on the page').slice(0, 60));
+          lastSig = '';
+          readyMemo = null;
+          return json(res, r.ok ? 200 : 409, { message: r.message, live: r.live });
+        }
+        // Ask the sales agent to draft the answer to one reply (the Replies tab's button).
+        if (path === '/api/outreach/reply-draft') {
+          let ask;
+          try {
+            ask = JSON.parse(body || '{}');
+          } catch {
+            return json(res, 400, { message: 'That request could not be read.' });
+          }
+          const r = queueAnswer(ROOT, String(ask.reply || ''), { by: String(ask.by || 'a person on the page').slice(0, 60) });
+          lastSig = '';
+          return json(res, r.ok ? 200 : 409, { message: r.message, id: r.id });
+        }
         // Outreach: a person asks the team to draft emails for leads, approves drafts that passed review, or ticks
         // (approve) or crosses (decline) single emails. All come from the page (buttons or voice) or from
         // scripts/outreach.mjs, with the same same-site check as tasks.
@@ -798,7 +865,12 @@ function main() {
             decideEmails(ROOT, pick.refs, decision, by, ask.note).then((r) => {
               lastSig = '';
               if (decision === 'decline') return json(res, 200, { message: `Declined ${which}: ${pick.refs.length === 1 ? 'it' : 'they'} won't be sent.`, emails: pick.refs });
+              // With the pilot off the result carries its own plain message (sent, scheduled, or why it did not go).
+              if (r.message) return json(res, r.ok ? 200 : 500, { message: `${r.message}${pick.skipped?.length ? ` Left for you: ${pick.skipped.join('; ')}.` : ''}`, emails: pick.refs, detail: r.text });
               return json(res, r.ok ? 200 : 500, { message: r.ok ? `Approved ${which}: ${r.sent} [TEST] cop${r.sent === 1 ? 'y' : 'ies'} sent to the pilot test recipients.` : `Approved, but sending had a problem: ${r.text.split('\n').slice(-3).join(' ')}`, emails: pick.refs, detail: r.text });
+            }).catch((error) => {
+              lastSig = '';
+              json(res, 500, { message: `That didn't work: ${error.message}` });
             });
             return undefined;
           }
@@ -807,7 +879,11 @@ function main() {
           approveAndSend(ROOT, plan.drafts, by).then((r) => {
             lastSig = '';
             const where = 'as [TEST] copies to the pilot test recipients';
+            if (r.message) return json(res, r.ok ? 200 : 500, { message: r.message, detail: r.text });
             json(res, r.ok ? 200 : 500, { message: r.ok ? `Approved ${plan.companies.join(', ')}: ${r.sent} email(s) sent ${where}.` : `Approved, but sending had a problem: ${r.text.split('\n').slice(-3).join(' ')}`, detail: r.text });
+          }).catch((error) => {
+            lastSig = '';
+            json(res, 500, { message: `That didn't work: ${error.message}` });
           });
           return undefined;
         }

@@ -20,6 +20,11 @@
 // Reply text is written by a stranger. It is saved to outputs/replies/ as data for the sales agent and
 // the reply-triage skill; nothing in it is acted on.
 //
+// Mission control's Emails page lists the recorded replies with recordedReplies(root): each one with its saved
+// text, a number within its lead (the k of outputs/outreach/replies/<lead>-<k>.md) and a label. The label is a
+// first guess for sorting only (labelReply): interested, question, not_interested or plain reply; the sales agent
+// triages every reply with the reply-triage skill.
+//
 // Secrets: the same SMTP_PASS as send-email.mjs (a Gmail app password also opens IMAP), from the
 // environment or .env. It is never printed or logged.
 import { spawnSync } from 'node:child_process';
@@ -179,6 +184,57 @@ export function replyStop(to, replies) {
     if (r.kind === 'bounce') return (r.sent_to || '').toLowerCase() === a;
     return [r.from, r.sent_to].some((x) => x && (stopKey(x) === key || x.toLowerCase() === a));
   }) || null;
+}
+
+// A first guess at what a person's reply is, from its own words (quoted copy removed), only to sort the Replies
+// list and to decide which replies get a draft answer started for them. Anything that is not a person's reply
+// keeps its kind (opt_out, complaint, bounce, auto_reply). A person's reply is one of:
+//   interested      asks for details, a demo or a call, or says yes
+//   question        asks something
+//   not_interested  a plain no
+//   reply           anything else
+const NO_THANKS = /\b(?:not interested|no,? thanks?|no,? thank you|not a fit|not for us|not now|not at this time|not right now)\b/i;
+const WANTS_MORE = /(?<!not\s)(?<!n't\s)\binterested\b|\bsounds (?:good|great|interesting|useful)\b|\b(?:would|i'?d|we'?d) (?:love|like) to\b|\btell (?:me|us) more\b|\bmore (?:info|information|details)\b|\bsend (?:me |us )?(?:over )?(?:the |a |your )?(?:details|pricing|price|info|link|demo|sample)\b|\blet'?s (?:talk|chat|connect|try|set up)\b|\bhappy to (?:chat|talk|try|connect)\b|\bsign me up\b|\b(?:set up|book|schedule|arrange) a (?:call|demo|chat|meeting)\b|\bhow (?:do|can) (?:i|we) (?:start|sign up|try|get started)\b|^\s*(?:yes|yeah|sure)\b[\s,.!]/im;
+const ASKS = /\?|^\s*(?:how|what|why|when|where|who|which|can|could|do|does|is|are|will|would)\b/im;
+export function labelReply(kind, text) {
+  if (kind !== 'reply') return kind;
+  const own = stripQuoted(text);
+  if (WANTS_MORE.test(own)) return 'interested';
+  if (ASKS.test(own)) return 'question';
+  if (NO_THANKS.test(own)) return 'not_interested';
+  return 'reply';
+}
+
+// What a person wrote, out of the file replyFile() saved (the quoted copy was already removed).
+export function replyText(markdown) {
+  const m = /## Their words[^\n]*\n+```text\n([\s\S]*?)\n```/.exec(String(markdown || ''));
+  const text = m ? m[1] : '';
+  return text === '(empty)' ? '' : text;
+}
+
+// Every recorded answer to one of our sends, newest first, for the Emails page: who wrote it, its label, when, and
+// its saved text. `k` counts a lead's replies in the order they were recorded (1, 2, ...), so the same reply always
+// has the same number; replies not tied to a lead have k 0.
+export function recordedReplies(root = ROOT) {
+  const rows = [];
+  try {
+    for (const line of readFileSync(join(root, 'ops', 'replies.jsonl'), 'utf8').split('\n')) {
+      if (!line.trim()) continue;
+      try { rows.push(JSON.parse(line)); } catch { /* a damaged line is skipped */ }
+    }
+  } catch { /* no replies recorded yet */ }
+  const seen = new Map();
+  return rows.map((r) => {
+    const k = r.lead ? seen.set(r.lead, (seen.get(r.lead) || 0) + 1).get(r.lead) : 0;
+    let saved = '';
+    try { if (/^outputs\/replies\/[\w.-]+\.md$/.test(r.file || '')) saved = readFileSync(join(root, r.file), 'utf8'); } catch { /* the file is gone */ }
+    const text = replyText(saved);
+    return {
+      id: r.message_id || `${r.at}|${r.from}`, k, lead: r.lead || null, from: r.from || '', fromName: /^# Reply from (.+?) <[^>]+>\s*$/m.exec(saved)?.[1] || '',
+      subject: r.subject || '', kind: r.kind, label: r.label || labelReply(r.kind, text), mode: r.mode || '', sentTo: r.sent_to || '',
+      received: r.received || r.at || '', file: r.file || '', text: text.slice(0, 4000),
+    };
+  }).sort((a, b) => String(b.received).localeCompare(String(a.received)));
 }
 
 export function replyFile(msg, kind, match, actions) {
@@ -361,7 +417,7 @@ async function check(args) {
         writeFileSync(join(REPLY_DIR, name), replyFile(e, kind, match, done));
         appendFileSync(REPLY_LOG, JSON.stringify({
           at: new Date().toISOString(), received: e.date, message_id: e.messageId, from: e.from, subject: e.subject,
-          kind, mode: match.send.mode, matched_by: match.by, sent_to: match.send.to, send_message_id: match.send.message_id,
+          kind, label: labelReply(kind, e.text), mode: match.send.mode, matched_by: match.by, sent_to: match.send.to, send_message_id: match.send.message_id,
           lead: match.send.lead || null, email: match.send.email ?? null, file: `outputs/replies/${name}`,
           actions: done.map(({ type, value, lead, status, ok, result }) => ({ type, value, lead, status, ok, result })),
         }) + '\n');
