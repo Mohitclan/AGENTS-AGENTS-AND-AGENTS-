@@ -7,8 +7,10 @@
 //   "add a lesson"     adds an entry to main memory, as the after-task review would
 //   "passed draft"     writes an outreach draft and a PASS review of it
 //   "mail settings"    changes ops/mail-config.json
-// FAKE_UTIL sets the 5-hour window's reported utilization (default 0.2).
-import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
+// FAKE_UTIL sets the 5-hour window's reported utilization (default 0.2). Every call's arguments are added to
+// ops/runs/fake-args.jsonl. As a step of the drafting lane (--agent outreach or --agent evaluator) it writes the
+// drafts or the named review instead: a draft whose lead's company has "Redo" in it gets REVISE until it has a fix log.
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 let input = '';
@@ -17,6 +19,33 @@ process.stdin.on('end', () => {
   const id = /JARVIS TASK (J-\d{8}-\d{2})/.exec(input)?.[1] || 'J-unknown';
   const emit = (e) => process.stdout.write(`${JSON.stringify(e)}\n`);
   const resetsAt = Math.floor(Date.now() / 1000) + 3600;
+  const args = process.argv.slice(2);
+  mkdirSync(join(process.cwd(), 'ops', 'runs'), { recursive: true });
+  appendFileSync(join(process.cwd(), 'ops', 'runs', 'fake-args.jsonl'), `${JSON.stringify(args)}\n`);
+  const agent = args[args.indexOf('--agent') + 1];
+  if (args.includes('--agent') && (agent === 'outreach' || agent === 'evaluator')) {
+    emit({ type: 'rate_limit_event', rate_limit_info: { status: 'allowed', unifiedWindows: { five_hour: { utilization: 0.3, resetsAt } } } });
+    const leadIds = [...new Set(input.match(/\bL-[0-9a-f]{8}\b/g) || [])];
+    if (agent === 'outreach') {
+      mkdirSync(join(process.cwd(), 'outputs', 'outreach'), { recursive: true });
+      for (const lead of leadIds) {
+        const file = join(process.cwd(), 'outputs', 'outreach', `${lead}.md`);
+        const redo = new RegExp(`Redo[^(]*\\(${lead}\\)`).test(input);
+        writeFileSync(file, `---\nlead: ${lead}\n---\n\n## Email 1\n\nSubject: Hello\n\nHi.\n${/revise these/.test(input) ? '\n## Fix log\n\n1. Fixed.\n' : redo ? '\n<!-- redo -->\n' : ''}`);
+      }
+    } else {
+      const review = /Write the review to (outputs\/reviews\/\S+\.md)/.exec(input)?.[1];
+      const draft = /draft, (outputs\/outreach\/L-[0-9a-f]{8}\.md)/.exec(input)?.[1];
+      if (review && draft) {
+        mkdirSync(join(process.cwd(), 'outputs', 'reviews'), { recursive: true });
+        const text = readFileSync(join(process.cwd(), draft), 'utf8');
+        const verdict = text.includes('<!-- redo -->') ? 'REVISE, 70/100' : 'PASS, 90/100';
+        writeFileSync(join(process.cwd(), review), `# Review of ${draft}\n\n**Verdict: ${verdict}.**\n`);
+      }
+    }
+    emit({ type: 'result', is_error: false, result: 'RESULT\nstatus: done\nsummary: fake lane step', num_turns: 2 });
+    return;
+  }
   emit({ type: 'system', subtype: 'init', session_id: 'fake' });
   emit({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Agent', input: { subagent_type: 'researcher', description: 'Fake research' } }] } });
 

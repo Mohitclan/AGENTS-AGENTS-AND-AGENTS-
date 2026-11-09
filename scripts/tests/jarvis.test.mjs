@@ -187,3 +187,50 @@ describe('trust check', () => {
     assert.equal(jarvis(['run'], { ...home({}), CLAUDE_BIN: FAKE }).code, 0);
   });
 });
+
+describe('spending less of the plan', () => {
+  const args = () => readFileSync(repo.path('ops', 'runs', 'fake-args.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  const lead = (id, company) => ({ id, company, product: 'motionrepo', status: 'qualified', tier: 'C', score: 49, website: `https://${id}.test`, contact: { channel: 'contact form', where: `https://${id}.test/contact` }, evidence: [], history: [{ at: '2026-11-09', event: 'imported', note: 'test' }] });
+
+  it('runs the coordinator on Sonnet at medium effort, unless told otherwise', () => {
+    jarvis(['add', 'A planning task']);
+    jarvis(['run']);
+    assert.deepEqual(args().at(-1).slice(-4), ['--model', 'sonnet', '--effort', 'medium']);
+    jarvis(['add', 'Another task']);
+    jarvis(['run'], { JARVIS_MODEL: 'opus', JARVIS_EFFORT: 'high' });
+    assert.deepEqual(args().at(-1).slice(-4), ['--model', 'opus', '--effort', 'high']);
+  });
+
+  it('runs a drafting task from the Outreach page as the drafting lane: draft, review each at once, fix, re-review, no coordinator', () => {
+    writeFileSync(repo.path('pipeline', 'leads.jsonl'), `${[lead('L-0000aaaa', 'Alpha Co'), lead('L-0000bbbb', 'Redo Labs')].map((l) => JSON.stringify(l)).join('\n')}\n`);
+    for (const id of ['L-0000aaaa', 'L-0000bbbb']) rmSync(repo.path('outputs', 'outreach', `${id}.md`), { force: true });
+    jarvis(['add', 'Draft outreach email sequences for these motionrepo leads: Alpha Co (L-0000aaaa), Redo Labs (L-0000bbbb). A person confirmed drafting.']);
+    const t = byTask('Draft outreach email sequences');
+    writeFileSync(repo.path('ops', 'outreach.jsonl'), `${JSON.stringify({ at: new Date().toISOString(), kind: 'draft-request', leads: ['L-0000aaaa', 'L-0000bbbb'], task: t.id, by: 'test' })}\n`);
+    rmSync(repo.path('ops', 'runs', 'fake-args.jsonl'), { force: true });
+    const r = jarvis(['run']);
+    assert.equal(r.code, 0, r.out);
+    const calls = args();
+    assert.ok(!calls.some((a) => !a.includes('--agent')), 'no coordinator session');
+    const agents = calls.map((a) => `${a[a.indexOf('--agent') + 1]}/${a[a.indexOf('--model') + 1]}`);
+    assert.deepEqual(agents, ['outreach/sonnet', 'evaluator/opus', 'evaluator/opus', 'outreach/sonnet', 'evaluator/opus'], 'draft, two reviews at once, one fix, one re-review');
+    const done = byTask('Draft outreach email sequences');
+    assert.equal(done.status, 'done', done.note);
+    const report = readFileSync(repo.path(done.report), 'utf8');
+    assert.match(report, /2 of 2 draft\(s\) passed review and wait for you on the Emails page/);
+    assert.match(report, /\| Redo Labs \(L-0000bbbb\) \| outputs\/outreach\/L-0000bbbb\.md \| PASS 90\/100 \(outputs\/reviews\/T-\d{8}-\d{2}-L-0000bbbb-r2\.md\) \|/);
+    const leads = readFileSync(repo.path('pipeline', 'leads.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+    assert.deepEqual([...new Set(leads.filter((l) => l.id === 'L-0000aaaa').map((l) => l.status))].at(-1), 'drafted', 'passed leads are marked drafted');
+    assert.match(readFileSync(repo.path('ops', 'board.md'), 'utf8'), new RegExp(`\\| T-\\d{8}-\\d{2} \\| ${t.id}: draft outreach sequences for Alpha Co, Redo Labs .*\\| outreach \\| passed \\|`));
+    const log = readFileSync(repo.path('ops', 'runs', `${t.id}.log`), 'utf8');
+    assert.equal((log.match(/"name":"Agent"/g) || []).length, 5, 'mission control sees each step as an agent at work');
+    assert.match(r.out, /→ evaluator: review one outreach draft/);
+  });
+
+  it('leaves a task that only mentions drafting to the coordinator', () => {
+    jarvis(['add', 'Write a plan for drafting emails next week']);
+    rmSync(repo.path('ops', 'runs', 'fake-args.jsonl'), { force: true });
+    jarvis(['run']);
+    assert.ok(!args()[0].includes('--agent'));
+  });
+});

@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 // Jarvis: hand the team tasks and get finished results back. Each task runs as one coordinator
-// session on autopilot (`claude -p`, your Max plan login), one task at a time, in queue order.
+// session on autopilot (`claude -p`, your Max plan login), one task at a time, in queue order. The
+// coordinator runs on Sonnet at medium effort (JARVIS_MODEL and JARVIS_EFFORT change that): it plans and
+// hands out work, and the agents and the reviews keep their own models. A drafting task a person asked for
+// on the Outreach page skips the coordinator: Jarvis runs that fixed chain itself (scripts/draft-lane.mjs).
 //
 //   node scripts/jarvis.mjs add "<task>"            queue a task
 //   node scripts/jarvis.mjs do "<task>"             queue a task and run it now
@@ -28,6 +31,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { ROOT, fail, printTable, resolveClaude, today, workspaceTrusted } from './_shared.mjs';
+import { runDraftLane } from './draft-lane.mjs';
 import { latestLeads, outreachState } from './outreach.mjs';
 
 const OPS = join(ROOT, 'ops');
@@ -45,6 +49,9 @@ const STOP_AT = Number(process.env.JARVIS_STOP_AT || 0.85);
 const CLAUDE_BIN = resolveClaude();
 const DEFAULT_TIMEOUT_MIN = 120;
 const STATUS_LABEL = { needs_approval: 'needs you', needs_input: 'needs you' };
+// The coordinator's model and effort: it plans and hands out work, which Sonnet does at a fraction of Opus's use of
+// the plan (2026-11-09: Opus was 68 to 95% of every run).
+const COORDINATOR = ['--model', process.env.JARVIS_MODEL || 'sonnet', '--effort', process.env.JARVIS_EFFORT || 'medium'];
 
 // Local time, YYYY-MM-DD HH:MM.
 const now = () => {
@@ -278,12 +285,12 @@ function prompt(t) {
   );
 }
 
-// Runs one coordinator session and reads its stream. Never rejects.
-function runSession(t, timeoutMs) {
+// Runs one session and reads its stream: the coordinator's by default, or one step of the drafting lane (its own
+// agent, model and log). Never rejects.
+function runSession(t, timeoutMs, { extra = COORDINATOR, input = prompt(t), log = join(RUNS, `${t.id}.log`), echo = true } = {}) {
   return new Promise((resolve) => {
-    const args = ['-p', '--permission-mode', 'acceptEdits', '--output-format', 'stream-json', '--verbose'];
+    const args = ['-p', '--permission-mode', 'acceptEdits', '--output-format', 'stream-json', '--verbose', ...extra];
     const [cmd, cmdArgs] = /\.(m?js)$/.test(CLAUDE_BIN) ? [process.execPath, [CLAUDE_BIN, ...args]] : [CLAUDE_BIN, args];
-    const log = join(RUNS, `${t.id}.log`);
     const out = { resultText: '', isError: false, limitRejected: false, sawResult: false, turns: 0 };
     let child;
     try {
@@ -312,7 +319,7 @@ function runSession(t, timeoutMs) {
         const info = event.rate_limit_info ?? {};
         recordLimits(info);
         if (info.status === 'rejected') out.limitRejected = true;
-      } else if (event.type === 'assistant') {
+      } else if (event.type === 'assistant' && echo) {
         for (const block of event.message?.content ?? []) {
           if (block.type === 'tool_use' && block.name === 'Agent') {
             console.log(`  ${now().slice(11)} → ${block.input?.subagent_type || 'agent'}: ${block.input?.description || ''}`);
@@ -349,8 +356,26 @@ function runSession(t, timeoutMs) {
       resolve(out);
     });
     child.stdin.on('error', () => undefined);
-    child.stdin.end(prompt(t));
+    child.stdin.end(input);
   });
+}
+
+// One step of the drafting lane: a session of its own, logged in ops/runs/lane/, shown in the task's own log as the
+// agent being handed work and finishing, the way a coordinator's call would be, so mission control shows who works.
+function laneStep(t, timeoutMs) {
+  let n = 0;
+  const main = join(RUNS, `${t.id}.log`);
+  const note = (e) => appendFileSync(main, `${JSON.stringify({ timestamp: new Date().toISOString(), ...e })}\n`);
+  mkdirSync(join(RUNS, 'lane'), { recursive: true });
+  return async (extra, input, agent) => {
+    const id = `lane-${++n}`;
+    const what = input.split('\n')[0].replace(/^JARVIS TASK \S+, board task \S+: /, '').slice(0, 140);
+    console.log(`  ${now().slice(11)} → ${agent}: ${what}`);
+    note({ type: 'assistant', message: { content: [{ type: 'tool_use', id, name: 'Agent', input: { subagent_type: agent, description: what } }] } });
+    const out = await runSession(t, timeoutMs, { extra, input, log: join(RUNS, 'lane', `${t.id}-${n}-${agent}.log`), echo: false });
+    note({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: id, is_error: out.isError, content: out.resultText || '(no reply)' }] } });
+    return out;
+  };
 }
 
 function jarvisBlock(text) {
@@ -420,7 +445,11 @@ async function runTask(t, timeoutMs) {
   const mailConfigBefore = readText(MAIL_CONFIG);
   const lessonsBefore = memoryEntries();
   const leadsBefore = new Set(latestLeads(ROOT).keys());
-  const out = await runSession(t, timeoutMs);
+  const lane = await runDraftLane({ task: t, session: laneStep(t, timeoutMs) });
+  if (lane && lane.status !== 'limit') appendFileSync(join(RUNS, `${t.id}.log`), `${JSON.stringify({ type: 'result', is_error: false, result: lane.summary, num_turns: 0 })}\n`);
+  const out = !lane ? await runSession(t, timeoutMs)
+    : lane.status === 'limit' ? { limitRejected: true, resultText: '' }
+    : { resultText: `${lane.summary}\n\nJARVIS\nstatus: ${lane.status}\nreport: ${lane.report}\n`, isError: false, turns: 0 };
   const lessons = memoryEntries() - lessonsBefore;
 
   if (out.limitRejected) {

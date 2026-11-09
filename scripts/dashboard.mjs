@@ -16,6 +16,7 @@ import { closeSync, existsSync, fstatSync, mkdirSync, openSync, readdirSync, rea
 import { createServer } from 'node:http';
 import { join, posix } from 'node:path';
 import { frontmatter, isMain, ROOT } from './_shared.mjs';
+import { quickAnswer } from './quick.mjs';
 import { ART_SCRIPT, ART_STYLE, renderMap, renderWalkthrough, signInArt } from './dashboard-art.mjs';
 
 const DEFAULT_PORT = 4317;
@@ -763,6 +764,9 @@ export function act(root, path, { host, origin, marker, body, site }) {
     }
     if (!task) return reply(400, 'Write a task first.');
     if (task.length > MAX_TASK) return reply(400, `Keep the task under ${MAX_TASK} characters.`);
+    // A question about where things stand is answered from the files, without spending an agent run on it.
+    const quick = quickAnswer(task, root);
+    if (quick) return reply(200, quick, { quick: true });
     const added = addTask(root, task);
     return added.id ? start(added.id) : reply(500, `The task wasn't queued: ${added.error}`);
   }

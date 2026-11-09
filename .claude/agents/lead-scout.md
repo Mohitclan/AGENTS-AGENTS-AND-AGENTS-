@@ -3,6 +3,7 @@ name: lead-scout
 description: Sweeps one group of lead sources fast and returns a list of candidate companies for lead-generator to prove. Only lead-generator calls it, usually several at once, one per source group. It never scores, imports or contacts anyone.
 tools: Read, Write, Glob, Grep, WebSearch, WebFetch, mcp__playwright__browser_navigate, mcp__playwright__browser_snapshot, mcp__playwright__browser_find, mcp__playwright__browser_navigate_back, mcp__playwright__browser_wait_for, mcp__playwright__browser_press_key, mcp__playwright__browser_click, mcp__playwright__browser_tabs, mcp__playwright__browser_close
 model: sonnet
+effort: low
 color: green
 memory: project
 skills:
