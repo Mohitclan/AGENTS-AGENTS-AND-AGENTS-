@@ -16,6 +16,10 @@
 // Live activity comes from the Jarvis run logs (ops/runs/<id>.log, Claude Code's stream-json). Each
 // tool call inside a sub-agent carries the id of the Agent call that started it, so every web search,
 // page fetch, file write and failure is credited to the agent that made it.
+//
+// The schedule (ops/schedule.json, scripts/schedule.mjs): once a minute the server queues what is due, such as the
+// nightly lead sweep, and runs the weekly report. A server on port 0 (the tests) never does, and neither does one
+// started with MISSION_SCHEDULE=off.
 import { createHash } from 'node:crypto';
 import { closeSync, existsSync, fstatSync, openSync, readdirSync, readFileSync, readSync, statSync, writeFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
@@ -29,6 +33,7 @@ import { listSongs, sendSong } from './music.mjs';
 import { projectsApi } from './projects.mjs';
 import { approveAndSend, decideEmails, draftEmails, logRequest, outreachState, planApproval, planDrafts, planEmails } from './outreach.mjs';
 import { answerQuestion, answersTask, dismissQuestions, markSent, questionsState } from './questions.mjs';
+import { ensureSchedule, runDue, scheduleState, setEnabled } from './schedule.mjs';
 
 const DEFAULT_PORT = 4318;
 const STATIC = join(ROOT, 'scripts', 'control');
@@ -548,6 +553,7 @@ export function snapshot(root = ROOT) {
     tasks: base.tasks.map((t) => ({ id: t.id, title: t.title, status: t.status, added: t.added, started: t.started, finished: t.finished, report: t.report, note: t.note })),
     leads: leads.map((l) => ({ id: l.id, company: l.company, status: l.status, tier: l.tier, score: l.score, segment: l.segment, contact: l.contact?.channel || null, evidence: (l.evidence || []).filter((e) => !e.superseded).length, next: l.next_action, sequence: l.sequence, review: l.review, hold: l.hold?.reason || null, updated: l.updated_at, reason: l.disqualify_reason || null })),
     approvals: approvals.length,
+    schedule: scheduleState(root),
     pilot,
   };
 }
@@ -666,6 +672,23 @@ function main() {
       lastSig = '';
     }
   }, 60_000).unref();
+  // The schedule: what is due (the nightly lead sweep, the weekly report) is queued or run once a minute.
+  if (port !== 0 && process.env.MISSION_SCHEDULE !== 'off') {
+    try {
+      ensureSchedule(ROOT);
+    } catch (error) {
+      console.error(`Schedule: ${error.message}`);
+    }
+    setInterval(() => {
+      try {
+        const did = runDue(ROOT, Date.now(), { addTask, startQueued }).filter((r) => r.action !== 'waiting');
+        for (const r of did) console.log(`Schedule: ${r.message}`);
+        if (did.length) lastSig = '';
+      } catch (error) {
+        console.error(`Schedule: ${error.message}`);
+      }
+    }, 60_000).unref();
+  }
   setInterval(() => {
     for (const res of streams) res.write(': keep-alive\n\n');
   }, 20_000).unref();
@@ -855,6 +878,25 @@ function main() {
           writeFileSync(file, kept.join('\n'), 'utf8');
           lastSig = '';
           return json(res, 200, { message: 'Approval declined and removed.' });
+        }
+        // The schedule: a person switches one entry on or off on the Reports page. Page only, no voice command.
+        if (path === '/api/schedule/toggle') {
+          if (!sameSite(from)) return json(res, 403, { message: 'Use the team page itself.' });
+          let ask;
+          try {
+            ask = JSON.parse(body || '{}');
+          } catch {
+            return json(res, 400, { message: 'That request could not be read.' });
+          }
+          let r;
+          try {
+            r = setEnabled(ROOT, String(ask.id ?? ''), ask.enabled);
+          } catch (error) {
+            return json(res, 500, { message: `That didn't work: ${error.message}` });
+          }
+          if (r.error) return json(res, r.status, { message: r.error });
+          lastSig = '';
+          return json(res, 200, { message: `${r.entry.name || r.entry.id} is ${r.entry.enabled ? 'on' : 'off'}.`, id: r.entry.id, enabled: r.entry.enabled });
         }
         // A spoken or typed question for the guide: answered by Claude Code on the signed-in login, read-only.
         if (path === '/api/ask') {

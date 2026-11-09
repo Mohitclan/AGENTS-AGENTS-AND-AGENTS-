@@ -1199,9 +1199,53 @@ const leadsView = {
   },
 };
 
+// Schedules and weekly results on the Reports page: what the team does on a clock (ops/schedule.json), each entry
+// with an on/off switch that only the page has, and the weekly reports written so far (outputs/reports/weekly-*.md).
+const schedWhen = (iso) => (iso ? new Date(iso).toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '');
+
+function schedulesHTML(schedule) {
+  if (schedule.error) return `<h2>Schedules</h2><p class="muted">The schedule can't be read: ${esc(schedule.error)}</p>`;
+  const rows = schedule.entries.map((e) => `<li class="sched-row${e.enabled ? '' : ' off'}">
+    <div class="sched-main">
+      <div class="row-top"><span class="sched-name">${esc(e.name)}</span><span class="pill ${e.kind === 'task' ? 'p-queued' : 'p-done'}">${e.kind === 'task' ? 'Uses the plan' : 'No plan use'}</span></div>
+      <div class="muted tiny">${esc(e.when)} · ${e.enabled ? `Next: ${esc(e.due ? 'due now' : schedWhen(e.next))}` : 'Off'}</div>
+      <div class="muted tiny">${e.last_run ? `Last run: ${esc(schedWhen(e.last_run))}` : 'Never run'}${e.note ? ` · ${esc(e.note)}` : ''}</div>
+      ${e.waiting ? `<div class="warn-text">${esc(e.waiting)}</div>` : ''}
+    </div>
+    <button type="button" class="switch" role="switch" aria-checked="${e.enabled}" data-sched="${esc(e.id)}" aria-label="${esc(e.name)}" title="${e.enabled ? 'Turn off' : 'Turn on'}"></button>
+  </li>`).join('');
+  return `<h2>Schedules <span class="muted">(${schedule.entries.length})</span></h2><ul class="rows">${rows || '<li class="muted">Nothing is scheduled.</li>'}</ul>`;
+}
+
+function weeklyHTML(schedule) {
+  const week = (w) => new Date(`${w}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  const items = schedule.weekly.map((w) => `<li><a href="#" data-file="${esc(w.path)}">Week of ${esc(week(w.week))}</a><div class="muted tiny">Written ${esc(stamp(w.at))}</div></li>`).join('');
+  return `<h2>Weekly results <span class="muted">(${schedule.weekly.length})</span></h2><ul class="rows">${items || '<li class="muted">No weekly report yet. The first one is written when the weekly report is due.</li>'}</ul>`;
+}
+
+async function toggleSchedule(event) {
+  const sw = event.target.closest('[data-sched]');
+  if (!sw) return;
+  sw.disabled = true;
+  try {
+    const done = await api('/api/schedule/toggle', { id: sw.dataset.sched, enabled: sw.getAttribute('aria-checked') !== 'true' });
+    sw.setAttribute('aria-checked', String(done.enabled));
+    sw.closest('.sched-row').classList.toggle('off', !done.enabled);
+    toast(done.message);
+  } catch (error) {
+    toast(error.message, true);
+  } finally {
+    sw.disabled = false;
+  }
+}
+
 const reportsView = {
+  schedSig: '',
   build() {
     $('#view').innerHTML = '<div class="page-h"><h1>Reports</h1><p class="muted">The report each task ended with, and every review the evaluator wrote.</p></div><div class="two"><section class="card" id="rep-tasks"></section><section class="card" id="rep-reviews"><p class="muted">Loading reviews…</p></section></div>';
+    $('#view .page-h').insertAdjacentHTML('afterend', '<div class="two"><section class="card" id="rep-schedule"></section><section class="card" id="rep-weekly"></section></div>');
+    $('#rep-schedule').addEventListener('click', toggleSchedule);
+    reportsView.schedSig = '';
     api('/api/agents/evaluator').then((d) => {
       $('#rep-reviews').innerHTML = `<h2>Reviews <span class="muted">(${d.outputs.length})</span></h2><ul class="rows">${d.outputs.map((o) => `<li><a href="#" data-file="${esc(o.path)}">${esc(o.title)}</a> ${verdictChip(o.verdict, o.score)}<div class="muted tiny">${esc(stamp(o.at))}</div></li>`).join('')}</ul>`;
     }).catch((e) => {
@@ -1209,6 +1253,13 @@ const reportsView = {
     });
   },
   update(snap) {
+    // Painted only when it changes, so a switch a person is tabbing to isn't replaced under them.
+    const sig = JSON.stringify(snap.schedule || null);
+    if (snap.schedule && sig !== reportsView.schedSig) {
+      reportsView.schedSig = sig;
+      $('#rep-schedule').innerHTML = schedulesHTML(snap.schedule);
+      $('#rep-weekly').innerHTML = weeklyHTML(snap.schedule);
+    }
     $('#rep-tasks').innerHTML = `<h2>Task reports <span class="muted">(${snap.tasks.length})</span></h2><ul class="rows">${snap.tasks.map((t) => `<li><div class="row-top"><code>${esc(t.id)}</code>${statusChip(t.status)}</div>${t.report ? `<a href="#" data-file="${esc(t.report)}">${esc(t.title)}</a>` : esc(t.title)}<div class="muted tiny">${esc(t.finished || t.started || t.added || '')}${t.note ? ` · ${esc(t.note)}` : ''}</div></li>`).join('') || '<li class="muted">No tasks yet.</li>'}</ul>`;
   },
 };
