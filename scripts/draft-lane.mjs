@@ -12,6 +12,7 @@
 //   const r = await runDraftLane({ task, root, session, timeoutMs, say })
 //   session(args, prompt, label) runs one Claude Code session and resolves to { resultText, isError, limitRejected }
 //   r: { status: 'done' | 'blocked' | 'limit', report, summary }  or null when the task isn't a drafting task
+import { taskIdBlock } from './lanes.mjs';
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -34,12 +35,15 @@ export function laneLeads(root, task) {
   return [...new Set(ids)];
 }
 
-// The next board task ID for today: T-YYYYMMDD-NN, one past the highest on the board.
-export function nextTaskId(root) {
-  const day = today().replace(/-/g, '');
+// The next board task ID: inside the Jarvis task's own block (lanes.mjs taskIdBlock), so a drafting lane running
+// beside other tasks never takes their numbers; without a Jarvis ID, T-YYYYMMDD-NN one past the highest on the board.
+export function nextTaskId(root, jarvisId = null) {
+  const block = taskIdBlock(jarvisId);
+  const day = block?.day || today().replace(/-/g, '');
   const board = existsSync(join(root, 'ops', 'board.md')) ? readFileSync(join(root, 'ops', 'board.md'), 'utf8') : '';
-  const used = [...board.matchAll(new RegExp(`T-${day}-(\\d{2})`, 'g'))].map((m) => Number(m[1]));
-  return `T-${day}-${String(Math.max(0, ...used) + 1).padStart(2, '0')}`;
+  const used = [...board.matchAll(new RegExp(`T-${day}-(\\d{2,4})\\b`, 'g'))].map((m) => Number(m[1]));
+  if (block) return `T-${day}-${Math.max(block.from - 1, ...used.filter((n) => n >= block.from && n <= block.to)) + 1}`;
+  return `T-${day}-${String(Math.max(0, ...used.filter((n) => n < 100)) + 1).padStart(2, '0')}`;
 }
 
 // Puts a row on the board, or replaces the row with the same task ID. Newest rows sit at the top of the table.
@@ -119,7 +123,7 @@ export async function runDraftLane({ task, root = ROOT, session, say = () => und
   if (!ids.length) return null;
   const known = latestLeads(root);
   const leads = ids.map((id) => ({ id, company: known.get(id)?.company || id, product: known.get(id)?.product || '' }));
-  const tid = nextTaskId(root);
+  const tid = nextTaskId(root, task.id); // inside this Jarvis task's own block of IDs
   const names = leads.map((l) => l.company).join(', ');
   boardRow(root, [tid, `${task.id}: draft outreach sequences for ${names} (drafting lane, no coordinator)`, 'outreach', 'in_progress', leads.map((l) => draftPath(l.id)).join(', '), '']);
   const started = Date.now() - 1000;

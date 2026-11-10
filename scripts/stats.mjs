@@ -188,7 +188,7 @@ const plain = (s) => s.replace(/[*`]/g, '').trim();
 // A lettered sub-task ("T-20261103-09a-r1.md") is its own task. One part of a batch reviewed in parallel names its
 // lead ("T-20261109-02-L-1ac84fe1-r1.md"): the task's review is all its parts together.
 export function reviewName(file) {
-  const m = /^(T-\d{8}-\d{2}[a-z]?)(?:-review)?(?:-(L-[0-9a-f]{6,}))?(?:-r(\d+))?\.md$/.exec(file);
+  const m = /^(T-\d{8}-\d{2,4}[a-z]?)(?:-review)?(?:-(L-[0-9a-f]{6,}))?(?:-r(\d+))?\.md$/.exec(file);
   if (!m) return null;
   return m[2] ? { task: m[1], round: m[3] ? Number(m[3]) : 1, part: m[2] } : { task: m[1], round: m[3] ? Number(m[3]) : 1 };
 }

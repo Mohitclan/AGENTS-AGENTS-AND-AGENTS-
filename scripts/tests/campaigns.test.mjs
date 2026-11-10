@@ -68,6 +68,8 @@ describe('campaigns: the numbers', () => {
   });
 
   it('says what to do first: research, a competitor file, leads, the fact sheet', () => {
+    // this copy of the project may carry real competitor files for the newer products: start them from none
+    for (const slug of ['peelpress', 'pitchlight', 'testpilot']) rmSync(fx.repo.path('knowledge', 'competitors', `${slug}.md`), { force: true });
     const p = byName(campaigns.campaignsState(fx.root));
     assert.equal(existsSync(fx.repo.path('knowledge', 'competitors', 'motionrepo.md')), true);
     assert.equal(p.motionrepo.readiness.competitor, true);

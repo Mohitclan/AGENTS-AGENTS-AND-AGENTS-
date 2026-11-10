@@ -30,7 +30,7 @@ The coordinator plans and delegates; fifteen specialists each own one job, and e
 
 ## Team protocol
 
-- Only the coordinator assigns tasks and keeps the board. Task IDs look like `T-YYYYMMDD-NN`.
+- Only the coordinator assigns tasks and keeps the board. Task IDs look like `T-YYYYMMDD-NN`. In a Jarvis task, use only the block of IDs its prompt gives (`T-YYYYMMDD-601` to `-699` for J-YYYYMMDD-06): several tasks run at once, and the next free number on the board may be taken by another one.
 - **Asking another agent.** You may call an agent listed under `can_ask:` in your own agent file, for a fact, a check or a small piece of work that your task needs now. A hook blocks anyone else, and logs every call in `ops/messages.md`.
   - Brief them like a colleague who hasn't seen your task: the task ID, exactly what you need, the file paths and where to save anything.
   - Only one level: the agent you ask can't call anyone else.

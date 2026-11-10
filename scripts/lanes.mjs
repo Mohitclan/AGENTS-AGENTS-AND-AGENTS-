@@ -16,6 +16,16 @@ const ALL = /\b(?:all|every|each)(?:\s+of)?(?:\s+(?:the|our|your|my))?\s+(?:prod
 // Words and marks that join two product names in a list: "MotionRepo, Peelpress and Pitchlight".
 const JOIN = '(?:\\s*(?:,|&|\\+|/)\\s*(?:and\\s+)?|\\s+(?:and|or|plus)\\s+)';
 
+// Board task IDs for one Jarvis task: a block of its own, so tasks running side by side never pick the same number
+// (on 2026-11-10 four campaigns all started at T-20261110-20 and wrote over each other's scout and review files).
+// J-20261110-06 -> T-20261110-601 to T-20261110-699. Null for anything that isn't a Jarvis ID.
+export function taskIdBlock(jarvisId) {
+  const m = /^J-(\d{8})-(\d+)$/.exec(String(jarvisId ?? ''));
+  if (!m) return null;
+  const from = Number(m[2]) * 100 + 1;
+  return { day: m[1], from, to: from + 98, first: `T-${m[1]}-${from}`, last: `T-${m[1]}-${from + 98}` };
+}
+
 export const productName = (slug) => PRODUCTS.find((p) => p.slug === slug)?.name || slug;
 
 // The products a task's text names, in the order they first appear; every product for "all products" or "every

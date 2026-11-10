@@ -32,6 +32,7 @@ import { askGuide, guideContext } from './guide.mjs';
 import { listSongs, sendSong } from './music.mjs';
 import { projectsApi } from './projects.mjs';
 import { campaignsState, productList, productOf } from './campaigns.mjs';
+import { productName } from './lanes.mjs';
 import { approveAndSend, decideEmails, draftEmails, logRequest, outreachState, planApproval, planDrafts, planEmails } from './outreach.mjs';
 import { sendDue } from './followups.mjs';
 import { setPilot } from './golive.mjs';
@@ -295,7 +296,7 @@ function readRun(root, task) {
 function reviewFacts(root, file) {
   const text = read(root, `outputs/reviews/${file}`);
   const m = /\b(PASS|REVISE|ESCALATE)\b[^\n]{0,60}?(\d{1,3})\s*\/\s*100/.exec(text) || /\b(PASS|REVISE|ESCALATE)\b/.exec(text);
-  return { verdict: m?.[1] || null, score: m?.[2] ? Number(m[2]) : null, task: /^(T-\d{8}-\d{2})/.exec(file)?.[1] || null, round: /-r(?:eview-r)?(\d+)\.md$/.exec(file)?.[1] || (/-review\.md$/.test(file) ? '1' : null) };
+  return { verdict: m?.[1] || null, score: m?.[2] ? Number(m[2]) : null, task: /^(T-\d{8}-\d{2,4})/.exec(file)?.[1] || null, round: /-r(?:eview-r)?(\d+)\.md$/.exec(file)?.[1] || (/-review\.md$/.test(file) ? '1' : null) };
 }
 
 function boardRows(root) {
@@ -539,6 +540,7 @@ export function snapshot(root = ROOT) {
   const runs = base.runs.map((t) => ({ id: t.id, product: t.product || null, title: t.title, started: t.started, agents: [...new Set(working.filter((w) => w.task === t.id).map((w) => w.agent))] }));
   const live = runs.length > 0;
   const liveIds = new Set(runs.map((r) => r.id));
+  const productOfRun = new Map(runs.map((r) => [r.id, r.product]));
   const runEvents = live ? events.filter((e) => liveIds.has(e.task)) : [];
   const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString();
   // Tasks are waiting but the plan's usage guard won't let them start.
@@ -558,12 +560,21 @@ export function snapshot(root = ROOT) {
       : row ? { text: clip(row.request, 240), at: toIso(row.updated) || null, task: row.id, status: /blocked|failed/i.test(row.status) ? 'failed' : 'ok', from: 'board', state: clip(row.status, 40), review: clip(row.review, 60) } : null;
     const busy = live && working.find((w) => w.agent === a.name);
     const inRun = runEvents.filter((e) => e.agent === a.name);
-    const { status, doing } = avatarStatus({ name: a.name, live: !!live, busy, inRun, mine, working, paused, latestTask: base.tasks[0] });
+    const found = avatarStatus({ name: a.name, live: !!live, busy, inRun, mine, working, paused, latestTask: base.tasks[0] });
+    const { status } = found;
+    // Campaigns run side by side, and each has its own copy of every agent: list every one this agent works on now,
+    // not only the first (on 2026-11-10 the page showed only MotionRepo while four campaigns ran).
+    const jobs = live ? working.filter((w) => w.agent === a.name).map((w) => ({ task: w.task, product: productOfRun.get(w.task) || null })) : [];
+    const names = [...new Set((a.name === 'coordinator' ? runs : jobs).map((j) => (j.product ? productName(j.product) : j.task || j.id)))];
+    const doing = names.length > 1
+      ? `${a.name === 'coordinator' ? 'Running' : 'Working on'} ${names.length} campaigns at once: ${names.join(', ')}${a.name === 'coordinator' ? '' : ` · latest: ${found.doing || 'working'}`}`
+      : names.length === 1 && found.doing ? `${names[0]}: ${found.doing}` : found.doing;
     return {
       ...a,
       status,
       backupActive: !!busy?.backup,
       doing,
+      jobs,
       // a file dated only by the ID in its name counts as the end of that day, so skip anything still ahead
       lastAt: mine.find((e) => e.at && Date.parse(e.at) <= Date.now())?.at || null,
       // for the Team page: the latest result in the agent's own words, and its newest work

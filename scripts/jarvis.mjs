@@ -39,7 +39,7 @@ import {
 import { join } from 'node:path';
 import { ROOT, fail, printTable, resolveClaude, today, workspaceTrusted } from './_shared.mjs';
 import { runDraftLane } from './draft-lane.mjs';
-import { laneKey, laneLimit, productOf, startable } from './lanes.mjs';
+import { laneKey, laneLimit, productOf, startable, taskIdBlock } from './lanes.mjs';
 import { latestLeads, outreachState } from './outreach.mjs';
 import { usageOfTask } from './weekly.mjs';
 
@@ -177,16 +177,42 @@ function list() {
   );
 }
 
+// A queued task is taken off the queue. A task left "running" by a runner that was stopped (its lane lock names a
+// process that is gone) is closed as cancelled, so the next runner doesn't start it again. A task that is really
+// running can't be cancelled.
 function cancel(id) {
+  let closed = false;
   const result = withQueue((queue) => {
     const i = queue.findIndex((t) => t.id === id);
     if (i < 0) return `No task ${id}.`;
+    if (queue[i].status === 'running') {
+      let pid = 0;
+      try {
+        pid = Number(readFileSync(laneLockFile(id), 'utf8').trim());
+      } catch {
+        // no lane lock: its runner is gone
+      }
+      if (pid && processAlive(pid)) return `${id} is running; stop it first, then cancel it.`;
+      Object.assign(queue[i], { status: 'cancelled', finished: now(), note: 'Stopped by a person before it finished' });
+      closed = true;
+      return null;
+    }
     if (queue[i].status !== 'queued') return `${id} is ${queue[i].status}; only queued tasks can be cancelled.`;
     queue.splice(i, 1);
     return null;
   });
   if (result) fail(result);
-  console.log(`Cancelled ${id}.`);
+  if (closed) dropLaneLock(id);
+  console.log(closed ? `Closed ${id}: it had stopped before finishing, and won't start again.` : `Cancelled ${id}.`);
+}
+
+function processAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // Archiving: a person takes finished tasks they don't want counted (test runs, smoke tests, failed runs) off the
@@ -291,8 +317,10 @@ function usage() {
 // ---- running a task ------------------------------------------------------------------------
 
 function prompt(t) {
+  const ids = taskIdBlock(t.id);
   return (
     `JARVIS TASK ${t.id}: ${t.task}\n\n` +
+    (ids ? `Board task IDs for this task: ${ids.first}, then the next numbers up to ${ids.last}. Use only these, never the next free number on the board: other tasks run at the same time and have blocks of their own. Name review and scout files with these IDs as usual.\n\n` : '') +
     'Run this on autopilot, as described under "Autopilot" in your agent file: the whole chain, reviews and the after-task ' +
     `review, without stopping to ask. Write the report to outputs/reports/${t.id}.md and end your reply with the JARVIS block.`
   );

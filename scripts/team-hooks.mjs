@@ -18,7 +18,7 @@ const RUNS = join(ROOT, 'ops', 'runs');
 const MESSAGES = join(ROOT, 'ops', 'messages.md');
 const FALLBACKS = join(ROOT, 'ops', 'fallbacks.md');
 const RUN_TTL_MS = 7 * 86_400_000;
-const TASK_ID = /\bT-\d{8}-\d{2}\b/;
+const TASK_ID = /\bT-\d{8}-\d{2,4}\b/; // two digits, or a Jarvis task's own block (T-20261110-601)
 
 let input;
 try {

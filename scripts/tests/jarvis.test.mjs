@@ -230,10 +230,10 @@ describe('spending less of the plan', () => {
     assert.equal(done.status, 'done', done.note);
     const report = readFileSync(repo.path(done.report), 'utf8');
     assert.match(report, /2 of 2 draft\(s\) passed review and wait for you on the Emails page/);
-    assert.match(report, /\| Redo Labs \(L-0000bbbb\) \| outputs\/outreach\/L-0000bbbb\.md \| PASS 90\/100 \(outputs\/reviews\/T-\d{8}-\d{2}-L-0000bbbb-r2\.md\) \|/);
+    assert.match(report, /\| Redo Labs \(L-0000bbbb\) \| outputs\/outreach\/L-0000bbbb\.md \| PASS 90\/100 \(outputs\/reviews\/T-\d{8}-\d{2,4}-L-0000bbbb-r2\.md\) \|/);
     const leads = readFileSync(repo.path('pipeline', 'leads.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
     assert.deepEqual([...new Set(leads.filter((l) => l.id === 'L-0000aaaa').map((l) => l.status))].at(-1), 'drafted', 'passed leads are marked drafted');
-    assert.match(readFileSync(repo.path('ops', 'board.md'), 'utf8'), new RegExp(`\\| T-\\d{8}-\\d{2} \\| ${t.id}: draft outreach sequences for Alpha Co, Redo Labs .*\\| outreach \\| passed \\|`));
+    assert.match(readFileSync(repo.path('ops', 'board.md'), 'utf8'), new RegExp(`\\| T-\\d{8}-\\d{2,4} \\| ${t.id}: draft outreach sequences for Alpha Co, Redo Labs .*\\| outreach \\| passed \\|`));
     const log = readFileSync(repo.path('ops', 'runs', `${t.id}.log`), 'utf8');
     assert.equal((log.match(/"name":"Agent"/g) || []).length, 5, 'mission control sees each step as an agent at work');
     assert.match(r.out, /→ evaluator: review one outreach draft/);

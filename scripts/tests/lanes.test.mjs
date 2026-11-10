@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { after, afterEach, beforeEach, describe, it } from 'node:test';
 import { snapshot } from '../control.mjs';
 import { act, addTask, collect } from '../dashboard.mjs';
-import { laneKey, laneLimit, productOf, productsIn, splitByProduct, startable } from '../lanes.mjs';
+import { laneKey, laneLimit, productOf, productsIn, splitByProduct, startable, taskIdBlock } from '../lanes.mjs';
 import { makeCopy } from './_helpers.mjs';
 
 describe('product detection', () => {
@@ -153,5 +153,15 @@ describe('the task box and mission control', () => {
     assert.equal(snapshot(repo.dir).runs.length, 1);
     writeFileSync(repo.path('ops', 'runs', 'jarvis.lock'), '999999');
     assert.equal(snapshot(repo.dir).live, false);
+  });
+});
+
+describe('board task IDs for tasks running side by side', () => {
+  it('gives each Jarvis task a block of its own, so two campaigns never take the same number', () => {
+    assert.deepEqual(taskIdBlock('J-20261110-06'), { day: '20261110', from: 601, to: 699, first: 'T-20261110-601', last: 'T-20261110-699' });
+    assert.equal(taskIdBlock('J-20261110-12').first, 'T-20261110-1201');
+    const blocks = ['J-20261110-06', 'J-20261110-07', 'J-20261110-08', 'J-20261110-09'].map(taskIdBlock);
+    for (let i = 1; i < blocks.length; i++) assert.ok(blocks[i].from > blocks[i - 1].to);
+    assert.equal(taskIdBlock('T-20261110-06'), null);
   });
 });
