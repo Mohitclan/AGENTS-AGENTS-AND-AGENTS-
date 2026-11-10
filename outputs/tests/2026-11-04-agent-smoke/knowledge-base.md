@@ -1,3 +1,0 @@
-- Price: Starter ₹3,199/month + 18% GST; Pro ₹13,199/month (motionrepo.md:103, 108-109)
-- Free trial: 14 days, no card, 6 credits, 1 repository (motionrepo.md:107)
-- Feature: sales PDF and technical PDF, generated together for 1 credit (motionrepo.md:81)
