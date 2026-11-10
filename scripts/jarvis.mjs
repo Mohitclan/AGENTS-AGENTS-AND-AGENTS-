@@ -28,6 +28,8 @@
 // for the leads that pass review and qualify, without being asked (the founder's decision of 2026-11-10); the report
 // ends with what is waiting on a person: drafts ready to approve, and leads that could not be drafted, both on mission
 // control's Outreach page (scripts/outreach.mjs). Nothing is sent until a person approves a draft there.
+// Plan use: each task's list-price cost, per model, 5-hour window points and minutes are saved as `usage` in the
+// queue, added to its report and shown in its note, so cost per task and per lead is visible on every computer.
 // Pilot test emails sent automatically after each task (scripts/send-tests.mjs) only while
 // ops/mail-config.json has pilot.auto_test_sends; off since 2026-11-07, when approval took over.
 import { spawn, spawnSync } from 'node:child_process';
@@ -39,6 +41,7 @@ import { ROOT, fail, printTable, resolveClaude, today, workspaceTrusted } from '
 import { runDraftLane } from './draft-lane.mjs';
 import { laneKey, laneLimit, productOf, startable } from './lanes.mjs';
 import { latestLeads, outreachState } from './outreach.mjs';
+import { usageOfTask } from './weekly.mjs';
 
 const OPS = join(ROOT, 'ops');
 const RUNS = join(OPS, 'runs');
@@ -169,8 +172,8 @@ function list() {
     return;
   }
   printTable(
-    queue.map((t) => ({ id: t.id, status: STATUS_LABEL[t.status] || t.status, task: t.task.length > 60 ? `${t.task.slice(0, 57)}...` : t.task, report: t.report || '' })),
-    ['id', 'status', 'task', 'report'],
+    queue.map((t) => ({ id: t.id, status: STATUS_LABEL[t.status] || t.status, task: t.task.length > 60 ? `${t.task.slice(0, 57)}...` : t.task, used: t.usage ? usageShort(t.usage) : '', report: t.report || '' })),
+    ['id', 'status', 'task', 'used', 'report'],
   );
 }
 
@@ -449,6 +452,36 @@ function waitingOnPerson(id, leadsFound) {
   return lines.join('\n');
 }
 
+// What a task used, saved in the queue so every computer sees it (ops/runs/ stays on the one that ran it): the
+// list-price cost of all its sessions so far (a proxy for plan use, not money charged), per model, the 5-hour window
+// points (scripts/weekly.mjs reads them from the logs) and the minutes it ran. A task the limit stopped and that ran
+// again adds up across its runs, since its log keeps every run.
+function usageSaved(t, startedMs) {
+  const u = usageOfTask(ROOT, t.id);
+  const round = (x) => Math.round(x * 10000) / 10000;
+  return {
+    cost: round(u.cost),
+    models: Object.fromEntries(Object.entries(u.models).map(([name, m]) => [name, { ...m, cost: round(m.cost) }])),
+    points: u.points,
+    sessions: u.sessions,
+    minutes: (t.usage?.minutes || 0) + Math.round((Date.now() - startedMs) / 60000),
+  };
+}
+
+const usageShort = (u) => (u.sessions ? `$${u.cost.toFixed(2)} · ${u.minutes} min` : `${u.minutes} min`);
+
+function usageText(u) {
+  if (!u.sessions) return `${u.minutes} min. Claude Code reported no cost for this run.`;
+  const byModel = Object.entries(u.models)
+    .sort((a, b) => b[1].cost - a[1].cost)
+    .map(([name, m]) => `${name.replace(/^claude-/, '')} $${m.cost.toFixed(2)}${u.cost ? ` (${Math.round((m.cost / u.cost) * 100)}%)` : ''}`)
+    .join(', ');
+  return (
+    `About $${u.cost.toFixed(2)} at list prices (a measure of plan use, not money charged), ${u.minutes} min, ` +
+    `${u.sessions} session${u.sessions === 1 ? '' : 's'}, about ${u.points} points of the 5-hour window.${byModel ? ` By model: ${byModel}.` : ''}`
+  );
+}
+
 async function runTask(t, timeoutMs) {
   say(t, `\n${t.id} started: ${t.task}`);
   update(t.id, { status: 'running', started: now(), note: '' });
@@ -465,9 +498,10 @@ async function runTask(t, timeoutMs) {
     : lane.status === 'limit' ? { limitRejected: true, resultText: '' }
     : { resultText: `${lane.summary}\n\nJARVIS\nstatus: ${lane.status}\nreport: ${lane.report}\n`, isError: false, turns: 0 };
   const lessons = memoryEntries() - lessonsBefore;
+  const usage = usageSaved(t, startedMs);
 
   if (out.limitRejected) {
-    update(t.id, { status: 'queued', note: `stopped by the plan's usage limit at ${now()}; runs again on the next jarvis run` });
+    update(t.id, { status: 'queued', usage, note: `stopped by the plan's usage limit at ${now()}; runs again on the next jarvis run` });
     say(t, `${t.id} was stopped by the plan's usage limit. It's back in the queue.`);
     return 'limit';
   }
@@ -493,7 +527,9 @@ async function runTask(t, timeoutMs) {
     appendFileSync(join(ROOT, report), `\n## Test emails (sent by Jarvis after the task)\n\n${sends.text}\n`);
     say(t, sends.text);
   }
+  appendFileSync(join(ROOT, report), `\n## Plan use (recorded by Jarvis)\n\n${usageText(usage)}\n`);
   const note = [
+    usageShort(usage),
     out.isError ? out.resultText.slice(0, 120) : '',
     status === 'check' ? 'no JARVIS block; read the report' : '',
     lessons > 0 ? `${lessons} lesson(s) recorded` : '',
@@ -501,7 +537,7 @@ async function runTask(t, timeoutMs) {
   ]
     .filter(Boolean)
     .join('; ');
-  update(t.id, { status, report, finished: now(), turns: out.turns, note, leads_found: leadsFound });
+  update(t.id, { status, report, finished: now(), turns: out.turns, note, leads_found: leadsFound, usage });
   say(t, `${t.id} ${STATUS_LABEL[status] || status}. Report: ${report}`);
   return status;
 }

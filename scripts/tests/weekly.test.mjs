@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { renderMarkdown } from '../dashboard.mjs';
-import { adviceFrom, collectWeek, lastWeek, parseDay, renderReport, sourceOf, usageOfLog, weekRange, writeWeekly } from '../weekly.mjs';
+import { adviceFrom, collectWeek, lastWeek, parseDay, renderReport, sourceOf, usageOfLog, usageOfTask, weekRange, writeWeekly } from '../weekly.mjs';
 import { makeCopy } from './_helpers.mjs';
 
 // The week used throughout: Monday 2 November to Sunday 8 November 2026, local time.
@@ -68,6 +68,16 @@ describe('what one run log says about plan use', () => {
     assert.deepEqual([u.sessions, u.cost, u.models['claude-haiku-5-5'].cost, u.points], [2, 1.5, 1.5, 30]);
     assert.deepEqual(usageOfLog(''), { cost: 0, models: {}, points: 0, sessions: 0 });
     assert.equal(usageOfLog('{"type":"result","is_error":false,"num_turns":0}').sessions, 0, 'a result line with no cost is not a session');
+  });
+  it('counts the use Jarvis saved in the queue for a run with no log on this computer', () => {
+    const root = mkdtempSync(join(tmpdir(), 'weekly-saved-'));
+    try {
+      const saved = { cost: 3, models: { 'claude-opus-5-5': { cost: 3, input: 1, output: 2, cacheRead: 3, cacheWrite: 4 } }, points: 12, sessions: 2, minutes: 40 };
+      assert.deepEqual(usageOfTask(root, 'J-20261107-01', saved), { cost: 3, models: saved.models, points: 12, sessions: 2, logged: true });
+      assert.equal(usageOfTask(root, 'J-20261107-01').logged, false, 'nothing saved and no log: no use known');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });
 

@@ -17,9 +17,16 @@
 // recipient doesn't stop it (an opt-out, a complaint or a bounce still does). It marks the lead
 // `contacted` and logs to ops/send-log.jsonl.
 //
+// Signature: a draft that signs off with the email-template skill's "Best regards," and {{COMPANY_NAME}} line also
+// goes as HTML, with docs/brand/email-signature.html in place of that line and its logo as an inline attachment. The
+// plain-text part, the copy check and the report keep the draft's own text.
+// Open tracking: when ops/mail-config.json has tracking.enabled and tracking.base_url, each HTML email also carries a
+// 1x1 image with a fresh random id, logged as `track` in ops/send-log.jsonl; scripts/opens.mjs reads the opens back.
+//
 // Secrets: the SMTP password comes from the SMTP_PASS environment variable, else from .env.
 // It is never printed or logged.
 import { spawnSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { appendFileSync, existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
@@ -33,6 +40,11 @@ const APPROVALS = join(ROOT, 'ops', 'approvals.md');
 const SUPPRESSION = join(ROOT, 'pipeline', 'suppression.jsonl');
 const LEADS = join(ROOT, 'pipeline', 'leads.jsonl');
 const REVIEWS = join(ROOT, 'outputs', 'reviews');
+// The email signature (2026-11-10): an HTML design and its logo, sent as an inline attachment because Gmail and
+// Outlook strip images embedded in the HTML.
+const SIGNATURE_HTML = join(ROOT, 'docs', 'brand', 'email-signature.html');
+const SIGNATURE_LOGO = join(ROOT, 'docs', 'brand', 'email-signature-logo.png');
+const SIGNATURE_LOGO_CID = 'panscience-signature-logo';
 
 // ---------- pure helpers (tested in scripts/tests/send-email.test.mjs) ----------
 
@@ -84,6 +96,46 @@ export function fillPlaceholders(text, sender) {
 // Demo mode only: greet the person actually receiving the email.
 export function regreet(body, name) {
   return name ? body.replace(/^(Hi|Hello|Dear)\s+[^,\n]+,/, `$1 ${name},`) : body;
+}
+
+const SIGN_OFF = /^Best regards,[ \t]*\n\{\{COMPANY_NAME\}\}[ \t]*$/m;
+const escapeHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const paragraphs = (s) => s.split(/\n\s*\n/).filter((p) => p.trim()).map((p) => `<p style="margin:0 0 14px;">${escapeHtml(p.trim()).replace(/\n/g, '<br>')}</p>`).join('\n');
+
+// The HTML version of an email whose draft signs off with the email-template skill's "Best regards," and
+// {{COMPANY_NAME}} line: the text as paragraphs, then "Best regards," and the signature design (`signature`,
+// docs/brand/email-signature.html) in place of the company line. Null for a draft without that sign-off, which goes
+// as plain text only, as before. `greet` re-greets the way the text version is (demo and test sends).
+export function signedHtml(rawBody, sender, signature, greet = (s) => s) {
+  const m = SIGN_OFF.exec(rawBody);
+  if (!m || !signature) return null;
+  const before = greet(fillPlaceholders(rawBody.slice(0, m.index), sender));
+  const after = fillPlaceholders(rawBody.slice(m.index + m[0].length), sender);
+  const sig = signature
+    .replace(/<!--[\s\S]*?-->\s*/g, '')
+    .replace(/\{\{COMPANY_NAME\}\}/g, escapeHtml(sender.company))
+    .trim();
+  return [
+    '<div style="font-family:Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;color:#0a0a0a;">',
+    paragraphs(before),
+    '<p style="margin:0 0 14px;">Best regards,</p>',
+    sig,
+    after.trim() ? `<div style="margin-top:18px;">${paragraphs(after)}</div>` : '',
+    '</div>',
+  ].filter(Boolean).join('\n');
+}
+
+// Open tracking (the human's decision of 2026-11-10): the tracker's address when ops/mail-config.json has
+// tracking.enabled and a tracking.base_url (tracker/README.md), else ''.
+export function trackerBase(config) {
+  const t = config?.tracking;
+  return t?.enabled && /^https:\/\/[^\s/]+/.test(t.base_url || '') ? t.base_url.replace(/\/+$/, '') : '';
+}
+
+// The HTML with a 1x1 open-tracking image at the very end, for the tracker (tracker/worker.js) to count its loads.
+export function withPixel(html, base, id) {
+  const img = `<img src="${base}/o/${id}.gif" width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0;">`;
+  return html.endsWith('</div>') ? `${html.slice(0, -'</div>'.length)}${img}\n</div>` : `${html}\n${img}`;
 }
 
 // The same match the lead gate uses (suppressionMatch in _shared.mjs): the address, its domain or a parent domain.
@@ -207,8 +259,14 @@ async function main() {
   try { parsed = parseEmail(text, n); } catch (e) { die(e.message); }
   let body;
   try { body = fillPlaceholders(parsed.body, config.sender); } catch (e) { die(e.message); }
-  if (demo) body = regreet(body, args.toName || config.sender.name.split(' ')[0]);
-  if (test && args.toName) body = regreet(body, args.toName);
+  const greet = (s) => (demo ? regreet(s, args.toName || config.sender.name.split(' ')[0]) : test && args.toName ? regreet(s, args.toName) : s);
+  body = greet(body);
+  let html = null;
+  try { html = signedHtml(parsed.body, config.sender, existsSync(SIGNATURE_HTML) ? readFileSync(SIGNATURE_HTML, 'utf8') : '', greet); } catch (e) { die(e.message); }
+  const tracker = html ? trackerBase(config) : '';
+  const trackId = tracker ? randomBytes(16).toString('hex') : null; // one per send, so each email's opens are its own
+  if (trackId) html = withPixel(html, tracker, trackId);
+  const attachments = html && existsSync(SIGNATURE_LOGO) ? [{ filename: 'panscience-innovations.png', path: SIGNATURE_LOGO, cid: SIGNATURE_LOGO_CID }] : [];
   const subject = demo ? `[DEMO] ${parsed.subject}` : test ? `[TEST] ${parsed.subject}` : parsed.subject;
 
   // Checks.
@@ -255,7 +313,8 @@ async function main() {
     lint: lint.text, liveToday: liveToday + (demo || test ? 0 : 1), dailyLimit: config.daily_limit, next: nextText,
   };
 
-  console.log(`Mode: ${demo ? 'DEMO' : test ? 'TEST' : 'LIVE'}\nFrom: ${from}\nTo: ${to}\nSubject: ${subject}\nLint: ${lint.text}\nApproval: ${approval}\nReport to: ${config.report_to.name} <${config.report_to.email}>\n`);
+  const signatureNote = !html ? 'none (plain text: the draft has no "Best regards," company sign-off)' : attachments.length ? 'HTML signature with the logo' : 'HTML signature, logo file missing';
+  console.log(`Mode: ${demo ? 'DEMO' : test ? 'TEST' : 'LIVE'}\nFrom: ${from}\nTo: ${to}\nSubject: ${subject}\nLint: ${lint.text}\nApproval: ${approval}\nSignature: ${signatureNote}\nOpen tracking: ${trackId ? 'on' : html ? 'off (not set up in ops/mail-config.json)' : 'off (plain-text email)'}\nReport to: ${config.report_to.name} <${config.report_to.email}>\n`);
   if (args.dryRun) {
     console.log('--- email ---\n' + body + '\n--- report preview ---\n' + buildReport({ ...reportBase, sentAt: '(dry run)', messageId: '(dry run)', response: '(dry run)' }));
     console.log('\nDry run: nothing sent, nothing logged.');
@@ -267,9 +326,9 @@ async function main() {
   const nodemailer = (await import('nodemailer')).default;
   const transport = nodemailer.createTransport({ host: config.smtp.host, port: config.smtp.port, secure: config.smtp.port === 465, auth: { user: config.smtp.user, pass } });
 
-  const info = await transport.sendMail({ from, to, subject, text: body });
+  const info = await transport.sendMail({ from, to, subject, text: body, ...(html ? { html, attachments } : {}) });
   const sentAt = istNow();
-  const entry = { at: new Date().toISOString(), kind: 'outreach', mode: demo ? 'demo' : test ? 'test' : 'live', to, subject, draft: reportBase.draft, email: n, lead: leadId || null, approval: demo || test ? null : args.approval, message_id: info.messageId };
+  const entry = { at: new Date().toISOString(), kind: 'outreach', mode: demo ? 'demo' : test ? 'test' : 'live', to, subject, draft: reportBase.draft, email: n, lead: leadId || null, approval: demo || test ? null : args.approval, message_id: info.messageId, ...(trackId ? { track: trackId } : {}) };
   appendFileSync(SEND_LOG, JSON.stringify(entry) + '\n');
   console.log(`Sent. Message ID ${info.messageId} (${info.response})`);
 

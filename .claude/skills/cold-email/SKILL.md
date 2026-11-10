@@ -15,9 +15,9 @@ For outreach and sales emails, the `email-template` skill sets the subject, leng
 4. **One outcome** our product delivers, from confirmed facts only. One, not a feature list.
 5. **One small ask:** "Worth trying on one repo?" or "Should I send a sample?" Check the product's fact sheet first: use only offers it allows, and only assets that exist. Not "book a demo on my calendar".
 6. **Signature:** a real person's name and role, the company and website.
-7. **Opt-out:** "To opt out, reply 'stop' and I won't write again." Never use "no" as the opt-out word: a plain no to a question must not become a permanent block.
+7. **Opt-out:** "To opt out, reply 'stop' and I won't write again." On every email except the email-template skill's first email, which ends on its signature with no opt-out line (the human's choice, 2026-11-10). Never use "no" as the opt-out word: a plain no to a question must not become a permanent block.
 
-Under 120 words. Read it aloud; if a sentence sounds like an ad, cut it.
+Under 150 words, counting the greeting, signature and any opt-out. Read it aloud; if a sentence sounds like an ad, cut it.
 
 **Links.** Put each link on its own line with nothing after it: no full stop, comma, bracket or quotation mark. Punctuation stuck to a link can become part of it and break it. The line before says what the link is and ends with a colon, for example "Your sample is here:". If the ask is the link, that line is the ask. This holds for every message you draft with this skill, including follow-ups, replies and LinkedIn messages. Use only links from the fact sheet or the lead's evidence. A link in the signature sits on its own line too.
 
@@ -33,7 +33,7 @@ Connection note under 300 characters, tied to the same evidence, no pitch. One f
 
 Think hook, bridge, call to action: their situation, why it matters to them, one small ask. For each lead, offer up to three angles and pick the one its evidence supports best: pain first, insight first or proof first. No proof means no proof-first version.
 
-Never open with "I came across", "I wanted to reach out", "I noticed", "We help companies like yours", or any first sentence starting with "I".
+Never open with "I wanted to reach out", "I noticed", "We help companies like yours", or any first sentence starting with "I". The one exception is the email-template skill's first email, which opens "I came across <company> and noticed that ..." by the human's choice (2026-11-10).
 
 Grade the send risk before handing in:
 
@@ -76,7 +76,7 @@ Remove their pending steps when they exit.
 
 **Check before every step**, not only at the start. Before each email a person checks the exit list and the suppression list that day. A person sends each email, or approves its exact text and sends it themselves, with the request in `ops/approvals.md`. No scheduling tool sends on its own.
 
-**Measure** with counts a person supplies from the product's records: trial started, first output made, plan chosen, replies, opt-outs. Report them as X of N with the window. Write down the smallest sample worth reading, and the read date, before the first send (`.claude/skills/early-stage-guardrails/SKILL.md`); if N is below it, say "too thin to read". No tracking pixels or click-tracking links, no open-rate figures, no benchmarks. Branch only on events a person can see (paid, replied, opted out, support open), never on opens or clicks.
+**Measure** with counts a person supplies from the product's records: trial started, first output made, plan chosen, replies, opt-outs. Report them as X of N with the window. Write down the smallest sample worth reading, and the read date, before the first send (`.claude/skills/early-stage-guardrails/SKILL.md`); if N is below it, say "too thin to read". No click-tracking links, no open-rate figures, no benchmarks. The one tracking pixel is the open tracker `scripts/send-email.mjs` adds itself when it is on (the human's decision of 2026-11-10, `tracker/README.md`): never add one of your own, never mention opens to the recipient, and never report an open as a result. Branch only on events a person can see (paid, replied, opted out, support open), never on opens or clicks.
 
 **Never** ask questions in an email to build a profile of the person: ask only what you need to help them. Never invent urgency; "your trial ends" is fine only when the fact sheet gives the trial length and the date is true. Extensions, longer trials and discounts go to the approvers. Until a person rules whether sign-up emails count toward the daily limit in `knowledge/company.md`, count them.
 
@@ -90,6 +90,6 @@ Remove their pending steps when they exit.
 ## Compliance check before handing in
 
 - Real sender and a working way to reply.
-- Opt-out line present.
+- Opt-out line present (not on the email-template first email).
 - Business contact published by the company or person, with its source recorded.
 - For contacts in the EU, the UK, the US or India, follow the outreach policy in `knowledge/company.md`; if it doesn't cover a country, flag it for the human instead of guessing the law.

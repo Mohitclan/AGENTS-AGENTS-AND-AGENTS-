@@ -58,6 +58,18 @@ describe('running', () => {
     assert.equal(byTask('Second').status, 'needs_approval');
     assert.match(readFileSync(repo.path('ops', 'queue.md'), 'utf8'), /needs you/);
   });
+  it('saves what each task used in the queue, its report, its note and the list', () => {
+    jarvis(['add', 'Costed task']);
+    assert.equal(jarvis(['run']).code, 0);
+    const t = byTask('Costed');
+    assert.equal(t.usage.cost, 1.25);
+    assert.equal(t.usage.sessions, 1);
+    assert.equal(t.usage.models['claude-opus-5-5'].cost, 0.25);
+    assert.equal(typeof t.usage.minutes, 'number');
+    assert.match(t.note, /^\$1\.25 · \d+ min/);
+    assert.match(readFileSync(repo.path(t.report), 'utf8'), /## Plan use \(recorded by Jarvis\)\n\nAbout \$1\.25 at list prices.*By model: sonnet-5-5 \$1\.00 \(80%\), opus-5-5 \$0\.25 \(20%\)\./);
+    assert.match(jarvis(['list']).out, /\$1\.25 · \d+ min/);
+  });
   it('stops after --max tasks', () => {
     jarvis(['add', 'One']);
     jarvis(['add', 'Two']);

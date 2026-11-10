@@ -1520,6 +1520,8 @@ const outreachView = {
 const EMAIL_TABS = [['pending', 'Pending'], ['scheduled', 'Scheduled'], ['all', 'All drafted'], ['approved', 'Sent'], ['declined', 'Declined'], ['replies', 'Replies']];
 const EMAIL_LABEL = { pending: 'Waiting for you', approved: 'Sent', declined: 'Declined', waiting: 'In review', scheduled: 'Scheduled', skipped: 'Skipped' };
 const EMAIL_PILL = { pending: 'p-needs_approval', approved: 'p-done', declined: 'p-failed', waiting: 'p-running', scheduled: 'p-queued', skipped: 'p-failed' };
+// Open tracking (scripts/opens.mjs): how often the email's image was loaded, and when last. A hint, not proof it was read.
+const openedChip = (m) => (!m.opens ? '' : `<span class="muted tiny" title="${m.openAuto === m.opens ? 'May be automatic: Apple Mail and mail scanners load images by themselves' : 'Times the email\'s image loaded. Gmail caches it, so repeat opens may not show'}">Opened ${m.opens}×${m.openedAt ? ` · ${esc(ago(m.openedAt))}` : ''}${m.openAuto === m.opens ? ' (maybe automatic)' : ''}</span>`);
 const emailLabel = (m) => (m.state === 'scheduled' ? (m.dueText ? `Scheduled for ${m.dueText}` : 'Scheduled') : m.state === 'approved' && m.retry ? 'Approved, not sent' : EMAIL_LABEL[m.state] || m.state);
 const REPLY_LABEL = { interested: 'Interested', question: 'Question', not_interested: 'Not interested', reply: 'Reply', opt_out: 'Opt-out', complaint: 'Complaint', bounce: 'Bounce', auto_reply: 'Auto-reply' };
 const REPLY_PILL = { interested: 'p-done', question: 'p-running', not_interested: 'p-new', reply: 'p-queued', opt_out: 'p-failed', complaint: 'p-failed', bounce: 'p-failed', auto_reply: 'p-new' };
@@ -1594,7 +1596,7 @@ function emailCard(m, live) {
   // With the pilot off, say where a tick would send it, so a person sees the address before ticking.
   const to = !live ? '' : m.to ? `<div class="em-to tiny muted">To: ${m.toName ? `${esc(m.toName)} ` : ''}&lt;${esc(m.to)}&gt;</div>` : `<div class="em-to tiny bad-text">${esc(m.cannotSend)}</div>`;
   return `<article class="em-card s-${esc(m.state)}${open ? ' open' : ''}" data-ref="${esc(m.ref)}">
-    <header class="em-head"><b>${who}</b>${head}<span class="pill ${EMAIL_PILL[m.state] || ''}">${esc(emailLabel(m))}</span>${m.review ? verdictChip(m.review.verdict, m.review.score) : ''}<span class="em-act">${acts}</span></header>
+    <header class="em-head"><b>${who}</b>${head}<span class="pill ${EMAIL_PILL[m.state] || ''}">${esc(emailLabel(m))}</span>${m.review ? verdictChip(m.review.verdict, m.review.score) : ''}${openedChip(m)}<span class="em-act">${acts}</span></header>
     ${to}<div class="em-subj">${esc(m.subject || '(no subject)')}</div>
     <div class="em-body">${esc(m.body)}</div>
     <footer class="em-foot"><button type="button" class="link" data-more="${esc(m.ref)}">${open ? 'Show less' : 'Read all'}</button><span class="muted tiny">${esc(m.why)}${m.at ? ` · ${esc(ago(m.at))}` : ''}</span><a href="#" class="tiny" data-file="${esc(m.draft)}">full draft and review notes</a></footer>
