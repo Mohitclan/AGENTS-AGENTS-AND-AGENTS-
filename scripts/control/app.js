@@ -2120,7 +2120,7 @@ const postsView = {
     postsView.marking = null;
     loadAccounts();
     postsView.link = '';
-    $('#view').innerHTML = `<div class="page-h"><h1>Posts</h1><p class="muted">Be where buyers ask. <b>Posts</b> are what the social writer drafted; <b>Conversations</b> are public posts where people ask for what our products do, each with a suggested reply. Nothing is posted for you, by this page or by any agent: copy the text, post it yourself, then mark it posted. Only a post that passed review can be approved.</p></div>
+    $('#view').innerHTML = `<div class="page-h"><h1>Posts</h1><p class="muted">Be where buyers ask. <b>Posts</b> are what the social writer drafted; <b>Conversations</b> are public posts where people ask for what our products do, each with a suggested reply. Nothing is posted without your click: approve a post, then publish it to a connected account, or copy it and post it yourself. Only a post that passed review can be approved.</p></div>
       <div id="po-root">
         <div id="po-accounts"></div>
         <div class="po-bar"><div class="po-tabs" role="tablist" aria-label="Posts or conversations">${[['posts', 'Posts'], ['conversations', 'Conversations']].map(([k, label]) => `<button type="button" role="tab" data-ptab="${k}">${label} <b data-pn="${k}"></b></button>`).join('')}</div></div>
