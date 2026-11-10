@@ -113,6 +113,43 @@ export const IDENTITIES = [
     motion: { float: 1.5, blink: 4.8, tilt: 5 },
     badge: '30 26 100 100',
   },
+  // The Social Media Studio's team. Their 3D look is the founders' robots (office `looks` in world/offices.js).
+  {
+    id: 'plan-gem', name: 'Plan Gem', agent: 'social-planner', concept: false,
+    personality: 'Organised and upbeat; turns one good idea into a week of posts.',
+    theme: { primary: '#ffb36b', soft: '#fff4e8', ink: '#9a5a1c' },
+    species: 'human',
+    look: { skin: '#f2cfb4', hair: '#5a3a2a', hairLight: '#a87a5c', hairStyle: 'buns', outfit: 'sweater', outfitColor: '#ffc994', trim: '#f09a4a', pants: '#5d6286', shoes: '#fffaf4', prop: 'clipboard', eye: '#3a2c2c' },
+    motion: { float: 1.5, blink: 4.6, tilt: 5 },
+    badge: '30 26 100 100',
+  },
+  {
+    id: 'quill-gem', name: 'Quill Gem', agent: 'social-writer', concept: false,
+    personality: 'Plain-spoken; writes the post a person would actually say out loud.',
+    theme: { primary: '#ff8fd0', soft: '#fff0f9', ink: '#9c2f73' },
+    species: 'human',
+    look: { skin: '#e8b996', hair: '#2b2a3a', hairLight: '#6f6a8a', hairStyle: 'wavy', outfit: 'cardigan', outfitColor: '#ffaedb', trim: '#e46bb0', pants: '#4f5878', shoes: '#fffaf4', prop: 'notebook', eye: '#2c2a3a' },
+    motion: { float: 1.4, blink: 5, tilt: 6 },
+    badge: '30 26 100 100',
+  },
+  {
+    id: 'chat-gem', name: 'Chat Gem', agent: 'community-manager', concept: false,
+    personality: 'Friendly and careful; answers questions honestly and says who we are.',
+    theme: { primary: '#7fd6c2', soft: '#e9faf5', ink: '#23705d' },
+    species: 'human',
+    look: { skin: '#ffe1c9', hair: '#8a5a3c', hairLight: '#d9a77f', hairStyle: 'bob', outfit: 'hoodie', outfitColor: '#9fe3d2', trim: '#4cbfa4', pants: '#5d6286', shoes: '#fffaf4', prop: 'tea', eye: '#33284a' },
+    motion: { float: 1.6, blink: 4.2, tilt: 7 },
+    badge: '30 24 100 100',
+  },
+  {
+    id: 'stats-gem', name: 'Stats Gem', agent: 'social-analyst', concept: false,
+    personality: 'Calm and honest about small numbers; says what worked and how sure it is.',
+    theme: { primary: '#a8a4f0', soft: '#f0efff', ink: '#46408f' },
+    species: 'human',
+    look: { skin: '#f2cfb4', hair: '#2b2a3a', hairLight: '#6f6a8a', hairStyle: 'messy', outfit: 'jacket', outfitColor: '#bcb8f6', trim: '#8a84e0', pants: '#4f5878', shoes: '#fffaf4', prop: 'chart', glasses: '#3c3a6a', eye: '#2c2a3a' },
+    motion: { float: 1.5, blink: 4.8, tilt: 4 },
+    badge: '30 26 100 100',
+  },
 ];
 
 // Scripts (sends, replies, copy checks) have no character: a small gem stands for them.

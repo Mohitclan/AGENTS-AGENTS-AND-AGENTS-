@@ -206,19 +206,24 @@ describe('the robot crew', () => {
   const agents = new Set(readdirSync(join(ROOT, '.claude', 'agents')).map((f) => f.replace(/\.md$/, '')));
   const file = (url) => join(ROOT, 'scripts', 'control', url.replace(/^\//, ''));
 
-  it('gives each studio five robots in planned roles, with a look whose face and badge exist, apart from the agents', () => {
+  it('gives each studio robots in planned roles (up to five, fewer as agents take roles), with a look whose face and badge exist, apart from the agents', () => {
     const ids = OFFICES.flatMap((o) => (o.crew || []).map((c) => c.id));
     assert.equal(new Set(ids).size, ids.length, 'every robot has its own id');
     for (const o of OFFICES.filter((x) => x.crew)) {
-      assert.equal(o.crew.length, 5, `${o.id} has five robots`);
-      assert.equal(new Set(o.crew.map((c) => c.role)).size, 5, 'one robot per role');
+      assert.ok(o.crew.length >= 1 && o.crew.length <= 5, `${o.id} has up to five robots`);
+      assert.equal(new Set(o.crew.map((c) => c.role)).size, o.crew.length, 'one robot per role');
+      // `looks` says which robot look stands for each agent of the office (the 3D views are learning to read it)
+      for (const [agent, look] of Object.entries(o.looks || {})) {
+        assert.ok(Object.hasOwn(o.seats, agent), `${agent} sits in ${o.id}`);
+        assert.ok(LOOKS[look], `${look} is a look`);
+      }
       for (const c of o.crew) {
         assert.ok(o.planned.some((p) => p.role === c.role), `${c.name} sits in a planned role (${c.role})`);
         assert.ok(LOOKS[c.look], `${c.look} is a look`);
         assert.ok(existsSync(file(faceOf(c.look))) && existsSync(file(badgeOf(c.look))), `${c.look} pictures`);
         assert.ok(!agents.has(c.id) && !agents.has(c.name.toLowerCase()), `${c.name} is not mistaken for an agent`);
       }
-      assert.deepEqual(new Set(o.crew.map((c) => c.look)), new Set(Object.keys(LOOKS)), `${o.id} uses all five looks`);
+      assert.deepEqual(new Set([...o.crew.map((c) => c.look), ...Object.values(o.looks || {})]), new Set(Object.keys(LOOKS)), `${o.id} uses all five looks (robots and agents together)`);
     }
     assert.equal(roleText('QA tester'), 'QA tester');
     assert.equal(roleText('Video editor'), 'video editor');

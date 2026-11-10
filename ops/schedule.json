@@ -25,7 +25,7 @@
     "id": "buyer-intent-watch",
     "name": "Buyer-intent watch",
     "every": "daily 03:00",
-    "task": "Buyer-intent watch for motionrepo: with the buyer-intent-search skill, find up to 8 public posts from the last 2 days where people ask how to make a launch video, a demo or docs from a repo, or complain about the tools they use; save them with a suggested reply each to outputs/research/intent/<date>.md; post nothing.",
+    "task": "Buyer-intent watch for motionrepo, run by community-manager: with the buyer-intent-search skill, find up to 8 public posts from the last 2 days where people ask how to make a launch video, a demo or docs from a repo, or complain about the tools they use; save them with a suggested reply each to outputs/research/intent/<date>.md; post nothing.",
     "skip_over": 0.6
   },
   {
@@ -35,7 +35,17 @@
     "id": "weekly-social-posts",
     "name": "Weekly social posts",
     "every": "weekly mon 10:00",
-    "task": "Draft this week's social posts for motionrepo: 3 LinkedIn posts in the founder's voice (linkedin-founder skill), 2 X posts and 1 dev.to post outline, from confirmed facts only, each saved to outputs/marketing/posts/ and reviewed by the evaluator; publish nothing.",
+    "task": "Plan and draft this week's social posts for motionrepo: social-planner writes the week's calendar (outputs/marketing/calendar/), then social-writer drafts 3 LinkedIn posts in the founder's voice (linkedin-founder skill), 2 X posts and 1 dev.to post outline, from confirmed facts only, each saved to outputs/marketing/posts/ and reviewed by the evaluator; publish nothing.",
+    "skip_over": 0.6
+  },
+  {
+    "kind": "task",
+    "enabled": true,
+    "last_run": null,
+    "id": "weekly-social-report",
+    "name": "Weekly social report",
+    "every": "weekly mon 11:00",
+    "task": "Weekly social report for motionrepo: social-analyst reads ops/posts.jsonl and ops/social-metrics.jsonl (when they exist) and writes outputs/marketing/social-weekly-<date>.md with what worked, honest about small numbers, and up to three tests for next week; publish nothing.",
     "skip_over": 0.6
   },
   {

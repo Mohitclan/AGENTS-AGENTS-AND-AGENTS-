@@ -105,6 +105,18 @@ Also score the four U's (hook-bank skill) in your review. Below the pass mark, i
 | On brand voice | 15 |
 | Channel fit: length, format and the venue's promotion rules | 15 |
 
+### Social post (one post file, or a calendar, or a reply draft)
+
+Use the marketing rubric above, with these changes. Run `node scripts/lint-copy.mjs <file> --type social` and `node scripts/check-links.mjs <file>` first; a failed check is an automatic REVISE. Each post is reviewed on its own, and the review names the post's path above its verdict line (task-briefs skill).
+
+- **Accurate (30):** every claim is in `## Claims used` with a confirmed source; a quote or story names the person who must approve it.
+- **Speaks to the buyer (25):** one idea, in the buyer's words; the first line works as the hook (200 characters on LinkedIn).
+- **Honest and safe (15):** says who we are where it matters (always on a Reddit or community reply); no fake accounts, no asking for votes, no engagement bait; nothing that posts, schedules or publishes.
+- **Channel fit (15):** length within the channel's limit, link in the first comment (LinkedIn) or where the channel allows, alt text for every image, a subreddit's rules respected.
+- **On brand voice (15):** plain, no hype words, "PanScience Innovations" in full.
+
+Auto-fail: an invented customer, number or quote; a reply that hides that we make the product; text meant to be posted by an agent or account that is not a person's own.
+
 ## 7. Demo plan or script
 
 **Automated checks:** `node scripts/lint-copy.mjs <file>`.

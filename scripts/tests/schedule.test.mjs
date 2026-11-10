@@ -329,7 +329,8 @@ describe('the schedule file', () => {
   after(() => rmSync(dir, { recursive: true, force: true }));
 
   it('starts with the nightly lead sweep, the weekly report, the buyer-intent watch and the weekly posts', () => {
-    const [nightly, weekly, intent, posts] = DEFAULT_SCHEDULE;
+    const [nightly, weekly, intent, posts, social] = DEFAULT_SCHEDULE;
+    assert.deepEqual([social.id, social.every, social.skip_over], ['weekly-social-report', 'weekly mon 11:00', 0.6]);
     assert.equal(nightly.id, 'nightly-leads');
     assert.equal(nightly.every, 'daily 02:00');
     assert.equal(nightly.enabled, true);
@@ -345,7 +346,7 @@ describe('the schedule file', () => {
 
   it('creates ops/schedule.json when it is missing, and leaves an existing one alone', () => {
     assert.equal(existsSync(join(dir, 'ops', 'schedule.json')), false);
-    assert.equal(loadSchedule(dir).length, 5, 'a missing file reads as the defaults');
+    assert.equal(loadSchedule(dir).length, 6, 'a missing file reads as the defaults');
     assert.equal(existsSync(join(dir, 'ops', 'schedule.json')), false, 'reading writes nothing');
     ensureSchedule(dir);
     assert.deepEqual(JSON.parse(readFileSync(join(dir, 'ops', 'schedule.json'), 'utf8')), DEFAULT_SCHEDULE);
@@ -410,7 +411,7 @@ describe('the Reports page: schedules over HTTP', () => {
 
   it('puts the schedules and the weekly reports into the page state', async () => {
     const { schedule } = await (await fetch(`${base}/api/state`)).json();
-    assert.deepEqual(schedule.entries.map((e) => [e.id, e.when, e.enabled]), [['nightly-leads', 'Every day at 02:00', true], ['weekly-report', 'Every Monday at 09:00', true], ['buyer-intent-watch', 'Every day at 03:00', true], ['weekly-social-posts', 'Every Monday at 10:00', true], ['social-metrics', 'Every day at 08:00', true]]);
+    assert.deepEqual(schedule.entries.map((e) => [e.id, e.when, e.enabled]), [['nightly-leads', 'Every day at 02:00', true], ['weekly-report', 'Every Monday at 09:00', true], ['buyer-intent-watch', 'Every day at 03:00', true], ['weekly-social-posts', 'Every Monday at 10:00', true], ['weekly-social-report', 'Every Monday at 11:00', true], ['social-metrics', 'Every day at 08:00', true]]);
     assert.ok(schedule.entries.every((e) => e.last_run === null && typeof e.next === 'string'));
     assert.deepEqual(schedule.weekly.map((w) => [w.week, w.path]), [['2026-11-02', 'outputs/reports/weekly-2026-11-02.md']]);
   });

@@ -35,6 +35,10 @@ const AGENT_WORDS = {
   'docs-handler': ['docs', 'scribe', 'documentation'],
   developer: ['developer', 'code buddy', 'dev'],
   'seo-aeo': ['seo and aeo', 'rank gem', 'seo', 'aeo'],
+  'social-planner': ['social planner', 'content planner', 'plan gem'],
+  'social-writer': ['social writer', 'quill gem'],
+  'community-manager': ['community manager', 'chat gem'],
+  'social-analyst': ['social analyst', 'stats gem'],
 };
 const PAGES = { home: '#/', office: '#/', working: '#/working', team: '#/team', 'the team': '#/team', overview: '#/overview', logs: '#/logs', leads: '#/leads', outreach: '#/outreach', drafts: '#/outreach', emails: '#/emails', 'pending emails': '#/emails', 'drafted emails': '#/emails', 'my emails': '#/emails', offices: '#/offices', 'all offices': '#/offices', questions: '#/questions', 'my questions': '#/questions', 'sales office': '#/world/sales', 'sales and marketing': '#/world/sales', hq: '#/world/sales', 'developer studio': '#/world/developer', 'developer office': '#/world/developer', 'social media studio': '#/world/social', 'social media office': '#/world/social', reports: '#/reports', approvals: '#/flags', 'needs you': '#/flags', gallery: '#/gems', gems: '#/gems' };
 

@@ -153,10 +153,11 @@ describe('parsing an intent file', () => {
 
 describe('the recurring tasks', () => {
   it('are the daily buyer-intent watch and the weekly social posts, each told to post nothing', () => {
-    assert.deepEqual(SCHEDULED_TASKS.map((t) => [t.every, t.skip_over]), [['daily 03:00', 0.6], ['weekly mon 10:00', 0.6]]);
+    assert.deepEqual(SCHEDULED_TASKS.map((t) => [t.every, t.skip_over]), [['daily 03:00', 0.6], ['weekly mon 10:00', 0.6], ['weekly mon 11:00', 0.6]]);
     for (const t of SCHEDULED_TASKS) assert.ok(t.id && t.name && /(post|publish) nothing/.test(t.task), t.id);
-    assert.match(SCHEDULED_TASKS[0].task, /^Buyer-intent watch for motionrepo: with the buyer-intent-search skill, find up to 8 public posts from the last 2 days .* outputs\/research\/intent\/<date>\.md; post nothing\.$/);
-    assert.match(SCHEDULED_TASKS[1].task, /^Draft this week's social posts for motionrepo: 3 LinkedIn posts .* 2 X posts and 1 dev\.to post outline, from confirmed facts only, each saved to outputs\/marketing\/posts\/ and reviewed by the evaluator; publish nothing\.$/);
+    assert.match(SCHEDULED_TASKS[0].task, /^Buyer-intent watch for motionrepo, run by community-manager: with the buyer-intent-search skill, find up to 8 public posts from the last 2 days .* outputs\/research\/intent\/<date>\.md; post nothing\.$/);
+    assert.match(SCHEDULED_TASKS[1].task, /^Plan and draft this week's social posts for motionrepo: social-planner writes .*, then social-writer drafts 3 LinkedIn posts .* 2 X posts and 1 dev\.to post outline, from confirmed facts only, each saved to outputs\/marketing\/posts\/ and reviewed by the evaluator; publish nothing\.$/);
+    assert.match(SCHEDULED_TASKS[2].task, /^Weekly social report for motionrepo: social-analyst reads ops\/posts\.jsonl .*; publish nothing\.$/);
   });
 
   it('is written so it cannot post: the module makes no network call and starts no program', () => {

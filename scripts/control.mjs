@@ -75,9 +75,10 @@ function openBrowser(url) {
 }
 
 // The order agents appear in. Others found in .claude/agents/ follow.
-export const ORDER = ['coordinator', 'evaluator', 'knowledge-base', 'researcher', 'lead-generator', 'outreach', 'sales', 'marketing', 'demo-handler', 'docs-handler', 'developer', 'seo-aeo'];
+export const ORDER = ['coordinator', 'evaluator', 'knowledge-base', 'researcher', 'lead-generator', 'outreach', 'sales', 'marketing', 'demo-handler', 'docs-handler', 'developer', 'seo-aeo', 'social-planner', 'social-writer', 'community-manager', 'social-analyst'];
 // Who owns the files under each folder, for outputs and for activity found only as a file.
 const OWNER = [
+  [/^outputs\/research\/intent\//, 'community-manager'], [/^outputs\/marketing\/calendar\//, 'social-planner'], [/^outputs\/marketing\/posts\//, 'social-writer'], [/^outputs\/marketing\/social-weekly/, 'social-analyst'],
   [/^outputs\/research\/scout\//, 'lead-scout'], [/^outputs\/research\/[^/]*lead-notes/, 'lead-generator'], [/^outputs\/research\//, 'researcher'], [/^outputs\/outreach\//, 'outreach'], [/^outputs\/sales\//, 'sales'],
   [/^outputs\/marketing\//, 'marketing'], [/^outputs\/demos\//, 'demo-handler'], [/^outputs\/docs\//, 'docs-handler'],
   [/^outputs\/dev\//, 'developer'], [/^outputs\/seo\//, 'seo-aeo'], [/^outputs\/reviews\//, 'evaluator'], [/^outputs\/reports\//, 'coordinator'],
