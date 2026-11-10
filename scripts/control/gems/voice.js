@@ -284,13 +284,22 @@ export function createVoice({ onTask, onRun, onCancel, onAsk, onOutreach, getAge
     return all.find((v) => v.voiceURI === settings.voice) || rankVoices(all)[0] || null;
   };
 
+  // Stops the voice at once, mid-sentence: the person has started to speak or type. Speech is said in pieces, and a
+  // cancelled piece would otherwise hand over to the next one, so every hush also ends the pieces still to come.
+  let speakTurn = 0;
+  const hush = () => {
+    speakTurn += 1;
+    if ('speechSynthesis' in window) speechSynthesis.cancel();
+  };
+
   // Resolves when the speech has ended (or at once when nothing is spoken), so the mic isn't reopened on top of it.
   const speak = (msg, force = false) => new Promise((resolve) => {
     if ((!settings.speak && !force) || !('speechSynthesis' in window) || !msg) return resolve();
     const voice = pickVoice();
     const queue = pieces(msg);
+    const turn = speakTurn;
     const next = () => {
-      const part = queue.shift();
+      const part = turn === speakTurn ? queue.shift() : null; // hushed: say nothing more
       if (!part) return resolve();
       const u = new SpeechSynthesisUtterance(part);
       if (voice) {
@@ -351,6 +360,7 @@ export function createVoice({ onTask, onRun, onCancel, onAsk, onOutreach, getAge
   }
 
   function startListening() {
+    hush(); // the person wants to speak: stop talking now
     wanted = true;
     if (!supported || listening) return;
     rec = new Recognition();
@@ -461,6 +471,7 @@ export function createVoice({ onTask, onRun, onCancel, onAsk, onOutreach, getAge
   }
 
   async function send({ asTask = false } = {}) {
+    hush();
     const said = text.value.trim();
     if (!said) return;
     log('you', said);
@@ -474,7 +485,7 @@ export function createVoice({ onTask, onRun, onCancel, onAsk, onOutreach, getAge
       return;
     }
     if (intent?.kind === 'mute') {
-      speechSynthesis?.cancel();
+      hush();
       settings.speak = false;
       $('#vp-speak').checked = false;
       save(settings);
@@ -556,6 +567,7 @@ export function createVoice({ onTask, onRun, onCancel, onAsk, onOutreach, getAge
     } else stopListening();
   };
   $('#voice-fab').addEventListener('click', () => {
+    hush(); // pressing the mic button while it talks cuts it off
     const wasOpen = root.classList.contains('open');
     open(!wasOpen);
     if (!wasOpen && supported) startListening();
@@ -565,7 +577,7 @@ export function createVoice({ onTask, onRun, onCancel, onAsk, onOutreach, getAge
     if (v === 'close') open(false);
     else if (v === 'mic') (listening ? stopListening : startListening)();
     else if (v === 'hear') {
-      speechSynthesis?.cancel();
+      hush();
       speak('Hello, this is how I sound. The leads are on the Leads page.', true);
     }
     else if (v === 'clear') {
@@ -582,6 +594,8 @@ export function createVoice({ onTask, onRun, onCancel, onAsk, onOutreach, getAge
       send({ asTask: true });
     }
   });
+  // Typing interrupts the voice too, the moment the first key goes down.
+  text.addEventListener('input', hush);
   text.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -592,7 +606,7 @@ export function createVoice({ onTask, onRun, onCancel, onAsk, onOutreach, getAge
   $('#vp-voice').addEventListener('change', (e) => {
     settings.voice = e.target.value;
     save(settings);
-    speechSynthesis?.cancel();
+    hush();
     speak('Hello, this is how I sound.', true);
   });
   $('#vp-hands').addEventListener('change', (e) => {
@@ -602,7 +616,7 @@ export function createVoice({ onTask, onRun, onCancel, onAsk, onOutreach, getAge
   $('#vp-speak').addEventListener('change', (e) => {
     settings.speak = e.target.checked;
     save(settings);
-    if (!settings.speak) speechSynthesis?.cancel();
+    if (!settings.speak) hush();
   });
   document.addEventListener('keydown', (e) => {
     if (e.key.toLowerCase() !== 'v' || e.metaKey || e.ctrlKey || e.altKey || /input|textarea|select/i.test(document.activeElement?.tagName || '')) return;

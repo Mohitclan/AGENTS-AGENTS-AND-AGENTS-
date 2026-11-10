@@ -1601,7 +1601,9 @@ const flagsView = {
 // ---- the demo, shared by the home and the Working page ------------------------------------------
 
 // Plays the narrated demo task in an office. While it plays the office says "Simulation" and real
-// updates wait; ending it puts the office back on real data.
+// updates wait; ending it puts the office back on real data. Since the live pilot (2026-11-10) the pages show live
+// data only: the demo's button appears only with ?demo in the page address, for showing the team to someone new.
+const SHOW_DEMO = /[?&]demo\b/.test(location.search);
 function attachDemo({ office, controls, onFrame, onEnd }) {
   let active = false;
   const demo = createDemo((f) => {
@@ -1615,7 +1617,7 @@ function attachDemo({ office, controls, onFrame, onEnd }) {
   });
   function paint(f = {}) {
     if (!active) {
-      controls.innerHTML = '<div class="demo-ctl"><button type="button" class="go" data-d="start">▶ Watch the demo</button></div>';
+      controls.innerHTML = SHOW_DEMO ? '<div class="demo-ctl"><button type="button" class="go" data-d="start">▶ Watch the demo</button></div>' : '';
       return;
     }
     if (!controls.querySelector('.demo-bar')) {
