@@ -36,6 +36,7 @@ import { approveAndSend, decideEmails, draftEmails, logRequest, outreachState, p
 import { sendDue } from './followups.mjs';
 import { setPilot } from './golive.mjs';
 import { mailReadiness } from './mail-check.mjs';
+import { fetchOpens } from './opens.mjs';
 import { checkReplies, queueAnswer } from './reply-drafts.mjs';
 import { answerQuestion, answersTask, dismissQuestions, markSent, questionsState } from './questions.mjs';
 import { decidePost, postsState } from './posts.mjs';
@@ -449,7 +450,7 @@ function outreachCached(root) {
   const drafts = existsSync(join(root, 'outputs', 'outreach')) ? readdirSync(join(root, 'outputs', 'outreach')).map((n) => `${n}:${stamp(`outputs/outreach/${n}`)}`).join(',') : '';
   const answers = existsSync(join(root, 'outputs', 'outreach', 'replies')) ? readdirSync(join(root, 'outputs', 'outreach', 'replies')).map((n) => `${n}:${stamp(`outputs/outreach/replies/${n}`)}`).join(',') : '';
   // the pilot switch, the replies and today's date (a follow-up's day) change what the Emails page shows too
-  const key = [drafts, answers, new Date().toISOString().slice(0, 10), ...['outputs/reviews', 'pipeline/leads.jsonl', 'ops/queue.json', 'ops/outreach.jsonl', 'ops/send-log.jsonl', 'ops/runs/jarvis.lock', 'ops/mail-config.json', 'ops/replies.jsonl'].map(stamp)].join('|');
+  const key = [drafts, answers, new Date().toISOString().slice(0, 10), ...['outputs/reviews', 'pipeline/leads.jsonl', 'ops/queue.json', 'ops/outreach.jsonl', 'ops/send-log.jsonl', 'ops/opens.json', 'ops/runs/jarvis.lock', 'ops/mail-config.json', 'ops/replies.jsonl'].map(stamp)].join('|');
   if (key !== outreachMemo.key) {
     try {
       outreachMemo = { key, value: outreachState(root) };
@@ -771,6 +772,15 @@ function main() {
         lastSig = '';
       }
     }, (error) => console.error(`Follow-ups could not be checked: ${error.message}`));
+  }, 10 * 60_000).unref();
+  // Open tracking: the opens the tracker recorded are fetched every 10 minutes, only while tracking is on in
+  // ops/mail-config.json, and shown on the Emails page (scripts/opens.mjs).
+  setInterval(() => {
+    if (!JSON.parse(readFileSync(join(ROOT, 'ops', 'mail-config.json'), 'utf8')).tracking?.enabled) return;
+    fetchOpens(ROOT).then((r) => {
+      if (r.ok) lastSig = '';
+      else console.error(`Opens could not be fetched: ${r.text}`);
+    }, (error) => console.error(`Opens could not be fetched: ${error.message}`));
   }, 10 * 60_000).unref();
   setInterval(() => {
     checkReplies(ROOT).then((r) => {

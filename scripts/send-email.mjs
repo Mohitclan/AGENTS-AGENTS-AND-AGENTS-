@@ -20,10 +20,13 @@
 // Signature: a draft that signs off with the email-template skill's "Best regards," and {{COMPANY_NAME}} line also
 // goes as HTML, with docs/brand/email-signature.html in place of that line and its logo as an inline attachment. The
 // plain-text part, the copy check and the report keep the draft's own text.
+// Open tracking: when ops/mail-config.json has tracking.enabled and tracking.base_url, each HTML email also carries a
+// 1x1 image with a fresh random id, logged as `track` in ops/send-log.jsonl; scripts/opens.mjs reads the opens back.
 //
 // Secrets: the SMTP password comes from the SMTP_PASS environment variable, else from .env.
 // It is never printed or logged.
 import { spawnSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { appendFileSync, existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
@@ -120,6 +123,19 @@ export function signedHtml(rawBody, sender, signature, greet = (s) => s) {
     after.trim() ? `<div style="margin-top:18px;">${paragraphs(after)}</div>` : '',
     '</div>',
   ].filter(Boolean).join('\n');
+}
+
+// Open tracking (the human's decision of 2026-11-10): the tracker's address when ops/mail-config.json has
+// tracking.enabled and a tracking.base_url (tracker/README.md), else ''.
+export function trackerBase(config) {
+  const t = config?.tracking;
+  return t?.enabled && /^https:\/\/[^\s/]+/.test(t.base_url || '') ? t.base_url.replace(/\/+$/, '') : '';
+}
+
+// The HTML with a 1x1 open-tracking image at the very end, for the tracker (tracker/worker.js) to count its loads.
+export function withPixel(html, base, id) {
+  const img = `<img src="${base}/o/${id}.gif" width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0;">`;
+  return html.endsWith('</div>') ? `${html.slice(0, -'</div>'.length)}${img}\n</div>` : `${html}\n${img}`;
 }
 
 // The same match the lead gate uses (suppressionMatch in _shared.mjs): the address, its domain or a parent domain.
@@ -247,6 +263,9 @@ async function main() {
   body = greet(body);
   let html = null;
   try { html = signedHtml(parsed.body, config.sender, existsSync(SIGNATURE_HTML) ? readFileSync(SIGNATURE_HTML, 'utf8') : '', greet); } catch (e) { die(e.message); }
+  const tracker = html ? trackerBase(config) : '';
+  const trackId = tracker ? randomBytes(16).toString('hex') : null; // one per send, so each email's opens are its own
+  if (trackId) html = withPixel(html, tracker, trackId);
   const attachments = html && existsSync(SIGNATURE_LOGO) ? [{ filename: 'panscience-innovations.png', path: SIGNATURE_LOGO, cid: SIGNATURE_LOGO_CID }] : [];
   const subject = demo ? `[DEMO] ${parsed.subject}` : test ? `[TEST] ${parsed.subject}` : parsed.subject;
 
@@ -295,7 +314,7 @@ async function main() {
   };
 
   const signatureNote = !html ? 'none (plain text: the draft has no "Best regards," company sign-off)' : attachments.length ? 'HTML signature with the logo' : 'HTML signature, logo file missing';
-  console.log(`Mode: ${demo ? 'DEMO' : test ? 'TEST' : 'LIVE'}\nFrom: ${from}\nTo: ${to}\nSubject: ${subject}\nLint: ${lint.text}\nApproval: ${approval}\nSignature: ${signatureNote}\nReport to: ${config.report_to.name} <${config.report_to.email}>\n`);
+  console.log(`Mode: ${demo ? 'DEMO' : test ? 'TEST' : 'LIVE'}\nFrom: ${from}\nTo: ${to}\nSubject: ${subject}\nLint: ${lint.text}\nApproval: ${approval}\nSignature: ${signatureNote}\nOpen tracking: ${trackId ? 'on' : html ? 'off (not set up in ops/mail-config.json)' : 'off (plain-text email)'}\nReport to: ${config.report_to.name} <${config.report_to.email}>\n`);
   if (args.dryRun) {
     console.log('--- email ---\n' + body + '\n--- report preview ---\n' + buildReport({ ...reportBase, sentAt: '(dry run)', messageId: '(dry run)', response: '(dry run)' }));
     console.log('\nDry run: nothing sent, nothing logged.');
@@ -309,7 +328,7 @@ async function main() {
 
   const info = await transport.sendMail({ from, to, subject, text: body, ...(html ? { html, attachments } : {}) });
   const sentAt = istNow();
-  const entry = { at: new Date().toISOString(), kind: 'outreach', mode: demo ? 'demo' : test ? 'test' : 'live', to, subject, draft: reportBase.draft, email: n, lead: leadId || null, approval: demo || test ? null : args.approval, message_id: info.messageId };
+  const entry = { at: new Date().toISOString(), kind: 'outreach', mode: demo ? 'demo' : test ? 'test' : 'live', to, subject, draft: reportBase.draft, email: n, lead: leadId || null, approval: demo || test ? null : args.approval, message_id: info.messageId, ...(trackId ? { track: trackId } : {}) };
   appendFileSync(SEND_LOG, JSON.stringify(entry) + '\n');
   console.log(`Sent. Message ID ${info.messageId} (${info.response})`);
 

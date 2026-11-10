@@ -40,5 +40,10 @@
     "role": "Team",
     "email": "mohitkumar.sep08@gmail.com"
   },
-  "daily_limit": 20
+  "daily_limit": 20,
+  "tracking": {
+    "_note": "Email open tracking (the human's decision of 2026-11-10). When enabled, scripts/send-email.mjs adds a 1x1 image from base_url (the tracker of tracker/README.md, an https address) to each HTML email; scripts/opens.mjs and mission control read the opens back with TRACKER_READ_TOKEN from .env. Off until the tracker is deployed.",
+    "enabled": false,
+    "base_url": ""
+  }
 }

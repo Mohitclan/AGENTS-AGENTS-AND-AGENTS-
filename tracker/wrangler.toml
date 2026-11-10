@@ -1,0 +1,9 @@
+# The email open tracker (tracker/worker.js). Deploy steps: tracker/README.md.
+name = "panscience-mail-opens"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+
+# Replace the id with the one `npx wrangler kv namespace create OPENS` prints (step 3 of the README).
+[[kv_namespaces]]
+binding = "OPENS"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
