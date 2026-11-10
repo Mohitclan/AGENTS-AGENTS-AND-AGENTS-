@@ -31,6 +31,8 @@ const AGENTS = {
   'demo-handler': ['Demos', 'Demo plans and scripts'], 'docs-handler': ['Docs', 'Help docs and one-pagers'],
   developer: ['Developer', 'Fixes that block sales'], 'lead-scout': ['Lead scout', 'Sweeps lead sources, several at once'],
   'seo-aeo': ['SEO & AEO', 'Search and AI-answer visibility'],
+  'social-planner': ['Social planner', 'Weekly content calendar and post briefs'], 'social-writer': ['Social writer', 'Post drafts for every channel'],
+  'community-manager': ['Community manager', 'Buyer-intent watch and reply drafts'], 'social-analyst': ['Social analyst', 'Weekly results: what worked'],
   system: ['System', 'Scripts: sends, replies, checks'],
 };
 const look = (name) => ({ label: AGENTS[name]?.[0] || name, role: AGENTS[name]?.[1] || '' });

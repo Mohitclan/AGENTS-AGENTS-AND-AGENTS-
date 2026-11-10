@@ -76,24 +76,29 @@ export const OFFICES = [
     map: 'social-studio',
     accent: '#ff4fd8',
     view3d: true,
-    seats: {},
+    // The first social media agents (2026-11-10): the planner and the community manager in the planning office, the
+    // writer and the analyst in the writers' room. They fill the Content planner, Community manager, Copywriter and
+    // Analytics intern roles, so those robots and planned seats are gone.
+    seats: {
+      'social-planner': 'planning',
+      'community-manager': 'planning',
+      'social-writer': 'writers',
+      'social-analyst': 'writers',
+    },
     planned: [
-      { role: 'Content planner', room: 'planning' },
-      { role: 'Community manager', room: 'planning' },
-      { role: 'Copywriter', room: 'writers' },
       { role: 'Scheduler', room: 'writers' },
-      { role: 'Analytics intern', room: 'writers' },
       { role: 'Designer', room: 'design' },
       { role: 'Video editor', room: 'edit' },
       { role: 'Photographer', room: 'shoot' },
     ],
     crew: [
-      { id: 'sunny', name: 'Sunny', role: 'Content planner', look: 'buddy' },
       { id: 'reel', name: 'Reel', role: 'Video editor', look: 'shadow' },
       { id: 'rosie', name: 'Rosie', role: 'Designer', look: 'sweetie' },
-      { id: 'quill', name: 'Quill', role: 'Copywriter', look: 'curious' },
       { id: 'snap', name: 'Snap', role: 'Photographer', look: 'wink' },
     ],
+    // The robot each agent is drawn as in the 3D office (a look from world/crew.js): the founders' robots stand
+    // for the agents. The views are being taught to read this; until then it is data only.
+    looks: { 'social-planner': 'buddy', 'social-writer': 'curious', 'community-manager': 'sweetie', 'social-analyst': 'shadow' },
   },
 ];
 
