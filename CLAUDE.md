@@ -120,7 +120,7 @@ Autopilot runs refuse any command the project's allow list doesn't match, and a 
 
 ## Hard rules
 
-1. **Drafts only.** Don't send emails or messages, post, publish, book meetings, push code, open or merge PRs, deploy, or write to a CRM unless the human approves that specific action in this session. Record the request in `ops/approvals.md` and ask. Outreach drafts are approved by a person on mission control's Outreach page (a button, or by voice); approving a draft that passed review sends it, during the pilot as [TEST] copies to the pilot test recipients only (`ops/mail-config.json`). Nothing is sent automatically after a task (since 2026-11-07).
+1. **Drafts only.** Don't send emails or messages, post, publish, book meetings, push code, open or merge PRs, deploy, or write to a CRM unless the human approves that specific action in this session. Record the request in `ops/approvals.md` and ask. Every lead task also drafts the outreach for the leads that pass review and qualify, without being asked (since 2026-11-10); drafting is not sending. Outreach drafts are approved by a person on mission control's Outreach page (a button, or by voice); approving a draft that passed review sends it, during the pilot as [TEST] copies to the pilot test recipients only (`ops/mail-config.json`). Nothing is sent automatically after a task (since 2026-11-07).
 2. **Never invent** customers, quotes, metrics, features, prices, discounts, email addresses or buying intent. Never guess email addresses from name patterns.
 3. **Public business information only** for leads. No personal data beyond a person's published professional contact details.
 4. **Prices, discounts and commitments** come only from confirmed knowledge. Anything else goes to the human.

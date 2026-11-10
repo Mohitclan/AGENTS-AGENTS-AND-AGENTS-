@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, realpathSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, beforeEach, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -14,7 +14,7 @@ const jarvis = (args, env = {}) => {
   const r = spawnSync(process.execPath, [join('scripts', 'jarvis.mjs'), ...args], {
     cwd: repo.dir,
     encoding: 'utf8',
-    env: { ...process.env, CLAUDE_PROJECT_DIR: repo.dir, CLAUDE_BIN: FAKE, JARVIS_TASK_ID: '', ...env },
+    env: { ...process.env, CLAUDE_PROJECT_DIR: repo.dir, CLAUDE_BIN: FAKE, JARVIS_TASK_ID: '', JARVIS_POLL_MS: '200', ...env },
   });
   return { code: r.status, out: `${r.stdout}${r.stderr}` };
 };
@@ -123,8 +123,8 @@ describe('usage guard', () => {
     assert.equal(byTask('After reset').status, 'done');
   });
   it('puts a task cut off by the limit back in the queue and stops', () => {
-    jarvis(['add', 'This will hit the limit']);
-    jarvis(['add', 'Behind it']);
+    jarvis(['add', 'This will hit the limit for motionrepo']);
+    jarvis(['add', 'Behind it, also motionrepo']);
     jarvis(['run', '--ignore-limits']);
     assert.equal(byTask('hit the limit').status, 'queued');
     assert.match(byTask('hit the limit').note, /usage limit/);
@@ -232,5 +232,137 @@ describe('spending less of the plan', () => {
     rmSync(repo.path('ops', 'runs', 'fake-args.jsonl'), { force: true });
     jarvis(['run']);
     assert.ok(!args()[0].includes('--agent'));
+  });
+});
+
+describe('lanes: products side by side', () => {
+  const timeline = () => readFileSync(repo.path('ops', 'runs', 'fake-timeline.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  const at = (task, event) => timeline().find((e) => e.id === task.id && e.event === event).at;
+  const lanesDir = () => repo.path('ops', 'runs', 'lanes');
+  const startRunner = () => {
+    const child = spawn(process.execPath, [join('scripts', 'jarvis.mjs'), 'run'], { cwd: repo.dir, env: { ...process.env, CLAUDE_PROJECT_DIR: repo.dir, CLAUDE_BIN: FAKE, JARVIS_TASK_ID: '', JARVIS_POLL_MS: '200' }, stdio: 'ignore' });
+    return { child, closed: new Promise((done) => child.on('close', done)) };
+  };
+
+  it('records each task\'s product when it is added', () => {
+    jarvis(['add', 'Find leads for Peel Press']);
+    jarvis(['add', 'Write something general']);
+    jarvis(['add', 'Compare motionrepo with peelpress']);
+    assert.deepEqual(queue().map((t) => t.product), ['peelpress', null, null]);
+  });
+
+  it('runs two products at the same time: both start before either finishes', () => {
+    jarvis(['add', 'Slow motionrepo job']);
+    jarvis(['add', 'Slow peelpress job']);
+    const r = jarvis(['run']);
+    assert.equal(r.code, 0, r.out);
+    const [a, b] = [byTask('motionrepo job'), byTask('peelpress job')];
+    assert.deepEqual([a.status, b.status], ['done', 'done']);
+    assert.ok(at(a, 'start') < at(b, 'end') && at(b, 'start') < at(a, 'end'), 'the two runs overlapped');
+    assert.match(r.out, /\[motionrepo\] .*→ researcher: Fake research/);
+    assert.match(r.out, /\[peelpress\] .*→ researcher: Fake research/);
+    assert.ok(existsSync(repo.path('ops', 'runs', `${a.id}.log`)) && existsSync(repo.path('ops', 'runs', `${b.id}.log`)), 'each task keeps its own log');
+    assert.equal(existsSync(repo.path('ops', 'runs', 'jarvis.lock')), false);
+    assert.deepEqual(existsSync(lanesDir()) ? readdirSync(lanesDir()) : [], [], 'lane locks are released');
+  });
+
+  it('keeps a product\'s second task waiting while other products run', () => {
+    jarvis(['add', 'Slow motionrepo first']);
+    jarvis(['add', 'Slow motionrepo second']);
+    jarvis(['add', 'Slow peelpress only']);
+    jarvis(['run']);
+    const [first, second, other] = [byTask('motionrepo first'), byTask('motionrepo second'), byTask('peelpress only')];
+    assert.deepEqual([first.status, second.status, other.status], ['done', 'done', 'done']);
+    assert.ok(at(second, 'start') >= at(first, 'end'), 'the second MotionRepo task started after the first ended');
+    assert.ok(at(other, 'start') < at(first, 'end'), 'Peelpress did not wait behind MotionRepo\'s second task');
+  });
+
+  it('runs one at a time with JARVIS_LANES=1, and a task with no product gets a lane of its own', () => {
+    jarvis(['add', 'Slow motionrepo job']);
+    jarvis(['add', 'Slow peelpress job']);
+    jarvis(['run'], { JARVIS_LANES: '1' });
+    assert.ok(at(byTask('peelpress job'), 'start') >= at(byTask('motionrepo job'), 'end'));
+    rmSync(repo.path('ops', 'runs'), { recursive: true, force: true });
+    jarvis(['add', 'Slow general job one']);
+    jarvis(['add', 'Slow general job two']);
+    jarvis(['run']);
+    assert.ok(at(byTask('job one'), 'start') < at(byTask('job two'), 'end') && at(byTask('job two'), 'start') < at(byTask('job one'), 'end'));
+  });
+
+  it('starts a task added while a lane is busy as soon as its lane is free', async () => {
+    jarvis(['add', 'Slow motionrepo long job']);
+    const { closed } = startRunner();
+    await new Promise((done) => setTimeout(done, 700));
+    jarvis(['add', 'Slow peelpress late job']);
+    assert.equal(jarvis(['run']).code, 1, 'a second run does not start; the live one picks the task up');
+    await closed;
+    const [a, b] = [byTask('long job'), byTask('late job')];
+    assert.deepEqual([a.status, b.status], ['done', 'done']);
+    assert.ok(at(b, 'start') < at(a, 'end'), 'the late task started while the first was still running');
+  });
+
+  it('applies the plan guard to every lane', () => {
+    mkdirSync(repo.path('ops', 'runs'), { recursive: true });
+    writeFileSync(repo.path('ops', 'runs', 'plan-limits.json'), JSON.stringify({ at: new Date().toISOString(), windows: { five_hour: { utilization: 0.9, resetsAt: Math.floor(Date.now() / 1000) + 600 } } }));
+    jarvis(['add', 'Slow motionrepo job']);
+    jarvis(['add', 'Slow peelpress job']);
+    const r = jarvis(['run']);
+    assert.match(r.out, /Not starting .*5-hour window is at 90%/);
+    assert.deepEqual(queue().map((t) => t.status), ['queued', 'queued']);
+  });
+
+  it('starts nothing more once a running task reports a full window, but lets the others finish', () => {
+    for (const p of ['motionrepo', 'peelpress', 'pitchlight']) jarvis(['add', `Slow ${p} job`]);
+    jarvis(['run'], { JARVIS_LANES: '2', FAKE_UTIL: '0.9' });
+    assert.deepEqual(queue().map((t) => t.status), ['done', 'done', 'queued'], 'two ran side by side below the guard; the third waited for the window');
+    assert.ok(existsSync(repo.path('ops', 'runs', 'resume-after-limit.json')), 'mission control is told to resume after the reset');
+  });
+
+  it('puts every task a crashed runner left running back in the queue, and clears its lane locks', () => {
+    jarvis(['add', 'Interrupted motionrepo job']);
+    jarvis(['add', 'Interrupted peelpress job']);
+    writeFileSync(repo.path('ops', 'queue.json'), JSON.stringify(queue().map((t) => ({ ...t, status: 'running', started: '2026-11-10 01:00' }))));
+    mkdirSync(lanesDir(), { recursive: true });
+    for (const t of queue()) writeFileSync(join(lanesDir(), `${t.id}.lock`), '999999');
+    writeFileSync(repo.path('ops', 'runs', 'jarvis.lock'), '999999');
+    const r = jarvis(['run']);
+    assert.equal(r.code, 0, r.out);
+    assert.deepEqual(queue().map((t) => t.status), ['done', 'done']);
+    assert.deepEqual(readdirSync(lanesDir()), []);
+  });
+
+  it('holds a lane lock for each running task while it runs', async () => {
+    jarvis(['add', 'Slow motionrepo job']);
+    jarvis(['add', 'Slow peelpress job']);
+    const { child, closed } = startRunner();
+    await new Promise((done) => setTimeout(done, 700));
+    const locks = readdirSync(lanesDir()).sort();
+    assert.deepEqual(locks, queue().map((t) => `${t.id}.lock`).sort());
+    assert.equal(readFileSync(join(lanesDir(), locks[0]), 'utf8'), String(child.pid));
+    await closed;
+  });
+});
+
+describe('every lead task also drafts the outreach', () => {
+  const text = (...p) => readFileSync(repo.path(...p), 'utf8');
+  it('tells the coordinator, the briefs and CLAUDE.md to draft for qualified leads without being asked', () => {
+    assert.match(text('.claude', 'agents', 'coordinator.md'), /Every lead task goes on to outreach, without being asked/);
+    assert.doesNotMatch(text('.claude', 'agents', 'coordinator.md'), /Leads stop at leads/);
+    assert.match(text('.claude', 'skills', 'task-briefs', 'SKILL.md'), /Every lead task also drafts the outreach, without asking/);
+    assert.doesNotMatch(text('.claude', 'skills', 'task-briefs', 'SKILL.md'), /Draft only when asked|don't chain into outreach/);
+    assert.match(text('CLAUDE.md'), /Every lead task also drafts the outreach for the leads that pass review and qualify, without being asked/);
+  });
+  it('puts it in the nightly sweep and the project lead sprint, and in main memory instead of the old entry', () => {
+    for (const f of [['ops', 'schedule.json'], ['scripts', 'schedule.mjs'], ['scripts', 'projects.mjs']]) {
+      assert.match(text(...f), /then draft emails for the leads that qualify/);
+      assert.doesNotMatch(text(...f), /stop at leads: no drafts|statuses set; no drafts/);
+    }
+    const memory = text('memory', 'MAIN.md');
+    assert.match(memory, /2026-11-10 · Outreach \(from 2026-11-10\): every lead task also drafts the outreach/);
+    assert.doesNotMatch(memory, /lead tasks stop at leads unless the request asks for drafts/);
+  });
+  it('no longer tells people to ask for drafts of the leads a run found', () => {
+    assert.doesNotMatch(text('scripts', 'outreach.mjs'), /Nothing is drafted or sent unless a person asks/);
+    assert.doesNotMatch(text('scripts', 'jarvis.mjs'), /can be drafted now/);
   });
 });

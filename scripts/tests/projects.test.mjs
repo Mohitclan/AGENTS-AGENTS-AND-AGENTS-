@@ -499,7 +499,7 @@ describe('projects: work on selected projects', () => {
     assert.deepEqual(out.data.queued.map((q) => q.slug), ['done-tool'], 'a repeated slug is queued once');
     assert.deepEqual(out.data.refused.map((r) => r.slug).sort(), ['acme-tool', 'nope']);
     assert.match(out.data.refused.find((r) => r.slug === 'nope').reason, /no such project/);
-    assert.equal(queue(repo).at(-1).task, 'Run a lead sprint for product done-tool: 10 to 25 leads, reviewed, then statuses set; no drafts.');
+    assert.equal(queue(repo).at(-1).task, 'Run a lead sprint for product done-tool: 10 to 25 leads, reviewed, then statuses set, then draft emails for the leads that qualify.');
     work(repo.dir, { slugs: ['done-tool'], action: 'outreach' });
     assert.equal(queue(repo).at(-1).task, 'Draft outreach for qualified leads of product done-tool that have a Go; reviewed; add each passed email to ops/approvals.md as pending. Send nothing.');
     work(repo.dir, { slugs: ['done-tool'], action: 'demo' });

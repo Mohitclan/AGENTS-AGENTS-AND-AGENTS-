@@ -59,7 +59,7 @@ export function queueAnswer(root, replyId, { by = 'a person on the page', auto =
   if (['disqualified', 'lost', 'won'].includes(lead.status)) return { ok: false, message: `${lead.company} is ${lead.status}: no answer is drafted.` };
   if (reply.draft) return { ok: false, message: `An answer is already drafted: ${reply.draft}.` };
   if (reply.drafting) return { ok: false, message: `An answer is already being drafted in ${reply.drafting}.` };
-  const added = (deps.add || addTask)(root, answerTask(reply, lead));
+  const added = (deps.add || addTask)(root, answerTask(reply, lead), { split: false });
   if (!added.id) return { ok: false, message: `The drafting task wasn't queued: ${added.error}` };
   appendFileSync(join(root, LOG), `${JSON.stringify({ at: new Date().toISOString(), kind: 'reply-draft', reply: reply.id, lead: lead.id, k: reply.k, task: added.id, by, ...(auto ? { auto: true } : {}) })}\n`);
   const { full, started } = (deps.start || startQueued)(root);

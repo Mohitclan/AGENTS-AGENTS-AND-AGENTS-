@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 // Outreach in mission control: the leads each run found, asking the team to draft emails for them, and a
-// person's approval of each finished draft. Nothing is drafted or sent unless a person asks:
-//   1. A run that found leads shows them on the Outreach page ("This run found 3 leads"). Drafting them is a
-//      new Jarvis task, started by the page's button, a voice command, or a command that said "and draft".
+// person's approval of each finished draft. Every lead task drafts the outreach for the leads that qualify by itself
+// (the founder's decision of 2026-11-10); nothing is sent unless a person approves it:
+//   1. A run that found leads shows them on the Outreach page ("This run found 3 leads"). The run drafts the ones that
+//      qualify; a lead left without a draft is drafted again by a new Jarvis task, started by the page's button or a
+//      voice command.
 //   2. Drafts appear on the Outreach page once written, with their review. Only a PASS can be approved.
 //   3. Approving sends at once. While the pilot is on (ops/mail-config.json), that is [TEST] copies to the pilot
 //      test recipients only, through scripts/send-tests.mjs; the lead gets nothing. A person decides a whole draft

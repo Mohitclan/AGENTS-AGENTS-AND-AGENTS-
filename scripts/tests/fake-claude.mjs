@@ -7,6 +7,8 @@
 //   "add a lesson"     adds an entry to main memory, as the after-task review would
 //   "passed draft"     writes an outreach draft and a PASS review of it
 //   "mail settings"    changes ops/mail-config.json
+//   "slow"             waits 1.5 seconds before finishing, so tests can see tasks run side by side
+// Every coordinator session writes its start and end times to ops/runs/fake-timeline.jsonl.
 // FAKE_UTIL sets the 5-hour window's reported utilization (default 0.2). Every call's arguments are added to
 // ops/runs/fake-args.jsonl. As a step of the drafting lane (--agent outreach or --agent evaluator) it writes the
 // drafts or the named review instead: a draft whose lead's company has "Redo" in it gets REVISE until it has a fix log.
@@ -15,7 +17,7 @@ import { join } from 'node:path';
 
 let input = '';
 process.stdin.on('data', (c) => (input += c));
-process.stdin.on('end', () => {
+process.stdin.on('end', async () => {
   const id = /JARVIS TASK (J-\d{8}-\d{2})/.exec(input)?.[1] || 'J-unknown';
   const emit = (e) => process.stdout.write(`${JSON.stringify(e)}\n`);
   const resetsAt = Math.floor(Date.now() / 1000) + 3600;
@@ -46,6 +48,9 @@ process.stdin.on('end', () => {
     emit({ type: 'result', is_error: false, result: 'RESULT\nstatus: done\nsummary: fake lane step', num_turns: 2 });
     return;
   }
+  const mark = (event) => appendFileSync(join(process.cwd(), 'ops', 'runs', 'fake-timeline.jsonl'), `${JSON.stringify({ id, event, at: Date.now() })}\n`);
+  mark('start');
+  process.on('exit', () => mark('end'));
   emit({ type: 'system', subtype: 'init', session_id: 'fake' });
   emit({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Agent', input: { subagent_type: 'researcher', description: 'Fake research' } }] } });
 
@@ -56,6 +61,7 @@ process.stdin.on('end', () => {
   }
   emit({ type: 'rate_limit_event', rate_limit_info: { status: 'allowed', unifiedWindows: { five_hour: { utilization: Number(process.env.FAKE_UTIL || 0.2), resetsAt } } } });
 
+  if (/\bslow\b/i.test(input)) await new Promise((done) => setTimeout(done, 1500));
   if (/please fail/i.test(input)) {
     emit({ type: 'result', is_error: true, result: 'Something broke.', num_turns: 2 });
     return;

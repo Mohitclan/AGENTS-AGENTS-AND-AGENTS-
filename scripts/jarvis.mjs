@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Jarvis: hand the team tasks and get finished results back. Each task runs as one coordinator
-// session on autopilot (`claude -p`, your Max plan login), one task at a time, in queue order. The
+// session on autopilot (`claude -p`, your Max plan login), in queue order. Tasks for different products run side by
+// side (up to JARVIS_LANES at once, default 4, at most one per product; a task with no product has a lane of its own). The
 // coordinator runs on Sonnet at medium effort (JARVIS_MODEL and JARVIS_EFFORT change that): it plans and
 // hands out work, and the agents and the reviews keep their own models. A drafting task a person asked for
 // on the Outreach page skips the coordinator: Jarvis runs that fixed chain itself (scripts/draft-lane.mjs).
@@ -8,7 +9,7 @@
 //   node scripts/jarvis.mjs add "<task>"            queue a task
 //   node scripts/jarvis.mjs do "<task>"             queue a task and run it now
 //   node scripts/jarvis.mjs run [--max n] [--ignore-limits] [--timeout-min n]
-//                                                   work through the queue, oldest first
+//                                                   work through the queue, oldest first, one lane per product
 //   node scripts/jarvis.mjs list                    the queue
 //   node scripts/jarvis.mjs cancel <id>             take a queued task off the queue
 //   node scripts/jarvis.mjs usage                   how full the plan windows were at the last run
@@ -20,9 +21,13 @@
 // Usage guard: Claude Code reports the plan's usage windows in its stream (rate_limit_event). The
 // last report is kept in ops/runs/plan-limits.json, and no task starts while a window is at or over
 // JARVIS_STOP_AT (default 0.85), since a task cut off by the limit loses its work.
-// Leads and drafts: each task records the leads it found (leads_found), and its report ends with what
-// is waiting on a person: leads ready to draft and drafts ready to approve, both on mission control's
-// Outreach page (scripts/outreach.mjs). Nothing is sent until a person approves a draft there.
+// Lanes: each task has a product (set when it is added, from its text; scripts/lanes.mjs). A running task holds a lane
+// lock, ops/runs/lanes/<id>.lock, and ops/runs/jarvis.lock still means "a runner is alive". While any lane is busy the
+// runner looks at the queue every JARVIS_POLL_MS (default 3000), so a task added meanwhile starts at once if its lane is free.
+// Leads and drafts: each task records the leads it found (leads_found). Every lead task goes on to draft the outreach
+// for the leads that pass review and qualify, without being asked (the founder's decision of 2026-11-10); the report
+// ends with what is waiting on a person: drafts ready to approve, and leads that could not be drafted, both on mission
+// control's Outreach page (scripts/outreach.mjs). Nothing is sent until a person approves a draft there.
 // Pilot test emails sent automatically after each task (scripts/send-tests.mjs) only while
 // ops/mail-config.json has pilot.auto_test_sends; off since 2026-11-07, when approval took over.
 import { spawn, spawnSync } from 'node:child_process';
@@ -32,6 +37,7 @@ import {
 import { join } from 'node:path';
 import { ROOT, fail, printTable, resolveClaude, today, workspaceTrusted } from './_shared.mjs';
 import { runDraftLane } from './draft-lane.mjs';
+import { laneKey, laneLimit, productOf, startable } from './lanes.mjs';
 import { latestLeads, outreachState } from './outreach.mjs';
 
 const OPS = join(ROOT, 'ops');
@@ -43,11 +49,13 @@ const ARCHIVED = join(ARCHIVE, 'archived.json');
 const REPORTS = join(ROOT, 'outputs', 'reports');
 const PLAN_LIMITS = join(RUNS, 'plan-limits.json');
 const RUN_LOCK = join(RUNS, 'jarvis.lock');
+const LANE_LOCKS = join(RUNS, 'lanes');
 const QUEUE_LOCK = join(RUNS, 'queue.lock');
 const MAIL_CONFIG = join(OPS, 'mail-config.json');
 const STOP_AT = Number(process.env.JARVIS_STOP_AT || 0.85);
 const CLAUDE_BIN = resolveClaude();
 const DEFAULT_TIMEOUT_MIN = 120;
+const POLL_MS = Number(process.env.JARVIS_POLL_MS) || 3000;
 const STATUS_LABEL = { needs_approval: 'needs you', needs_input: 'needs you' };
 // The coordinator's model and effort: it plans and hands out work, which Sonnet does at a fraction of Opus's use of
 // the plan (2026-11-09: Opus was 68 to 95% of every run).
@@ -59,6 +67,8 @@ const now = () => {
   const p = (n) => String(n).padStart(2, '0');
   return `${today()} ${p(d.getHours())}:${p(d.getMinutes())}`;
 };
+// Console lines of a task start with its product, so lines of tasks running side by side can be told apart.
+const say = (t, text) => console.log(String(text).split('\n').map((l) => (l ? `[${t.product || 'general'}] ${l}` : l)).join('\n'));
 const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 const pidAlive = (pid) => {
   try {
@@ -144,7 +154,7 @@ function add(task) {
     const prefix = `J-${today().replace(/-/g, '')}-`;
     // the next number after any task of today's, archived ones included, so an ID is never used twice
     const n = Math.max(0, ...[...queue, ...loadArchived()].filter((t) => t.id.startsWith(prefix)).map((t) => Number(t.id.slice(prefix.length)) || 0)) + 1;
-    const created = { id: `${prefix}${String(n).padStart(2, '0')}`, task, status: 'queued', added: now() };
+    const created = { id: `${prefix}${String(n).padStart(2, '0')}`, task, product: productOf(task), status: 'queued', added: now() };
     queue.push(created);
     return created;
   });
@@ -322,7 +332,7 @@ function runSession(t, timeoutMs, { extra = COORDINATOR, input = prompt(t), log 
       } else if (event.type === 'assistant' && echo) {
         for (const block of event.message?.content ?? []) {
           if (block.type === 'tool_use' && block.name === 'Agent') {
-            console.log(`  ${now().slice(11)} → ${block.input?.subagent_type || 'agent'}: ${block.input?.description || ''}`);
+            say(t, `  ${now().slice(11)} → ${block.input?.subagent_type || 'agent'}: ${block.input?.description || ''}`);
           }
         }
       } else if (event.type === 'result') {
@@ -370,7 +380,7 @@ function laneStep(t, timeoutMs) {
   return async (extra, input, agent) => {
     const id = `lane-${++n}`;
     const what = input.split('\n')[0].replace(/^JARVIS TASK \S+, board task \S+: /, '').slice(0, 140);
-    console.log(`  ${now().slice(11)} → ${agent}: ${what}`);
+    say(t, `  ${now().slice(11)} → ${agent}: ${what}`);
     note({ type: 'assistant', message: { content: [{ type: 'tool_use', id, name: 'Agent', input: { subagent_type: agent, description: what } }] } });
     const out = await runSession(t, timeoutMs, { extra, input, log: join(RUNS, 'lane', `${t.id}-${n}-${agent}.log`), echo: false });
     note({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: id, is_error: out.isError, content: out.resultText || '(no reply)' }] } });
@@ -431,7 +441,8 @@ function waitingOnPerson(id, leadsFound) {
   const found = latestLeads(ROOT);
   const ready = leadsFound.filter((l) => found.get(l)?.status === 'qualified' && !found.get(l)?.hold);
   if (leadsFound.length) {
-    lines.push(`- This run found ${leadsFound.length} lead(s); ${ready.length} can be drafted now.${ready.length ? ' Draft emails for them with the button on the Outreach page, or say "draft emails for the new leads".' : ''}`);
+    // A lead task drafts the outreach for the leads that qualify by itself, so what is left here is a lead whose draft didn't happen.
+    lines.push(`- This run found ${leadsFound.length} lead(s); ${ready.length ? `${ready.length} qualified but still have no draft. Ask the team to try again with the button on the Outreach page, or say "draft emails for the new leads".` : 'every one that qualified has a draft, and the others did not qualify.'}`);
   }
   const drafts = state.drafts.filter((d) => d.state === 'ready');
   if (drafts.length) lines.push(`- ${drafts.length} draft(s) passed review and wait for your approval: ${drafts.map((d) => d.company).join(', ')}. Approving one sends it (during the pilot, [TEST] copies to the pilot test recipients only).`);
@@ -439,12 +450,15 @@ function waitingOnPerson(id, leadsFound) {
 }
 
 async function runTask(t, timeoutMs) {
-  console.log(`\n${t.id} started: ${t.task}`);
+  say(t, `\n${t.id} started: ${t.task}`);
   update(t.id, { status: 'running', started: now(), note: '' });
   const startedMs = Date.now() - 1000; // file times can be coarser than a millisecond
   const mailConfigBefore = readText(MAIL_CONFIG);
   const lessonsBefore = memoryEntries();
-  const leadsBefore = new Set(latestLeads(ROOT).keys());
+  // Tasks for other products run at the same time and import leads too: count only this task's product (or any, with no product).
+  const mine = (lead) => !t.product || lead.product === t.product;
+  const leadsOf = () => new Map([...latestLeads(ROOT)].filter(([, lead]) => mine(lead)));
+  const leadsBefore = new Set(leadsOf().keys());
   const lane = await runDraftLane({ task: t, session: laneStep(t, timeoutMs) });
   if (lane && lane.status !== 'limit') appendFileSync(join(RUNS, `${t.id}.log`), `${JSON.stringify({ type: 'result', is_error: false, result: lane.summary, num_turns: 0 })}\n`);
   const out = !lane ? await runSession(t, timeoutMs)
@@ -454,7 +468,7 @@ async function runTask(t, timeoutMs) {
 
   if (out.limitRejected) {
     update(t.id, { status: 'queued', note: `stopped by the plan's usage limit at ${now()}; runs again on the next jarvis run` });
-    console.log(`${t.id} was stopped by the plan's usage limit. It's back in the queue.`);
+    say(t, `${t.id} was stopped by the plan's usage limit. It's back in the queue.`);
     return 'limit';
   }
 
@@ -471,13 +485,13 @@ async function runTask(t, timeoutMs) {
       `# ${t.id}\n\n**Task:** ${t.task}\n\n**Status:** ${status}. The coordinator didn't write a report, so this is its final reply.\n\n${out.resultText || '(no reply)'}\n`,
     );
   }
-  const leadsFound = [...latestLeads(ROOT).keys()].filter((id) => !leadsBefore.has(id));
+  const leadsFound = [...leadsOf().keys()].filter((id) => !leadsBefore.has(id));
   const waiting = waitingOnPerson(t.id, leadsFound);
   if (waiting) appendFileSync(join(ROOT, report), `\n## Waiting for you on the Outreach page\n\n${waiting}\n`);
   const sends = testSends(startedMs, mailConfigBefore);
   if (sends) {
     appendFileSync(join(ROOT, report), `\n## Test emails (sent by Jarvis after the task)\n\n${sends.text}\n`);
-    console.log(sends.text);
+    say(t, sends.text);
   }
   const note = [
     out.isError ? out.resultText.slice(0, 120) : '',
@@ -488,11 +502,11 @@ async function runTask(t, timeoutMs) {
     .filter(Boolean)
     .join('; ');
   update(t.id, { status, report, finished: now(), turns: out.turns, note, leads_found: leadsFound });
-  console.log(`${t.id} ${STATUS_LABEL[status] || status}. Report: ${report}`);
+  say(t, `${t.id} ${STATUS_LABEL[status] || status}. Report: ${report}`);
   return status;
 }
 
-// Only one queue run at a time: two would compete for the same plan window and the same board.
+// Only one runner at a time: it starts every lane itself, so two runners would start the same task twice.
 function takeRunLock() {
   mkdirSync(RUNS, { recursive: true });
   for (let i = 0; i < 2; i++) {
@@ -516,7 +530,7 @@ function takeRunLock() {
       } catch {
         continue; // released between our two calls
       }
-      if (pid && pidAlive(pid)) fail(`A Jarvis run is already going (process ${pid}). Add tasks with jarvis.mjs add; that run picks them up.`);
+      if (pid && pidAlive(pid)) fail(`A Jarvis run is already going (process ${pid}). Add tasks with jarvis.mjs add; that run picks them up within seconds when their product's lane is free.`);
       try {
         unlinkSync(RUN_LOCK); // left by a run that crashed
       } catch {
@@ -525,6 +539,33 @@ function takeRunLock() {
     }
   }
   fail('Could not take the Jarvis run lock.');
+}
+
+// One lock per running task: ops/runs/lanes/<id>.lock holds the runner's pid. Mission control reads them to tell which
+// tasks are really running; a crashed runner leaves them behind, and the next runner clears them.
+const laneLockFile = (id) => join(LANE_LOCKS, `${id}.lock`);
+function takeLaneLock(id) {
+  mkdirSync(LANE_LOCKS, { recursive: true });
+  writeFileSync(laneLockFile(id), String(process.pid));
+}
+function dropLaneLock(id) {
+  try {
+    unlinkSync(laneLockFile(id));
+  } catch {
+    // gone already
+  }
+}
+function clearStaleLaneLocks() {
+  if (!existsSync(LANE_LOCKS)) return;
+  for (const f of readdirSync(LANE_LOCKS)) {
+    let pid = 0;
+    try {
+      pid = Number(readFileSync(join(LANE_LOCKS, f), 'utf8'));
+    } catch {
+      continue;
+    }
+    if (!pid || pid === process.pid || !pidAlive(pid)) dropLaneLock(f.replace(/\.lock$/, ''));
+  }
 }
 
 async function run(opts) {
@@ -537,31 +578,54 @@ async function run(opts) {
     fail(why);
   }
   takeRunLock();
-  // A task left "running" by a run that crashed goes back to the queue.
+  // Tasks left "running" by a run that crashed go back to the queue, and so do their lane locks.
+  clearStaleLaneLocks();
   withQueue((queue) => queue.filter((t) => t.status === 'running').forEach((t) => Object.assign(t, { status: 'queued', note: 'previous run was interrupted' })));
 
   const timeoutMs = (opts.timeoutMin || DEFAULT_TIMEOUT_MIN) * 60_000;
+  const lanes = laneLimit();
+  const active = new Map(); // task id -> its promise, one per running task
+  let started = 0;
   let ran = 0;
+  let stopped = false; // the plan's limit stopped a task: start nothing more, let the others finish
+  let told = false;
   for (;;) {
-    if (opts.max && ran >= opts.max) break;
-    const next = loadQueue().find((t) => t.status === 'queued' && (!opts.only || t.id === opts.only));
-    if (!next) break;
-    const blocked = !opts.ignoreLimits && blockedWindow();
-    if (blocked) {
-      console.log(
-        `\nNot starting ${next.id}: the plan's ${windowLabel(blocked.name)} window is at ${Math.round(blocked.utilization * 100)}% ` +
-          `(stop at ${Math.round(STOP_AT * 100)}%), so a task could be cut off. It resets ${resetTime(blocked.resetsAt)}. ` +
-          'Mission control starts the waiting tasks again once it resets (or run jarvis again then, or use --ignore-limits).',
-      );
-      noteResume(blocked.resetsAt);
-      break;
+    if (!stopped && !(opts.max && started >= opts.max)) {
+      // The plan guard counts for every lane: nothing starts while a window is full; below it, several start at once.
+      const queue = loadQueue().filter((t) => !opts.only || t.id === opts.only || t.status === 'running');
+      const next = startable(queue, lanes).slice(0, opts.max ? opts.max - started : undefined);
+      const blocked = next.length && !opts.ignoreLimits && blockedWindow();
+      if (blocked) {
+        if (!told) {
+          told = true;
+          console.log(
+            `\nNot starting ${next[0].id}: the plan's ${windowLabel(blocked.name)} window is at ${Math.round(blocked.utilization * 100)}% ` +
+              `(stop at ${Math.round(STOP_AT * 100)}%), so a task could be cut off. It resets ${resetTime(blocked.resetsAt)}. ` +
+              'Mission control starts the waiting tasks again once it resets (or run jarvis again then, or use --ignore-limits).',
+          );
+        }
+        noteResume(blocked.resetsAt);
+      } else {
+        for (const t of next) {
+          started++;
+          takeLaneLock(t.id);
+          // runTask marks the task running before its first await, so the next pass sees the lane as busy.
+          const job = runTask(t, timeoutMs).then((result) => {
+            dropLaneLock(t.id);
+            active.delete(t.id);
+            ran++;
+            if (result === 'limit') {
+              stopped = true;
+              noteResume();
+            }
+          });
+          active.set(t.id, job);
+        }
+      }
     }
-    const result = await runTask(next, timeoutMs);
-    ran++;
-    if (result === 'limit') {
-      noteResume();
-      break;
-    }
+    if (!active.size) break;
+    // While a lane is busy, look at the queue again every few seconds; a finished task wakes the loop at once.
+    await Promise.race([...active.values(), new Promise((done) => setTimeout(done, POLL_MS))]);
   }
   const left = loadQueue().filter((t) => t.status === 'queued').length;
   console.log(`\n${ran} task(s) run. ${left} still queued. The queue is in ops/queue.md.`);
