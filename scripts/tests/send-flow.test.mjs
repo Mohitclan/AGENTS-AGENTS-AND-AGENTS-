@@ -50,7 +50,7 @@ const lead = {
   next_action: 'Test', researched_at: '2026-11-02',
 };
 
-const draft = `---\nproduct: motionrepo\n---\n\n## Send schedule\n\n| Message | Working day |\n|---|---|\n| Email 1 | 0 |\n| Email 2 | 4 |\n\n## Email 1\n\nSubject: Launch video idea\n\nHi Asha,\n\nYour launch is on 20 November. Would a video from your repo help?\n\n{{SENDER_NAME}}, {{COMPANY_NAME}}\n\nReply "stop" and I won't write again.\n\n## Email 2\n\nSubject: Launch video sample\n\nHi Asha,\n\nOne follow-up before your launch. Shall I make a sample from the public repo?\n\n{{SENDER_NAME}}, {{COMPANY_NAME}}\n\nReply "stop" and I won't write again.\n`;
+const draft = `---\nproduct: motionrepo\n---\n\n## Send schedule\n\n| Message | Working day |\n|---|---|\n| Email 1 | 0 |\n| Email 2 | 4 |\n\n## Email 1\n\nSubject: Launch video idea\n\nHi Asha,\n\nYour launch is on 20 November. Would a video from your repo help?\n\nBest regards,\n{{COMPANY_NAME}}\n\nReply "stop" and I won't write again.\n\n## Email 2\n\nSubject: Launch video sample\n\nHi Asha,\n\nOne follow-up before your launch. Shall I make a sample from the public repo?\n\nBest regards,\n{{COMPANY_NAME}}\n\nReply "stop" and I won't write again.\n`;
 
 const env = { SMTP_PASS: 'test-only' };
 const run = (script, ...args) => new Promise((done) => {

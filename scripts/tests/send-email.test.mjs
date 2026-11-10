@@ -23,7 +23,8 @@ Hi Asha,
 
 Body one.
 
-{{SENDER_NAME}}, {{COMPANY_NAME}}
+Best regards,
+{{COMPANY_NAME}}
 
 ## Email 2
 

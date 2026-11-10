@@ -8,9 +8,9 @@ These are the templates the outreach agent uses today (the `email-template` skil
 
 | Email | When | Purpose |
 |---|---|---|
-| Email 1 | Day 0 | First contact: about them, then us, one question |
-| Email 2 | 4 working days later, only if no reply | Short reminder plus an easy first step (the free trial) |
-| Email 3 | 4 more working days, only if no reply | Last email: answer the main worry, then stop |
+| Email 1 | Day 0 | First contact: about them, then us, a walkthrough offer. Logo signature |
+| Email 2 | 4 working days later, only if no reply | Short reminder, an easy first step, the same offer. Logo signature, opt-out line |
+| Email 3 | 7 more working days, only if no reply | Last email: answer the main worry, then stop. Logo signature, opt-out line |
 
 Every follow-up stops at once if they reply or opt out.
 
@@ -39,40 +39,53 @@ PanScience Innovations              [sent as the logo signature: docs/brand/emai
 
 Rules: no opt-out line on Email 1 (follow-ups keep theirs), no links in the body, no hype words, no exclamation marks.
 
-## Email 2: follow-up (45 to 75 words, same thread)
+## Email 2: follow-up (set 2026-11-10, 45 to 75 words, same thread)
+
+Goes 4 working days after Email 1, only if there's no reply. Ends with the logo signature, then the opt-out line.
 
 ```
-Subject: Re: {{Email 1 subject}}
+Subject: Re: <email 1's subject, exactly>
 
-Hi {{First name}},
+Hi <first name>,
 
-My first note was about {{Product}} and {{Company}}'s {{topic}}. In short, {{one-line reminder of what it does}}.
+My note on <the weekday email 1 goes, or "last week"> was about <the topic of email 1's observation, in a few words>.
 
-{{An easy first step, e.g. the free trial, with confirmed terms: "The trial is free for 14 days, with no card."}} To try it:
-{{Product website}}
+We <what the product does, present tense, shorter than in email 1> to help <company> <the key outcome>.
+
+<Optional: one new thing from confirmed facts: an easy first step such as the free trial with its confirmed terms, a proof point, or a resource. Leave the whole paragraph out if there is none.>
+
+I'd be glad to walk you through how <product> could help <company> on a short call or briefing, whenever suits you.
+
+Best regards,
+{{COMPANY_NAME}}
 
 To opt out, reply 'stop' and I won't write again.
-
-{{Sender signature}}
 ```
 
-## Email 3: last email (45 to 75 words, same thread)
+## Email 3: last email (set 2026-11-10, 45 to 75 words, same thread)
+
+Goes 7 working days after Email 2, only if there's still no reply. Ends with the logo signature, then the opt-out line.
 
 ```
-Subject: Re: {{Email 1 subject}}
+Subject: Re: <email 1's subject, exactly>
 
-Hi {{First name}},
+Hi <first name>,
 
-My earlier notes were about {{Product}} and {{Company}}'s {{topic}}. {{Answer the most likely worry in one or two lines, e.g. how it handles their code.}}
+My earlier notes were about <the same topic>.
 
-{{Link to the page that answers it, if there is one}}
+<The most likely worry for this company, answered in one or two lines from confirmed facts, e.g. "MotionRepo only reads your repository and never writes to it.">
 
-This is my last email. Reply with any question.
+<Optional: the page that answers it, such as the security page, on its own line.>
+
+This is my last note on this. If it's useful later, reply to this email and we'll walk you through it.
+
+Best regards,
+{{COMPANY_NAME}}
 
 To opt out, reply 'stop' and I won't write again.
-
-{{Sender signature}}
 ```
+
+Every email, first, follow-up and last, signs off with "Best regards," and the logo signature. The copy checker fails an email without it, so it can't be sent. To change any wording, edit these blocks (and tell Claude, so the `email-template` skill matches).
 
 ## A real example (Illos, passed review at 97/100)
 
@@ -117,6 +130,6 @@ To opt out, reply 'stop' and I won't write again.
 
 1. **Who signs the emails.** Today it is "PanScience Launch, Launch team" from launch@panscience.xyz, a team name rather than a person. Founders usually get more replies writing as themselves: give a name and role (the sending address can stay launch@).
 2. **Decided on 2026-11-10: no AI names in emails.** No email says which AI the product uses (no Claude, Anthropic and the like). A worry about code is answered with what the product does with the repository and the security page link. The copy checker fails an email that names one, and it can't be sent.
-3. **Follow-ups: a call or the trial?** The skill says follow-ups offer a 15-minute call and propose a day ("Would Thursday afternoon work?"). The drafts offer the free trial instead. Pick one.
-4. **One opt-out line everywhere.** The drafts use two wordings; keep "To opt out, reply 'stop' and I won't write again."
+3. **Decided on 2026-11-10: follow-ups use Email 1's offer.** Both follow-ups offer the same "short call or briefing, whenever suits you" as Email 1 (no 15-minute call, no proposed day); the follow-up may add the free trial as an easy first step.
+4. **Opt-out line:** "To opt out, reply 'stop' and I won't write again." under the signature of Email 2 and 3. Email 1 has none, by your choice; US and EU rules expect a way to opt out in every commercial email, so consider adding the same line under Email 1's signature too.
 5. **Anything you always or never want said**, such as a price, a discount, or a client name the fact sheet allows.

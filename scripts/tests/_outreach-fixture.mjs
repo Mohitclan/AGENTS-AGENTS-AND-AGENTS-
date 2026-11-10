@@ -38,7 +38,8 @@ Hello one.
 
 To opt out, reply 'stop' and I won't write again.
 
-{{SENDER_NAME}}, {{COMPANY_NAME}}
+Best regards,
+{{COMPANY_NAME}}
 
 ## Email 2
 
@@ -50,7 +51,8 @@ Hello two.
 
 To opt out, reply 'stop' and I won't write again.
 
-{{SENDER_NAME}}, {{COMPANY_NAME}}
+Best regards,
+{{COMPANY_NAME}}
 
 ## Email 3
 
@@ -62,7 +64,8 @@ Hello three.
 
 To opt out, reply 'stop' and I won't write again.
 
-{{SENDER_NAME}}, {{COMPANY_NAME}}
+Best regards,
+{{COMPANY_NAME}}
 `;
 
 export const draftPath = (id) => `outputs/outreach/${id}.md`;

@@ -26,7 +26,8 @@ MotionRepo turns a GitHub repo into a launch video and PDFs. The free trial need
 
 Worth a look before Friday?
 
-Best, {{SENDER_NAME}}
+Best regards,
+{{COMPANY_NAME}}
 
 If this isn't relevant, reply "no" and I won't write again.
 `;
@@ -140,7 +141,7 @@ describe('social and SEO', () => {
 // T-20261103-04: every check below only ever warns. Each has a case that fires and a case that stays quiet.
 const clean = (r) => assert.equal(r.code, 0, r.out);
 const seqEmail = (n, subject, ask, extra = '') =>
-  `## Email ${n}\n\nSubject: ${subject}\n\nHi Asha,\n\nYour launch is on Friday and teams then make videos by hand. ${extra}\n\n${ask}\n\nBest, {{SENDER_NAME}}\n\nIf this isn't relevant, reply "no" and I won't write again.\n\n`;
+  `## Email ${n}\n\nSubject: ${subject}\n\nHi Asha,\n\nYour launch is on Friday and teams then make videos by hand. ${extra}\n\n${ask}\n\nBest regards,\n{{COMPANY_NAME}}\n\nIf this isn't relevant, reply "no" and I won't write again.\n\n`;
 
 describe('A1 superlatives and quotes (warnings)', () => {
   it('warns on "fastest", "better than" and "#1", and does not fail', () => {
@@ -345,10 +346,12 @@ describe('A18 tracking parameters and B6 sequence checks (warnings)', () => {
     assert.ok(!warned(r, 'email-sequence'), r.out);
     clean(r);
   });
-  it('warns when two subjects repeat', () => {
-    const r = lint(seqEmail(1, 'your launch video', 'Worth a look before Friday?') + seqEmail(2, 'Re: your launch video', 'Want me to send the sample?'), 'email');
+  it('warns when two subjects repeat, but not for a follow-up threaded as "Re: <email 1 subject>"', () => {
+    const r = lint(seqEmail(1, 'your launch video', 'Worth a look before Friday?') + seqEmail(2, 'your launch video', 'Want me to send the sample?'), 'email');
     assert.ok(warned(r, 'email-sequence'));
     assert.match(r.out, /repeats the subject of email 1/);
+    const threaded = lint(seqEmail(1, 'your launch video', 'Worth a look before Friday?') + seqEmail(2, 'Re: your launch video', 'Want me to send the sample?'), 'email');
+    assert.doesNotMatch(threaded.out, /repeats the subject/);
   });
   it('warns when email 1 asks for a meeting', () => {
     const r = lint(seqEmail(1, 'your launch video', 'Can we hop on a quick call this week?'), 'email');

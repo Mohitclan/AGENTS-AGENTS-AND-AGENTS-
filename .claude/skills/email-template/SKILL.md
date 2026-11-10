@@ -47,16 +47,53 @@ Body about 90-110 words; the whole email, with greeting and signature, stays und
 - Never "you're the person I could reach".
 - **Senior people are never asked to forward** (CXO, founder, MD, VP, partner, general counsel, director). They get a normal first email, which may ask whether it sits with their team.
 
-## Follow-ups
+## Follow-ups and the last email
 
-45-75 words, sent in the same thread: no new subject, write `Subject: Re: <email 1's subject>`. Four beats, in order:
+Every sequence is three emails: the first email, one follow-up and the last email. Each follows its fixed layout below, set on 2026-11-10 when the founder asked for "the template used, and with signature on every email" (see `docs/EMAIL-TEMPLATES.md`). Keep the fixed wording exactly; fill each `<...>`. All three sign off with "Best regards," and `{{COMPANY_NAME}}`, which `scripts/send-email.mjs` turns into the logo signature; lint-copy fails an email without it. The follow-up and the last email go in the same thread and end with the opt-out line under the signature.
 
-1. Check the first email arrived, naming what it was and when ("My note on Monday was about <topic>"). Don't start with "I".
-2. Explain it again, like the first email but much shorter.
-3. Offer a call of about 15 minutes.
-4. One direct closing question proposing a day: "Would Thursday afternoon work?"
+**Email 2, the follow-up** (4 working days after the first email, only if there's no reply; body 45-75 words):
 
-Write the first email's date and today's date into the brief before drafting; never guess what day it is. Default spacing: 4 days after the first email, then 7 more.
+```
+Subject: Re: <email 1's subject, exactly>
+
+Hi <first name>,
+
+My note on <the weekday email 1 goes, or "last week"> was about <the topic of email 1's observation, in a few words>.
+
+We <what the product does, present tense, shorter than in email 1> to help <company> <the key outcome>.
+
+<Optional: one new thing from confirmed facts: an easy first step such as the free trial with its confirmed terms, a proof point, or a resource. Leave the whole paragraph out if there is none.>
+
+I'd be glad to walk you through how <product> could help <company> on a short call or briefing, whenever suits you.
+
+Best regards,
+{{COMPANY_NAME}}
+
+To opt out, reply 'stop' and I won't write again.
+```
+
+**Email 3, the last email** (7 working days after the follow-up, only if there's still no reply; body 45-75 words):
+
+```
+Subject: Re: <email 1's subject, exactly>
+
+Hi <first name>,
+
+My earlier notes were about <the same topic>.
+
+<The most likely worry for this company, answered in one or two lines from confirmed facts, e.g. "MotionRepo only reads your repository and never writes to it.">
+
+<Optional: the page that answers it, such as the security page, on its own line.>
+
+This is my last note on this. If it's useful later, reply to this email and we'll walk you through it.
+
+Best regards,
+{{COMPANY_NAME}}
+
+To opt out, reply 'stop' and I won't write again.
+```
+
+Rules for both: never start with "I", never "just following up", "circling back" or "bumping this", no second question, no booking link, no new claim that isn't in the fact sheet. Write the first email's send day into the brief; never guess what day it is.
 
 ## LinkedIn note
 

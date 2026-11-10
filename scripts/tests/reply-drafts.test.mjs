@@ -134,7 +134,7 @@ describe('Draft an answer', () => {
     assert.equal(j.added.length, 1);
     assert.deepEqual(o.outreachState(fx.root).replies.map((r) => [r.drafting, r.canDraft]), [['J-20261110-01', false]]);
     // the team wrote it
-    fx.write(ANSWER, `---\nlead: ${ACME}\n---\n\n## Email 1\n\nSubject: Re: First\n\nHi Jane,\n\nHere are the details.\n\nTo opt out, reply 'stop' and I won't write again.\n\n{{SENDER_NAME}}, {{COMPANY_NAME}}\n`);
+    fx.write(ANSWER, `---\nlead: ${ACME}\n---\n\n## Email 1\n\nSubject: Re: First\n\nHi Jane,\n\nHere are the details.\n\nTo opt out, reply 'stop' and I won't write again.\n\nBest regards,\n{{COMPANY_NAME}}\n`);
     fx.write('ops/queue.json', JSON.stringify([{ id: 'J-20261110-01', status: 'done' }]));
     const done = rd.queueAnswer(fx.root, '<a1@acme.test>', {}, j);
     assert.deepEqual([done.ok, done.message], [false, `An answer is already drafted: ${ANSWER}.`]);
@@ -276,7 +276,7 @@ describe('answers on the Emails page', () => {
   const draftAnswer = async () => {
     fx.reset();
     await addReply(fx, { id: '<a1@acme.test>', from: 'cto@acme.test', name: 'Sam', text: 'Yes, tell me more.' });
-    fx.write(ANSWER, `---\nlead: ${ACME}\nproduct: motionrepo\n---\n\n## Email 1\n\nSubject: Re: First\n\nHi Sam,\n\nHere are the details.\n\nTo opt out, reply 'stop' and I won't write again.\n\n{{SENDER_NAME}}, {{COMPANY_NAME}}\n`);
+    fx.write(ANSWER, `---\nlead: ${ACME}\nproduct: motionrepo\n---\n\n## Email 1\n\nSubject: Re: First\n\nHi Sam,\n\nHere are the details.\n\nTo opt out, reply 'stop' and I won't write again.\n\nBest regards,\n{{COMPANY_NAME}}\n`);
     await new Promise((r) => setTimeout(r, 25));
     fx.write('outputs/reviews/T-20261110-01-r1.md', `# Review of ${ANSWER}\n\n**Verdict: PASS, 92/100.**\n`);
   };
