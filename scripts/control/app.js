@@ -2027,7 +2027,7 @@ const worldView = {
 };
 
 // ---- Posts: be where buyers ask --------------------------------------------------------------------
-// Two tabs. Posts: social posts the marketing agent drafted; a tick approves one that passed review (then Copy text and a
+// Two tabs. Posts: social posts the social writer drafted; a tick approves one that passed review (then Copy text and a
 // link to the channel's compose page appear), a cross declines it, and "Mark posted" records that a person posted it.
 // Conversations: public posts where people ask for what the product does, each with a suggested reply to copy.
 // Nothing is posted by an agent. For a connected account (Connected accounts panel) an approved post also has a
@@ -2120,7 +2120,7 @@ const postsView = {
     postsView.marking = null;
     loadAccounts();
     postsView.link = '';
-    $('#view').innerHTML = `<div class="page-h"><h1>Posts</h1><p class="muted">Be where buyers ask. <b>Posts</b> are what the marketing agent drafted; <b>Conversations</b> are public posts where people ask for what our products do, each with a suggested reply. Nothing is posted for you, by this page or by any agent: copy the text, post it yourself, then mark it posted. Only a post that passed review can be approved.</p></div>
+    $('#view').innerHTML = `<div class="page-h"><h1>Posts</h1><p class="muted">Be where buyers ask. <b>Posts</b> are what the social writer drafted; <b>Conversations</b> are public posts where people ask for what our products do, each with a suggested reply. Nothing is posted for you, by this page or by any agent: copy the text, post it yourself, then mark it posted. Only a post that passed review can be approved.</p></div>
       <div id="po-root">
         <div id="po-accounts"></div>
         <div class="po-bar"><div class="po-tabs" role="tablist" aria-label="Posts or conversations">${[['posts', 'Posts'], ['conversations', 'Conversations']].map(([k, label]) => `<button type="button" role="tab" data-ptab="${k}">${label} <b data-pn="${k}"></b></button>`).join('')}</div></div>
@@ -2205,7 +2205,7 @@ const postsView = {
       return `<button type="button" data-pfilter="${k}" aria-pressed="${k === wanted}">${label}${n ? ` <b>${n}</b>` : ''}</button>`;
     }).join('');
     const empty = {
-      posts: { pending: 'No post is waiting for you. The marketing agent drafts new ones every Monday; they appear here once they pass review.', approved: 'No approved post is waiting to be posted.', posted: 'Nothing marked posted yet.', declined: 'Nothing declined.', all: 'No posts drafted yet.' },
+      posts: { pending: 'No post is waiting for you. The social writer drafts new ones every Monday; they appear here once they pass review.', approved: 'No approved post is waiting to be posted.', posted: 'Nothing marked posted yet.', declined: 'Nothing declined.', all: 'No posts drafted yet.' },
       conversations: { new: 'No new conversations. The buyer-intent watch looks for them every night.', posted: 'You have not marked any reply as posted yet.', skipped: 'Nothing skipped.', all: 'No conversations found yet.' },
     }[tab][wanted];
     const panel = $('#po-accounts');
