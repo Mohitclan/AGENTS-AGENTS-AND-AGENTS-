@@ -38,6 +38,8 @@ import { mailReadiness } from './mail-check.mjs';
 import { checkReplies, queueAnswer } from './reply-drafts.mjs';
 import { answerQuestion, answersTask, dismissQuestions, markSent, questionsState } from './questions.mjs';
 import { decidePost, postsState } from './posts.mjs';
+import { publishFromPage } from './social-post.mjs';
+import { accountsState } from './social-accounts.mjs';
 import { ensureSchedule, runDue, scheduleState, setEnabled } from './schedule.mjs';
 
 const DEFAULT_PORT = 4318;
@@ -765,6 +767,8 @@ function main() {
         if (!signedIn) return path.startsWith('/api/') ? json(res, 401, { message: 'Sign in first.' }) : send(res, 200, SIGN_IN, 'text/html');
         if (path === '/') return send(res, 200, APP, 'text/html');
         if (path === '/api/state') return json(res, 200, state());
+        // The Posts page's Connected accounts panel: which channels have their credentials set (never the values).
+        if (path === '/api/social/accounts') return json(res, 200, { accounts: accountsState(ROOT) });
         // the office speaker: the songs a person put in music/, and one of them streamed
         if (path === '/api/music') return json(res, 200, { folder: 'music', songs: listSongs(ROOT) });
         if (path.startsWith('/music/')) {
@@ -946,6 +950,22 @@ function main() {
           const r = decidePost(ROOT, String(ask.id || ''), String(ask.decision || ''), String(ask.by || 'a person on the page').slice(0, 60), ask.note);
           if (r.ok) lastSig = '';
           return json(res, r.status, { message: r.message });
+        }
+        // Posts: one click publishes an approved post through the channel's official API. It writes the approval row that
+        // names the person, the post and the channel, then publishes; a refused post leaves no row. Page only.
+        if (path === '/api/posts/publish') {
+          if (!sameSite(from)) return json(res, 403, { message: 'Use the team page itself.' });
+          let ask;
+          try {
+            ask = JSON.parse(body || '{}');
+          } catch {
+            return json(res, 400, { message: 'That request could not be read.' });
+          }
+          publishFromPage(ROOT, { id: String(ask.id || ''), by: String(ask.by || 'a person on the page').slice(0, 60) }).then((r) => {
+            lastSig = '';
+            json(res, r.ok ? 200 : r.status || 409, { message: r.ok ? r.message : r.reason, url: r.url || '', draft: !!r.draft });
+          }).catch((error) => json(res, 500, { message: `That didn't work: ${error.message}` }));
+          return undefined;
         }
         // Questions for you: a person answers or dismisses a question from a report, or sends the answers to the team.
         if (path.startsWith('/api/questions/')) {

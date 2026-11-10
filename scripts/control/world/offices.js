@@ -8,6 +8,8 @@
 //   classic  true when the office also has the older 2D and 3D views (#/), which show this team too
 //   view3d   true when the office can also be shown in 3D (world/world3d.js), built from its map
 //   pet      'dog' for the office dog (world/pet.js), which wanders the floor
+//   looks    agent -> robot look (one of world/crew.js): a real agent of this office drawn as that robot, not as a person
+//            or a Gem. It keeps its seat, status and page; only its picture changes. Agents without a look stay as they are
 //   crew     robots that sit in some planned roles' seats until real agents exist: { id, name, role, look }, the
 //            role one of `planned`, the look one of world/crew.js. Front end only: no skills or tasks
 //

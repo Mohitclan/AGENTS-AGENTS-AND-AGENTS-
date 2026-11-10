@@ -54,6 +54,20 @@ export function loadMailSecret(root = ROOT, env = process.env) {
   return '';
 }
 
+// Any other secret by its variable name (BLUESKY_APP_PASSWORD, DEVTO_API_KEY, ...): the environment first, else the
+// git-ignored .env. Same rules as the mail password: it is never printed, logged or written. '' when it is not set.
+export function loadSecret(name, root = ROOT, env = process.env) {
+  if (!/^[A-Z][A-Z0-9_]*$/.test(String(name))) return '';
+  if (env[name] && String(env[name]).trim()) return String(env[name]).trim();
+  const file = join(root, '.env');
+  if (!existsSync(file)) return '';
+  for (const line of readFileSync(file, 'utf8').split(/\r?\n/)) {
+    const m = line.match(new RegExp(`^\\s*(?:export\\s+)?${name}\\s*=\\s*(.*)$`));
+    if (m) return m[1].trim().replace(/^["']|["']$/g, '');
+  }
+  return '';
+}
+
 // True when the module at metaUrl is the script node was started with. Compares real paths, so a
 // symlinked folder (macOS's /var is /private/var) doesn't make a script silently do nothing.
 export function isMain(metaUrl) {

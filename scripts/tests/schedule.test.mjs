@@ -345,7 +345,7 @@ describe('the schedule file', () => {
 
   it('creates ops/schedule.json when it is missing, and leaves an existing one alone', () => {
     assert.equal(existsSync(join(dir, 'ops', 'schedule.json')), false);
-    assert.equal(loadSchedule(dir).length, 4, 'a missing file reads as the defaults');
+    assert.equal(loadSchedule(dir).length, 5, 'a missing file reads as the defaults');
     assert.equal(existsSync(join(dir, 'ops', 'schedule.json')), false, 'reading writes nothing');
     ensureSchedule(dir);
     assert.deepEqual(JSON.parse(readFileSync(join(dir, 'ops', 'schedule.json'), 'utf8')), DEFAULT_SCHEDULE);
@@ -410,7 +410,7 @@ describe('the Reports page: schedules over HTTP', () => {
 
   it('puts the schedules and the weekly reports into the page state', async () => {
     const { schedule } = await (await fetch(`${base}/api/state`)).json();
-    assert.deepEqual(schedule.entries.map((e) => [e.id, e.when, e.enabled]), [['nightly-leads', 'Every day at 02:00', true], ['weekly-report', 'Every Monday at 09:00', true], ['buyer-intent-watch', 'Every day at 03:00', true], ['weekly-social-posts', 'Every Monday at 10:00', true]]);
+    assert.deepEqual(schedule.entries.map((e) => [e.id, e.when, e.enabled]), [['nightly-leads', 'Every day at 02:00', true], ['weekly-report', 'Every Monday at 09:00', true], ['buyer-intent-watch', 'Every day at 03:00', true], ['weekly-social-posts', 'Every Monday at 10:00', true], ['social-metrics', 'Every day at 08:00', true]]);
     assert.ok(schedule.entries.every((e) => e.last_run === null && typeof e.next === 'string'));
     assert.deepEqual(schedule.weekly.map((w) => [w.week, w.path]), [['2026-11-02', 'outputs/reports/weekly-2026-11-02.md']]);
   });
@@ -445,7 +445,7 @@ describe('the Reports page: schedules over HTTP', () => {
 
   it('writes the weekly report itself when its entry runs, with no Claude session', () => {
     // the week is named here so the test does not depend on today's date; the default entry names none
-    const entries = loadSchedule(repo.dir).map((e) => (e.kind === 'task' ? { ...e, enabled: false } : { ...e, script: 'weekly.mjs --week 2026-11-02' }));
+    const entries = loadSchedule(repo.dir).map((e) => (e.kind === 'task' || e.id === 'social-metrics' ? { ...e, enabled: false } : { ...e, script: 'weekly.mjs --week 2026-11-02' }));
     saveSchedule(repo.dir, entries);
     const f = fakes();
     const r = runDue(repo.dir, at(9, 9, 0), f);

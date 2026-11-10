@@ -60,6 +60,8 @@ export const DEFAULT_SCHEDULE = [
   },
   // The buyer-intent watch and the weekly social posts (scripts/posts.mjs): their drafts wait on the Posts page.
   ...POST_TASKS.map((t) => ({ kind: 'task', enabled: true, last_run: null, ...t })),
+  // The public numbers of the posts published from the Posts page (scripts/social-metrics.mjs).
+  { id: 'social-metrics', name: 'Social metrics', kind: 'script', every: 'daily 08:00', script: 'social-metrics.mjs', enabled: true, last_run: null },
 ];
 
 // ---- when ----------------------------------------------------------------------------------------

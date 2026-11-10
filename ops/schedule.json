@@ -37,5 +37,14 @@
     "every": "weekly mon 10:00",
     "task": "Draft this week's social posts for motionrepo: 3 LinkedIn posts in the founder's voice (linkedin-founder skill), 2 X posts and 1 dev.to post outline, from confirmed facts only, each saved to outputs/marketing/posts/ and reviewed by the evaluator; publish nothing.",
     "skip_over": 0.6
+  },
+  {
+    "id": "social-metrics",
+    "name": "Social metrics",
+    "kind": "script",
+    "every": "daily 08:00",
+    "script": "social-metrics.mjs",
+    "enabled": true,
+    "last_run": null
   }
 ]

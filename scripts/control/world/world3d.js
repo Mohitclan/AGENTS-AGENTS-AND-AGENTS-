@@ -60,7 +60,7 @@ export function webgl3dAvailable() {
 
 export async function createWorld3D(container, { office, map, label = (n) => n, onOpen }) {
   const grid = buildGrid(map);
-  const { seats, how, planned, crew, wander, perches } = officeLayout(office, map, grid);
+  const { seats, how, planned, crew, looks, wander, perches } = officeLayout(office, map, grid);
   const crowd = createCrowd({ grid, seats, wander });
   const crewBy = new Map(crew.map((c) => [c.key, c])); // the office's robots (crew.js): front end only
   const gemName = (name) => crewBy.get(name)?.name || (identityFor(name).name === name ? label(name) : identityFor(name).name);
@@ -228,11 +228,11 @@ export async function createWorld3D(container, { office, map, label = (n) => n, 
 
   // ---- the people ----
   const names = [...seats.keys()];
-  const agentNames = names.filter((n) => !crewBy.has(n));
+  const agentNames = names.filter((n) => !crewBy.has(n) && !looks.has(n)); // people; a real agent with a look is a robot
   const rigs = new Map(await Promise.all(agentNames.map(async (n) => [n, await loadRig('people', n)])));
   const rig0 = rigs.get(agentNames[0]) || (await loadRig('people', ''));
   const faces = {};
-  await Promise.all([...new Set(crew.map((c) => c.look))].map(async (look) => {
+  await Promise.all([...new Set([...crew.map((c) => c.look), ...looks.values()])].map(async (look) => {
     const tex = await loader.loadAsync(faceOf(look));
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
@@ -258,8 +258,9 @@ export async function createWorld3D(container, { office, map, label = (n) => n, 
   const people = new Map();
   names.forEach((name) => {
     const robot = crewBy.get(name);
-    const ch = robot
-      ? new RobotBuddy(LOOKS[robot.look], { name, face: faces[robot.look] })
+    const look = robot?.look || looks.get(name);
+    const ch = look
+      ? new RobotBuddy(LOOKS[look], { name, face: faces[look] })
       : new Character(rigs.get(name), { name, color: identityFor(name).theme?.primary || '#a58ff0' });
     ch.root.position.copy(to3(seats.get(name)));
     ch.root.rotation.y = seatYaw(name);

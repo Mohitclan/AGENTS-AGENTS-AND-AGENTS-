@@ -64,8 +64,9 @@ export const CHANNELS = {
   devto: { label: 'dev.to', compose: 'https://dev.to/new', limit: null },
   bluesky: { label: 'Bluesky', compose: 'https://bsky.app/intent/compose', limit: 300 },
   reddit: { label: 'Reddit', compose: 'https://www.reddit.com/submit', limit: null },
+  mastodon: { label: 'Mastodon', compose: '', limit: 500 },
 };
-const ALIASES = { twitter: 'x', 'x.com': 'x', 'dev.to': 'devto', dev: 'devto', bsky: 'bluesky', 'bluesky.app': 'bluesky' };
+const ALIASES = { twitter: 'x', 'x.com': 'x', 'dev.to': 'devto', dev: 'devto', bsky: 'bluesky', fediverse: 'mastodon', 'bluesky.app': 'bluesky' };
 
 const readJsonl = (f) => (existsSync(f) ? readFileSync(f, 'utf8').split('\n').filter((l) => l.trim()).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean) : []);
 const mtime = (f) => { try { return statSync(f).mtimeMs; } catch { return 0; } };

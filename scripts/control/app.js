@@ -2028,7 +2028,9 @@ const worldView = {
 // Two tabs. Posts: social posts the marketing agent drafted; a tick approves one that passed review (then Copy text and a
 // link to the channel's compose page appear), a cross declines it, and "Mark posted" records that a person posted it.
 // Conversations: public posts where people ask for what the product does, each with a suggested reply to copy.
-// Nothing is posted from here or by any agent: the page only helps a person post by hand.
+// Nothing is posted by an agent. For a connected account (Connected accounts panel) an approved post also has a
+// "Publish to <channel>" button: one confirmation, then the post goes out through the platform's official API. Any other
+// channel (X, Reddit, an account not connected) stays copy, open and mark posted by hand.
 const PO_FILTERS = {
   posts: [['pending', 'To decide'], ['approved', 'Ready to post'], ['posted', 'Posted'], ['declined', 'Declined'], ['all', 'All']],
   conversations: [['new', 'New'], ['posted', 'Replied'], ['skipped', 'Skipped'], ['all', 'All']],
@@ -2047,6 +2049,45 @@ async function copyToClipboard(button, text, what) {
   } catch {
     toast("Couldn't copy. Select the text on the page and copy it yourself.", true);
   }
+}
+
+// The Connected accounts panel: one line per channel, from /api/social/accounts (which variables are set, never their values).
+function accountsPanel(accounts) {
+  if (!accounts) return '';
+  const rows = accounts.map((a) => {
+    const pill = !a.publish ? '<span class="pill p-new">By hand</span>' : a.connected ? '<span class="pill p-done">Connected</span>' : '<span class="pill p-needs_approval">Not connected</span>';
+    return `<li class="po-acct"><b>${esc(a.label)}</b>${pill}<span class="muted tiny">${esc(a.todo)}</span></li>`;
+  }).join('');
+  return `<details class="po-accounts"${accounts.some((a) => a.publish && !a.connected) ? '' : ' open'}><summary>Connected accounts</summary><ul>${rows}</ul><div class="po-acct-foot"><a href="#" class="tiny" data-file="docs/SOCIAL-SETUP.md">Setup steps</a><button type="button" class="small" data-do="recheck">Check again</button></div></details>`;
+}
+
+async function publishPostItem(button, id) {
+  const p = (store.snap?.posts?.posts || []).find((x) => x.id === id);
+  const ask = p?.channel === 'devto'
+    ? 'Save this post to dev.to as a draft? You press Publish on dev.to yourself.'
+    : `Publish this post to ${p?.label || 'the channel'} now? It goes out on the real account.`;
+  if (!window.confirm(ask)) return;
+  const card = button.closest('.po-card');
+  const buttons = card ? [...card.querySelectorAll('button')] : [button];
+  card?.classList.add('busy');
+  for (const b of buttons) b.disabled = true;
+  try {
+    const r = await api('/api/posts/publish', { id, by: 'a person on the page' });
+    toast(r.message);
+  } catch (error) {
+    toast(error.message, true);
+    card?.classList.remove('busy');
+    for (const b of buttons) b.disabled = false;
+  }
+}
+
+async function loadAccounts() {
+  try {
+    postsView.accounts = (await api('/api/social/accounts')).accounts;
+  } catch {
+    postsView.accounts = null;
+  }
+  postsView.update(store.snap);
 }
 
 async function decidePostItem(button, id, decision, note = '') {
@@ -2072,17 +2113,24 @@ const postsView = {
   open: new Set(),
   marking: null, // the id of the card whose "Mark posted" link box is open
   link: '',
+  accounts: null, // the Connected accounts panel's data
   build() {
     postsView.marking = null;
+    loadAccounts();
     postsView.link = '';
     $('#view').innerHTML = `<div class="page-h"><h1>Posts</h1><p class="muted">Be where buyers ask. <b>Posts</b> are what the marketing agent drafted; <b>Conversations</b> are public posts where people ask for what our products do, each with a suggested reply. Nothing is posted for you, by this page or by any agent: copy the text, post it yourself, then mark it posted. Only a post that passed review can be approved.</p></div>
       <div id="po-root">
+        <div id="po-accounts"></div>
         <div class="po-bar"><div class="po-tabs" role="tablist" aria-label="Posts or conversations">${[['posts', 'Posts'], ['conversations', 'Conversations']].map(([k, label]) => `<button type="button" role="tab" data-ptab="${k}">${label} <b data-pn="${k}"></b></button>`).join('')}</div></div>
         <div class="po-filters" id="po-filters" role="group" aria-label="Show"></div>
         <div class="po-list" id="po-list"></div>
       </div>`;
     const root = $('#po-root');
     root.addEventListener('click', (e) => {
+      if (e.target.closest('[data-do="recheck"]')) {
+        loadAccounts();
+        return;
+      }
       const tab = e.target.closest('[data-ptab]');
       if (tab) {
         postsView.tab = tab.dataset.ptab;
@@ -2117,7 +2165,8 @@ const postsView = {
         postsView.link = '';
         postsView.update(store.snap);
         $(`.po-card[data-id="${CSS.escape(id)}"] .po-link`)?.focus();
-      } else if (act === 'cancel') {
+      } else if (act === 'publish') publishPostItem(b, id);
+      else if (act === 'cancel') {
         postsView.marking = null;
         postsView.update(store.snap);
       } else if (act === 'save') decidePostItem(b, id, 'posted', postsView.link.trim());
@@ -2157,6 +2206,12 @@ const postsView = {
       posts: { pending: 'No post is waiting for you. The marketing agent drafts new ones every Monday; they appear here once they pass review.', approved: 'No approved post is waiting to be posted.', posted: 'Nothing marked posted yet.', declined: 'Nothing declined.', all: 'No posts drafted yet.' },
       conversations: { new: 'No new conversations. The buyer-intent watch looks for them every night.', posted: 'You have not marked any reply as posted yet.', skipped: 'Nothing skipped.', all: 'No conversations found yet.' },
     }[tab][wanted];
+    const panel = $('#po-accounts');
+    const html = tab === 'posts' ? accountsPanel(postsView.accounts) : '';
+    if (panel.dataset.html !== html) {
+      panel.dataset.html = html;
+      panel.innerHTML = html;
+    }
     $('#po-list').innerHTML = shown.length ? shown.map((x) => (tab === 'posts' ? postCard(x) : talkCard(x))).join('') : `<p class="muted po-empty">${esc(empty)}</p>`;
   },
 };
@@ -2174,8 +2229,12 @@ function postCard(p) {
   if (p.state === 'pending') acts = `<button type="button" class="po-yes" data-do="approve" title="Approve" aria-label="Approve the ${esc(p.label)} post">✓</button><button type="button" class="po-no" data-do="decline" title="Decline: don't post" aria-label="Decline the ${esc(p.label)} post">✗</button>`;
   else if (p.state === 'waiting') acts = `<button type="button" class="po-no" data-do="decline" title="Decline: don't post" aria-label="Decline the ${esc(p.label)} post">✗</button>`;
   else if (p.state === 'declined' && p.gate === 'ready') acts = `<button type="button" class="po-yes po-small" data-do="approve" aria-label="Approve the ${esc(p.label)} post after all">✓ Approve after all</button>`;
+  const acct = (postsView.accounts || []).find((a) => a.id === p.channel);
+  const publishBtn = acct?.publish && acct.connected && !over
+    ? `<button type="button" class="primary small" data-do="publish">${p.channel === 'devto' ? 'Save draft to dev.to' : `Publish to ${esc(p.label)}`}</button>`
+    : '';
   const post = p.state === 'approved'
-    ? `<div class="po-post"><button type="button" class="primary small" data-do="copy-text">Copy text</button>${p.comment ? '<button type="button" class="small" data-do="copy-comment">Copy first comment</button>' : ''}${compose ? `<a class="po-open" href="${esc(compose)}" target="_blank" rel="noopener noreferrer">Open ${esc(p.label)} ↗</a>` : ''}<button type="button" class="small" data-do="mark">Mark posted</button></div>${markBox(p.id)}`
+    ? `<div class="po-post">${publishBtn}<button type="button" class="${publishBtn ? '' : 'primary '}small" data-do="copy-text">Copy text</button>${p.comment ? '<button type="button" class="small" data-do="copy-comment">Copy first comment</button>' : ''}${compose ? `<a class="po-open" href="${esc(compose)}" target="_blank" rel="noopener noreferrer">Open ${esc(p.label)} ↗</a>` : ''}<button type="button" class="small" data-do="mark">Mark posted</button></div>${markBox(p.id)}`
     : p.state === 'posted' && p.link && safeHref(p.link) ? `<div class="po-post"><a class="po-open" href="${esc(safeHref(p.link))}" target="_blank" rel="noopener noreferrer">Open the post ↗</a></div>` : '';
   const review = p.review ? `${verdictChip(p.review.verdict, p.review.score)}${p.review.stale ? '<span class="muted tiny">changed since</span>' : ''}` : '<span class="pill p-new">Not reviewed</span>';
   return `<article class="po-card s-${esc(p.state)}${open ? ' open' : ''}" data-id="${esc(p.id)}">

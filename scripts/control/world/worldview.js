@@ -27,7 +27,7 @@ export function createWorld(container, { office, map, onOpen, label = (name) => 
   // The name on an agent's tag: its Gem name, or its job title when it has no Gem of its own.
   const gemName = (name) => (identityFor(name).name === name ? label(name) : identityFor(name).name);
   const roomById = new Map(map.rooms.map((r) => [r.id, r]));
-  const { seats: seatOf, planned, crew, wander } = officeLayout(office, map, grid);
+  const { seats: seatOf, planned, crew, looks, wander } = officeLayout(office, map, grid);
   const crewBy = new Map(crew.map((c) => [c.key, c])); // the office's robots (crew.js): front end only
   const crowd = createCrowd({ grid, seats: seatOf, wander, speed: SPEED });
 
@@ -98,7 +98,9 @@ export function createWorld(container, { office, map, onOpen, label = (name) => 
     const robot = crewBy.get(name);
     el.innerHTML = robot
       ? `<img class="wv-bot" src="${badgeOf(robot.look)}" alt=""><span class="wv-name">${esc(robot.name)}</span>`
-      : `${avatarHTML(name, { size: 'sm', mode: 'badge' })}<span class="wv-name">${esc(gemName(name))}</span><span class="wv-doing" hidden></span>`;
+      : looks.has(name) // a real agent drawn as a robot: its badge instead of the Gem, the same name and speech bubble
+        ? `<img class="wv-bot" src="${badgeOf(looks.get(name))}" alt=""><span class="wv-name">${esc(gemName(name))}</span><span class="wv-doing" hidden></span>`
+        : `${avatarHTML(name, { size: 'sm', mode: 'badge' })}<span class="wv-name">${esc(gemName(name))}</span><span class="wv-doing" hidden></span>`;
     stage.append(el);
     const at = [...seatOf.get(name)];
     place(el, at);
@@ -272,7 +274,7 @@ export function createWorld(container, { office, map, onOpen, label = (name) => 
         const a = actors.get(info.name);
         if (!a) continue;
         const st = normalizeState(info.status);
-        if (st !== a.status) setAvatarStatus(a.el.querySelector('.gem'), st, { agentLabel: label(a.name), doing: info.doing });
+        if (st !== a.status && a.el.querySelector('.gem')) setAvatarStatus(a.el.querySelector('.gem'), st, { agentLabel: label(a.name), doing: info.doing });
         a.status = st;
         a.doing = info.doing || '';
         const bubble = a.el.querySelector('.wv-doing');
