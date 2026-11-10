@@ -11,8 +11,8 @@ export const PRODUCTS = [
   { slug: 'pitchlight', name: 'Pitchlight', re: /pitch[\s-]?light/gi },
   { slug: 'peelpress', name: 'Peelpress', re: /peel[\s-]?press/gi },
 ];
-// "all products", "every product", "each of our products"
-const ALL = /\b(?:all|every|each)(?:\s+of)?(?:\s+(?:the|our|your))?\s+products?\b/gi;
+// "all products", "every product", "each of our products", "all campaigns", "every venture"
+const ALL = /\b(?:all|every|each)(?:\s+of)?(?:\s+(?:the|our|your|my))?\s+(?:products?|campaigns?|ventures?)\b/gi;
 // Words and marks that join two product names in a list: "MotionRepo, Peelpress and Pitchlight".
 const JOIN = '(?:\\s*(?:,|&|\\+|/)\\s*(?:and\\s+)?|\\s+(?:and|or|plus)\\s+)';
 
@@ -46,7 +46,7 @@ export function splitByProduct(text) {
     const name = productName(slug);
     // every mention becomes this product's name, then a list of the same name ("X, X and X") shrinks to one
     const one = t
-      .replace(ALL, name)
+      .replace(ALL, (m) => (/campaign/i.test(m) ? `the ${name} campaign` : name))
       .replace(anyName, name)
       .replace(new RegExp(`\\b${name}(?:${JOIN}${name})+`, 'gi'), name);
     return { product: slug, task: one };

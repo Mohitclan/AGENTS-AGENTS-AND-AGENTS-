@@ -47,6 +47,13 @@ describe('splitting a task by product', () => {
     assert.equal(all[1].task, 'Run a lead sprint for TestPilot');
     assert.equal(splitByProduct('Write a launch post for every product, short').at(-1).task, 'Write a launch post for Peelpress, short');
   });
+
+  it('makes one campaign per product for "run all campaigns"', () => {
+    const all = splitByProduct('run all campaigns and find me leads');
+    assert.deepEqual(all.map((t) => t.product), ['motionrepo', 'testpilot', 'pitchlight', 'peelpress']);
+    assert.equal(all[0].task, 'run the MotionRepo campaign and find me leads');
+    assert.equal(splitByProduct('find leads for every venture').length, 4);
+  });
 });
 
 describe('which tasks can start', () => {

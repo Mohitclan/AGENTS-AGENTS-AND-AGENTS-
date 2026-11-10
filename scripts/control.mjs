@@ -508,6 +508,15 @@ function campaignsCached(root, outreach, questions) {
   return campaignsMemo.value;
 }
 
+// News already said by one open page (see /api/claim): key -> when. Kept ten minutes.
+const claimed = new Map();
+export function claimNews(key, now = Date.now()) {
+  for (const [k, at] of claimed) if (now - at > 10 * 60_000) claimed.delete(k);
+  if (claimed.has(key)) return false;
+  claimed.set(key, now);
+  return true;
+}
+
 export function snapshot(root = ROOT) {
   const base = collect(root);
   const roster = loadRoster(root);
@@ -1057,6 +1066,17 @@ function main() {
           if (r.error) return json(res, r.status, { message: r.error });
           lastSig = '';
           return json(res, 200, { message: `${r.entry.name || r.entry.id} is ${r.entry.enabled ? 'on' : 'off'}.`, id: r.entry.id, enabled: r.entry.enabled });
+        }
+        // Several pages can be open (Chrome and the app's browser pane, say), and each would speak and chime the same
+        // news in its own voice. Each page claims a piece of news before saying it; only the first claim wins.
+        if (path === '/api/claim') {
+          let keys = [];
+          try {
+            keys = [].concat(JSON.parse(body || '{}').keys ?? []).map((k) => String(k).slice(0, 200)).filter(Boolean).slice(0, 100);
+          } catch {
+            return json(res, 400, { message: 'That request could not be read.' });
+          }
+          return json(res, 200, { mine: keys.filter((k) => claimNews(k)) });
         }
         // A spoken or typed question for the guide: answered by Claude Code on the signed-in login, read-only.
         if (path === '/api/ask') {

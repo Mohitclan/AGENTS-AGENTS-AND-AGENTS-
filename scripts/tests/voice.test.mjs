@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { addressee, askIntent, findSong, goodVoice, heardTrigger, localIntent, pieces, plain, rankVoices, taskFor } from '../control/gems/voice.js';
+import { addressee, askIntent, findSong, goodVoice, heardTrigger, localIntent, pieces, plain, rankVoices, taskFor, workIntent } from '../control/gems/voice.js';
 import { render, TRACKS, wav } from '../make-demo-music.mjs';
 
 describe('voice commands', () => {
@@ -88,7 +88,7 @@ describe('voice: the office speaker', () => {
 
 describe('voice: talking to the guide', () => {
   it('answers anything said, greetings and plain statements included, not just phrases that start with a question word', () => {
-    for (const q of ['hello can you hear me', 'Hello', 'Where are the leads?', 'how do I read a report', 'guide me through the approvals page', 'test one two', 'I want to see the logs', 'Researcher, find five startups', 'find ten leads this week']) {
+    for (const q of ['hello can you hear me', 'Hello', 'Where are the leads?', 'how do I read a report', 'how do I find leads', 'guide me through the approvals page', 'test one two', 'I want to see the logs', 'what is the researcher doing', 'find']) {
       assert.equal(askIntent(q), true, q);
     }
   });
@@ -99,7 +99,15 @@ describe('voice: talking to the guide', () => {
     }
   });
 
-  it('only an explicit "go start" or "send it" makes a task of what was said', () => {
+  it('sends a request for work as a task at once, with no "go start"', () => {
+    for (const t of ['run all campaigns and find me leads', 'Find me leads for peel press', 'find ten leads this week', 'Researcher, find five startups', 'can you research Pitchlight competitors?', 'I need you to run campaigns end to end for motion repo, peel press, pitch light', 'Please write three LinkedIn posts for TestPilot', 'ok team, kick off the Peelpress campaign']) {
+      assert.equal(workIntent(t), true, t);
+      assert.equal(askIntent(t), false, t);
+    }
+    for (const t of ['how do I find leads', 'what is the researcher doing', 'can you hear me', 'find', 'start the music', 'run the waiting tasks']) assert.equal(workIntent(t), false, t);
+  });
+
+  it('still takes "go start" or "send it" to make a task of anything', () => {
     assert.equal(heardTrigger('find five leads go start'), true);
     assert.equal(heardTrigger('find five leads'), false);
     assert.equal(heardTrigger('can you hear me'), false);

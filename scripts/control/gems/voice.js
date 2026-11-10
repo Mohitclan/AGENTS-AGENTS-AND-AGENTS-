@@ -4,15 +4,15 @@
 // same as the task box, so it runs in the background as a Claude Code session on the Max plan, and
 // the sub-agents do the work there. Spoken updates use the browser's own speech synthesis.
 //
-// What you say is always shown first and sent only when you press Send or end with "go start" (or
-// "send it"); the task then starts at once and its words are read back, so "cancel that" can stop a
-// misheard one. With "Keep listening" on, the mic stays open for the next task, hands free. A few
+// What you say is always shown first. A request for work ("run all campaigns", "find me leads for
+// Peelpress", "draft emails for the new leads") is sent as a task the moment you stop talking: no "go start"
+// needed. The task starts at once and its words are read back, so "cancel that" can stop a misheard one.
+// Ending with "go start" (or "send it") still sends anything as a task. With "Keep listening" on, the mic stays open for the next task, hands free. A few
 // phrases are answered on the page without any agent: "what's happening", "open <agent or page>",
 // "start waiting tasks", "stop talking", "cancel that", and the office speaker's "play music", "play <song>",
 // "pause the music", "stop the music" and "next song". Everything else is a conversation: a short pause after you
 // stop talking, it is sent to the guide on the server, which answers from the live team state using Claude Code on
-// the signed-in login; the answer is read aloud and may open a page. A task is sent only when you end it with
-// "go start" or press "Send as a task". When a task ends, the coordinator's own summary is read aloud.
+// the signed-in login; the answer is read aloud and may open a page. When a task ends, the coordinator's own summary is read aloud.
 import { musicPlayer } from '../office3d/music.js';
 import { identityFor } from './identities.js';
 import { normalizeState, STATE_LABEL } from './status.js';
@@ -223,12 +223,22 @@ export function pieces(text, max = 200) {
   return out;
 }
 
-// Anything said or typed that isn't a page command and doesn't end with "go start" is a conversation with the guide:
-// a question, a greeting, a request for help. Only an explicit "go start" (or the "Send as a task" button) hands the
-// team work, so a stray sentence can never start a task.
+// A request for the team's work: it starts with a work verb ("run", "find", "draft", "research"...), after an
+// optional agent name and polite words ("please", "can you", "I need you to"). These become tasks at once, with no
+// "go start". Questions ("how do I find leads?", "what is the researcher doing?") and chat stay with the guide.
+const WORK_VERB = /^(?:run|re-?run|find|research|draft|write|generate|get|start|launch|kick\s+off|create|plan|prepare|build|make|scout|look\s+for|search\s+for|hunt\s+for|source|qualify|score|review|audit|fix|follow\s+up|reply\s+to|analy[sz]e|study|compare|collect|gather|send)\b/i;
+const POLITE = /^(?:(?:hey|hi|ok|okay|so|now|and|also|then|team)[,.!\s]+)*(?:(?:please|kindly|just|go\s+ahead\s+and|let'?s|can\s+you|could\s+you|would\s+you|will\s+you|i\s+(?:need|want)\s+you\s+to|i(?:'d|\s+would)\s+like\s+you\s+to)[,\s]+)*/i;
+export function workIntent(text) {
+  const { rest } = addressee(String(text ?? ''));
+  const s = rest.replace(TRIGGER, '').replace(POLITE, '').trim();
+  return s.split(/\s+/).length >= 2 && WORK_VERB.test(s) && !localIntent(s);
+}
+
+// Anything said or typed that isn't a page command or a request for work is a conversation with the guide: a
+// question, a greeting, a request for help.
 export const askIntent = (text) => {
   const t = String(text ?? '').trim();
-  return /[a-z]{2}/i.test(t) && !heardTrigger(t) && !localIntent(t);
+  return /[a-z]{2}/i.test(t) && !heardTrigger(t) && !localIntent(t) && !workIntent(t);
 };
 
 export function createVoice({ onTask, onRun, onCancel, onAsk, onOutreach, getAgents, navigate }) {
@@ -262,7 +272,7 @@ export function createVoice({ onTask, onRun, onCancel, onAsk, onOutreach, getAge
       <div class="vp-row small"><label class="check"><input type="checkbox" id="vp-speak" ${settings.speak ? 'checked' : ''}> Speak updates aloud</label><label class="check"><input type="checkbox" id="vp-hands" ${settings.handsFree ? 'checked' : ''}> Keep listening</label></div>
       <div class="vp-row small"><label class="check">Voice <select id="vp-voice" aria-label="Voice that reads the answers"></select></label><button type="button" class="vp-ghost" data-v="hear">Hear it</button></div>
       <p class="vp-tip muted" id="vp-voice-tip" hidden></p>
-      <p class="vp-tip muted">Just talk: "Where are the leads?" · "What is the researcher doing?" · "Guide me through the approvals". To give the team work, say the task and end with <b>"go start"</b>.</p>
+      <p class="vp-tip muted">Just talk: "Where are the leads?" · "What is the researcher doing?" · "Guide me through the approvals". To give the team work, just say it: <b>"Run all campaigns and find me leads"</b>. It starts as soon as you stop talking; say "cancel that" to stop a misheard one.</p>
       <ol class="vp-log" id="vp-log"></ol>
     </section>`;
   document.body.append(root);
@@ -347,7 +357,7 @@ export function createVoice({ onTask, onRun, onCancel, onAsk, onOutreach, getAge
   const setListening = (on) => {
     listening = on;
     root.classList.toggle('listening', on);
-    $('#vp-sub').textContent = on ? 'Listening… ask anything, or end a task with "go start"' : supported ? 'Press the mic and talk. A task is sent only when you say "go start".' : 'Type your question';
+    $('#vp-sub').textContent = on ? 'Listening… ask a question, or tell the team what to do' : supported ? 'Press the mic and talk. Say what to do and it starts; ask anything else.' : 'Type your question or a task';
     $('[data-v="mic"] span').textContent = on ? 'Stop' : 'Speak';
   };
 
@@ -377,8 +387,8 @@ export function createVoice({ onTask, onRun, onCancel, onAsk, onOutreach, getAge
       }
       text.value = (finalText + interim).replace(/\s+/g, ' ').trimStart();
       showTo();
-      // "go start" sends a task at once. Anything else is answered about a second and a half after you stop talking,
-      // with nothing to press; more speech before then keeps it waiting.
+      // "go start" sends a task at once. Anything else (a request for work, or a question) is handled about a second
+      // and a half after you stop talking, with nothing to press; more speech before then keeps it waiting.
       clearTimeout(answerTimer);
       if (heardTrigger(finalText)) submit();
       else if (e.results[e.results.length - 1]?.isFinal && finalText.trim()) answerTimer = setTimeout(submit, 1500);
@@ -549,6 +559,11 @@ export function createVoice({ onTask, onRun, onCancel, onAsk, onOutreach, getAge
       }
       lastTask = id || null;
       log('team', message);
+      if (/^Queued \d+ campaigns/.test(message)) {
+        // one task per product, side by side: say which start now and which wait
+        speak(`Got it. ${plain(message).replace(/J-\d{8}-\d+\s*/g, '')} You can follow them on the Campaigns page.`);
+        return;
+      }
       const who = agent === 'coordinator' ? 'The Captain' : identityFor(agent).name;
       const when = /starting/.test(message) ? 'is starting on it now' : /window resets/.test(message) ? 'will start when the plan window resets' : 'will start after the current task';
       speak(`Got it. ${who} ${when}: ${task.replace(/^Ask the [\w-]+ to: /, '').slice(0, 120)}. Say cancel that to stop it.`);

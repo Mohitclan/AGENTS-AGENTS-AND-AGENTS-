@@ -2488,23 +2488,38 @@ function watchTick() {
   watchState.left = b.left;
 }
 
+// Only one open page says each piece of news (Chrome and the browser pane would otherwise both speak, in two
+// different voices). The page in front claims it at once; a page in the background waits a moment, so the one you
+// are looking at speaks. If the server can't be asked, the page speaks.
+// Returns the keys this page won.
+async function claimOnce(keys) {
+  if (document.hidden || !document.hasFocus()) await new Promise((r) => setTimeout(r, 1500));
+  try {
+    return new Set((await api('/api/claim', { keys })).mine || []);
+  } catch {
+    return new Set(keys);
+  }
+}
+const chimeOnce = (kind, key) => claimOnce([`chime:${key}`]).then((mine) => mine.size && chime(kind));
+
 // Chimes and toasts for changes between two states.
 function announceChanges(prev, snap) {
   if (!prev) return;
-  if (prev.live && prev.running && (!snap.live || snap.running?.id !== prev.running.id)) {
-    const done = snap.tasks?.find((t) => t.id === prev.running.id);
-    toast(`${prev.running.id} ${done?.status === 'failed' ? 'stopped with a problem' : 'finished'}. Its report is ready.`, done?.status === 'failed');
-    chime('done');
+  const now = new Set(runsOf(snap).map((r) => r.id));
+  for (const r of runsOf(prev).filter((x) => !now.has(x.id))) {
+    const done = snap.tasks?.find((t) => t.id === r.id);
+    toast(`${r.id} ${done?.status === 'failed' ? 'stopped with a problem' : 'finished'}. Its report is ready.`, done?.status === 'failed');
+    chimeOnce('done', `done:${r.id}`);
   }
   const ready = (s) => s?.outreach?.ready || 0;
   if (ready(snap) > ready(prev)) {
     toast(`${ready(snap) - ready(prev)} draft(s) passed review and wait for your approval on the Outreach page.`);
-    chime('attention');
+    chimeOnce('attention', `ready:${ready(snap)}`);
   }
   const asked = (s) => s?.questions?.open || 0;
   if (asked(snap) > asked(prev)) {
     toast(`The team has ${asked(snap) - asked(prev)} new question(s) for you.`);
-    chime('attention');
+    chimeOnce('attention', `asked:${asked(snap)}`);
   }
 }
 setInterval(watchTick, 20_000);
@@ -2518,7 +2533,13 @@ function onState(snap) {
   updateShell(snap);
   render();
   animateNew(snap);
-  if (store.primed) voice.announce(snap.feed.filter((e) => !store.seen.has(e.id) && Date.now() - Date.parse(e.at) < 3 * 60_000).reverse());
+  const fresh = store.primed ? snap.feed.filter((e) => !store.seen.has(e.id) && Date.now() - Date.parse(e.at) < 3 * 60_000).reverse() : [];
+  if (fresh.length) {
+    claimOnce(fresh.map((e) => `say:${e.id}`)).then((mine) => {
+      const ours = fresh.filter((e) => mine.has(`say:${e.id}`));
+      if (ours.length) voice.announce(ours);
+    });
+  }
   for (const e of snap.feed) store.seen.add(e.id);
   store.primed = true;
 }
