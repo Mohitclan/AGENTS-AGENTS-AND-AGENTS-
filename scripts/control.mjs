@@ -42,6 +42,7 @@ import { decidePost, postsState } from './posts.mjs';
 import { publishFromPage } from './social-post.mjs';
 import { accountsState } from './social-accounts.mjs';
 import { ensureSchedule, runDue, scheduleState, setEnabled } from './schedule.mjs';
+import { keepGoingState, runKeepGoing, setKeepGoing, stopAfter } from './keep-going.mjs';
 
 const DEFAULT_PORT = 4318;
 const STATIC = join(ROOT, 'scripts', 'control');
@@ -517,6 +518,14 @@ export function claimNews(key, now = Date.now()) {
   return true;
 }
 
+function keepGoingSafe(root, outreach) {
+  try {
+    return keepGoingState(root, Date.now(), { drafts: outreach?.drafts || [] });
+  } catch (error) {
+    return { on: false, products: [], error: error.message };
+  }
+}
+
 export function snapshot(root = ROOT) {
   const base = collect(root);
   const roster = loadRoster(root);
@@ -597,6 +606,7 @@ export function snapshot(root = ROOT) {
     outreach,
     questions,
     campaigns,
+    keepGoing: keepGoingSafe(root, outreach),
     posts: postsCached(root),
     running: base.running ? { id: base.running.id, title: base.running.title, started: base.running.started } : null,
     runs,
@@ -659,7 +669,7 @@ function signature(root) {
   ['ops/queue.json', 'ops/confirmations.jsonl', 'ops/board.md', 'ops/approvals.md', 'ops/messages.md', 'ops/fallbacks.md', 'ops/gate-log.jsonl', 'ops/send-log.jsonl', 'ops/replies.jsonl', 'pipeline/leads.jsonl', 'ops/runs/jarvis.lock', 'ops/runs/plan-limits.json'].forEach(add);
   // the lane locks (one per running task) change when a task starts or ends
   list(root, 'ops/runs/lanes', '.lock').forEach((f) => add(`ops/runs/lanes/${f}`));
-  ['ops/mail-config.json', 'ops/outreach.jsonl'].forEach(add); // the pilot switch and the Emails page's decisions
+  ['ops/mail-config.json', 'ops/outreach.jsonl', 'ops/keep-going.json'].forEach(add); // the pilot switch and the Emails page's decisions
   for (const f of list(root, 'outputs/outreach/replies')) add(`outputs/outreach/replies/${f}`);
   for (const dir of ['ops/runs', 'outputs/reviews', 'outputs/reports', 'outputs/research', 'outputs/outreach', 'outputs/sales', 'outputs/dev', 'knowledge/products', 'knowledge/proposals']) {
     for (const f of list(root, dir, dir === 'ops/runs' ? '.log' : '.md')) add(`${dir}/${f}`);
@@ -758,6 +768,18 @@ function main() {
         console.error(`Schedule: ${error.message}`);
       }
     }, 60_000).unref();
+  }
+  // Keep going: two minutes after a product's drafts are ready, with nobody stepping in, its next lead batch starts.
+  if (port !== 0 && process.env.MISSION_KEEP_GOING !== 'off') {
+    setInterval(() => {
+      try {
+        const did = runKeepGoing(ROOT, Date.now(), { addTask, startQueued });
+        for (const r of did) console.log(r.message);
+        if (did.length) lastSig = '';
+      } catch (error) {
+        console.error(`Keep going: ${error.message}`);
+      }
+    }, 15_000).unref();
   }
   setInterval(() => {
     for (const res of streams) res.write(': keep-alive\n\n');
@@ -1047,6 +1069,18 @@ function main() {
           writeFileSync(file, kept.join('\n'), 'utf8');
           lastSig = '';
           return json(res, 200, { message: 'Approval declined and removed.' });
+        }
+        // Keep going (Campaigns page): switch it on or off, or stop the next batch after one task.
+        if (path === '/api/keep-going' || path === '/api/keep-going/stop') {
+          let ask;
+          try {
+            ask = JSON.parse(body || '{}');
+          } catch {
+            return json(res, 400, { message: 'That request could not be read.' });
+          }
+          const r = path === '/api/keep-going' ? setKeepGoing(ROOT, ask.on === true) : stopAfter(ROOT, String(ask.task || ''), String(ask.by || 'a person on the page'));
+          lastSig = '';
+          return json(res, r.ok ? 200 : 400, r);
         }
         // The schedule: a person switches one entry on or off on the Reports page. Page only, no voice command.
         if (path === '/api/schedule/toggle') {

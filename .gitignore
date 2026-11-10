@@ -11,3 +11,5 @@ music/*
 !music/README.md
 # archived run logs stay local, like ops/runs/
 ops/archive/*/*.log
+# keep-going state (Campaigns page): what started by itself, written by mission control
+ops/keep-going.json

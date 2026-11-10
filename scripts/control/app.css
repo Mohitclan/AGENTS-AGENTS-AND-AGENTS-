@@ -610,6 +610,7 @@ label.check { flex-direction: row !important; align-items: center; gap: 6px; fon
 .camp-v { font-size: 22px; font-weight: 700; }
 .camp-l { color: var(--muted); font-size: 12px; }
 .camp-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; }
+.camp-keep { margin: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .hud-link { left: 16px; top: 72px; text-decoration: none; padding: 6px 14px; }
 
 /* ---- logs as a story ---- */

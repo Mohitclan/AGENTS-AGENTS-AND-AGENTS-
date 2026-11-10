@@ -1135,6 +1135,17 @@ const CAMPAIGN_TASKS = {
   all: (p) => `Run the campaign end to end for ${p.name}: starter research if it has no competitor file yet (top 3 competitors and a short ideal-customer profile), then find leads (at most 3 for a first batch) and draft emails for those that qualify.`,
 };
 
+// What keep-going is doing for one product: a countdown with Stop, a hold and its reason, or the batch it started.
+function keepLine(slug) {
+  const kg = store.snap?.keepGoing;
+  const k = kg?.on ? kg.products?.find((x) => x.product === slug) : null;
+  if (!k) return '';
+  const time = new Date(k.startsAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  if (k.state === 'counting' || k.state === 'due') return `<p class="camp-keep"><b>Next batch starts by itself at ${esc(time)}.</b> <span class="muted tiny">${esc(k.reason)}</span> <button class="ghost small" data-keep-stop="${esc(k.from)}">Stop</button></p>`;
+  if (k.state === 'started') return `<p class="camp-keep muted tiny">${esc(k.reason)}</p>`;
+  return `<p class="camp-keep"><span class="pill ${k.state === 'stopped' ? 'p-queued' : 'p-needs_input'}">${k.state === 'stopped' ? 'Stopped' : 'Holding'}</span> <span class="muted tiny">${esc(k.reason)}</span></p>`;
+}
+
 function campaignCard(p, runs, products) {
   const f = p.funnel;
   const r = p.readiness;
@@ -1154,6 +1165,7 @@ function campaignCard(p, runs, products) {
     ${running}
     <div class="camp-funnel">${step('Leads found', f.found)}${step('Qualified', f.qualified)}${step('Drafted', f.drafted, 'leads')}${step('Approved', f.approved, 'emails ticked')}${step('Sent', f.sentTest + f.sentLive, `${f.sentTest} test · ${f.sentLive} live`)}${step('Replies', f.replies)}</div>
     <p class="camp-wait"><b>Waiting for a person:</b> ${wait.length ? wait.join(' · ') : '<span class="muted">nothing</span>'}</p>
+    ${keepLine(p.slug)}
     <p class="camp-ready"><span class="pill ${go}">${esc(r.next)}</span> <span class="muted tiny">Fact sheet ${r.confirmed ? 'confirmed' : esc(r.factSheet)} · competitor file ${r.competitor ? 'present' : 'missing'} · ${r.leads} ${r.leads === 1 ? 'lead' : 'leads'}</span></p>
     <div class="camp-actions">
       <button class="${r.next.startsWith('Start') ? 'primary' : ''}" data-task="research" data-p="${esc(p.slug)}">Research</button>
@@ -1170,6 +1182,7 @@ const campaignsView = {
     $('#view').innerHTML = `
     <div class="page-h"><h1>Campaigns</h1><p class="muted">One card per product: what the team is doing for it, where its leads and emails stand, and what waits for you.</p></div>
     <section class="card camp-all"><div><b>Run all</b><p class="muted tiny" id="camp-note"></p></div><button class="primary" id="camp-all">Run all campaigns</button></section>
+    <section class="card camp-all"><div><b>Keep going</b><p class="muted tiny" id="kg-note"></p></div><button id="kg-toggle" aria-pressed="false">Keep going: off</button></section>
     <div class="camp-grid" id="camp-body"></div>`;
     $('#camp-all').addEventListener('click', async () => {
       const products = store.snap.campaigns?.products || [];
@@ -1183,7 +1196,24 @@ const campaignsView = {
         $('#camp-all').disabled = false;
       }
     });
+    $('#kg-toggle').addEventListener('click', async () => {
+      const on = !store.snap?.keepGoing?.on;
+      try {
+        toast((await api('/api/keep-going', { on })).message);
+      } catch (error) {
+        toast(error.message, true);
+      }
+    });
     $('#camp-body').addEventListener('click', async (e) => {
+      const stop = e.target.closest('[data-keep-stop]');
+      if (stop) {
+        try {
+          toast((await api('/api/keep-going/stop', { task: stop.dataset.keepStop })).message);
+        } catch (error) {
+          toast(error.message, true);
+        }
+        return;
+      }
       const b = e.target.closest('[data-task]');
       if (!b) return;
       const p = store.snap.campaigns.products.find((x) => x.slug === b.dataset.p);
@@ -1201,8 +1231,15 @@ const campaignsView = {
     const products = snap.campaigns?.products || [];
     const u = snap.usage?.fiveHour;
     $('#camp-note').textContent = `Sends one task for each of ${products.length} products. Each task uses your Max plan${u ? `: the 5-hour window is at ${u.reset ? 0 : u.used}%` : ''}. Tasks wait while a window is over 85%.`;
+    const kg = snap.keepGoing || { on: false, products: [] };
+    $('#kg-toggle').textContent = `Keep going: ${kg.on ? 'on' : 'off'}`;
+    $('#kg-toggle').setAttribute('aria-pressed', String(!!kg.on));
+    $('#kg-toggle').className = kg.on ? 'primary' : '';
+    $('#kg-note').textContent = kg.on
+      ? `When a batch of drafts waits for you, the next lead batch for that product starts after ${kg.waitMinutes || 2} minutes, so the campaign doesn't stop. Approve the drafts later, all together, on the Emails page. It holds at 60% of the 5-hour window, 20 leads waiting or 6 batches a day per product.`
+      : 'Off: each campaign stops after its batch of drafts until you start the next one.';
     const runs = runsOf(snap);
-    const key = JSON.stringify([products, runs.map((r) => [r.id, r.product, r.agents])]);
+    const key = JSON.stringify([products, runs.map((r) => [r.id, r.product, r.agents]), kg]);
     if (key === campaignsView.key) return;
     campaignsView.key = key;
     $('#camp-body').innerHTML = products.map((p) => campaignCard(p, runs, products)).join('') || '<p class="muted">No products yet. Add one under knowledge/products.</p>';
