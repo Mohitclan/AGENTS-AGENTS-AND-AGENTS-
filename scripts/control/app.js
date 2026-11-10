@@ -249,7 +249,7 @@ function updateShell(snap) {
   $('#posts-count').textContent = snap.posts?.counts?.waiting || '';
   $('#live').className = `live ${snap.live ? 'on' : ''}`;
   $('#live').innerHTML = snap.live ? '<i></i>Live' : '<i></i>Idle';
-  $('#top-run').innerHTML = snap.running ? `<b>${esc(snap.running.id)}</b> ${esc(snap.running.title)}` : '<span class="muted">No task running. Give the team one on the overview.</span>';
+  $('#top-run').innerHTML = snap.runs?.length > 1 ? `<b>${snap.runs.length} tasks running</b> ${snap.runs.map((r) => esc(r.product || r.id)).join(', ')}` : snap.running ?`<b>${esc(snap.running.id)}</b> ${esc(snap.running.title)}` : '<span class="muted">No task running. Give the team one on the overview.</span>';
   dock.update(snap.agents);
   const nav = $('#agents-nav');
   if (nav.children.length !== snap.agents.length) {

@@ -16,6 +16,7 @@ import { closeSync, existsSync, fstatSync, mkdirSync, openSync, readdirSync, rea
 import { createServer } from 'node:http';
 import { join, posix } from 'node:path';
 import { frontmatter, isMain, ROOT } from './_shared.mjs';
+import { laneKey, laneLimit, productName, productOf, splitByProduct, startable } from './lanes.mjs';
 import { quickAnswer } from './quick.mjs';
 import { ART_SCRIPT, ART_STYLE, renderMap, renderWalkthrough, signInArt } from './dashboard-art.mjs';
 
@@ -190,6 +191,19 @@ function runAlive(root) {
   }
 }
 
+// Is the runner behind this running task alive? Each running task has a lane lock (ops/runs/lanes/<id>.lock) holding
+// the runner's pid; a task with no lock belongs to an older runner, which the main lock covers.
+function laneAlive(root, id) {
+  const pid = Number(read(root, `ops/runs/lanes/${id}.lock`));
+  if (!pid) return true;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error.code === 'EPERM';
+  }
+}
+
 export function collect(root = ROOT) {
   const approvals = parseApprovals(read(root, 'ops/approvals.md'));
   const pending = approvals.filter((a) => a.decision === 'pending');
@@ -199,15 +213,18 @@ export function collect(root = ROOT) {
   });
   const queue = readJson(root, 'ops/queue.json', []);
   const tasks = queue.map((t) => ({ ...t, title: taskTitle(root, t) })).reverse();
-  const running = tasks.find((t) => t.status === 'running') ?? null;
+  // Every task running now (tasks run side by side, one per product); `running` stays the first of them for older code.
+  const runs = tasks.filter((t) => t.status === 'running').reverse().map((t) => ({ ...t, steps: recentSteps(root, t.id) }));
+  const running = runs[0] ?? null;
   const sprint = /(\d+) candidates/.exec(read(root, 'docs/ROADMAP.md').split('## Sprint results')[1] ?? '')?.[1];
-  const steps = running ? recentSteps(root, running.id) : [];
+  const steps = running ? running.steps : [];
   const agents = loadAgents(root);
   const alive = runAlive(root);
   return {
     leads,
     tasks,
-    running: running && { ...running, steps },
+    running,
+    runs: alive ? runs.filter((t) => laneAlive(root, t.id)) : [],
     runAlive: alive,
     // Who is busy right now, for the map: null unless a run is alive on a running task.
     working: running && alive ? activeAgents(steps, agents.filter((a) => !a.backup).map((a) => a.name)) : null,
@@ -704,11 +721,59 @@ export function startRun(root) {
   return true;
 }
 
-// Puts a task on the Jarvis queue as plain text (never through a shell). Returns { id } or { error }.
-export function addTask(root, task) {
-  const added = jarvis(root, 'add', task);
-  const id = /^Queued (J-\d+-\d+):/m.exec(added.stdout || '')?.[1];
-  return added.status === 0 && id ? { id } : { error: (added.stderr || 'no reason given').trim().slice(0, 200) };
+// Puts a task on the Jarvis queue as plain text (never through a shell). Returns { id, tasks } or { error }.
+// A task that names several products (or "all products") becomes one task per product, with the same wording and only
+// that product, so each runs in its own lane; `id` is the first of them and `tasks` lists them all as
+// [{ id, product, task }]. A task Jarvis wrote itself (drafting for leads, answers to replies) passes { split: false }:
+// its ID is recorded with the leads, so it stays one task.
+export function addTask(root, task, { split = true } = {}) {
+  const parts = split ? splitByProduct(task) : [{ product: productOf(task), task }];
+  const tasks = [];
+  for (const part of parts) {
+    const added = jarvis(root, 'add', part.task);
+    const id = /^Queued (J-\d+-\d+):/m.exec(added.stdout || '')?.[1];
+    if (added.status === 0 && id) {
+      tasks.push({ id, product: part.product, task: part.task });
+      continue;
+    }
+    tasks.forEach((t) => jarvis(root, 'cancel', t.id)); // all or none
+    return { error: (added.stderr || 'no reason given').trim().slice(0, 200) };
+  }
+  return { id: tasks[0].id, tasks };
+}
+
+// Which of these new tasks start at once and which wait, from the queue as it is now: [{ id, product, starts, why }].
+// A task waits when its product already has a task running or ahead of it, or when every lane is taken.
+export function lanePlan(root, ids) {
+  const queue = readJson(root, 'ops/queue.json', []) || [];
+  const go = new Set(startable(queue).map((t) => t.id));
+  return ids.map((id) => {
+    const t = queue.find((x) => x.id === id) || { id };
+    if (go.has(id)) return { id, product: t.product || null, starts: true };
+    const mine = queue.findIndex((x) => x.id === id);
+    const sameLane = queue.some((x, i) => x.id !== id && laneKey(x) === laneKey(t) && (x.status === 'running' || (x.status === 'queued' && i < mine)));
+    return { id, product: t.product || null, starts: false, why: sameLane && t.product ? `its turn comes after ${productName(t.product)}'s other task` : `all ${laneLimit()} lanes are busy` };
+  });
+}
+
+// What the task box says after queueing: one task (starts now, or waits), or several campaigns (which run at once and
+// which wait).
+function queuedMessage(root, added) {
+  const plan = lanePlan(root, added.tasks.map((t) => t.id));
+  if (plan.length === 1) {
+    const [p] = plan;
+    return p.starts ? `${p.id} is starting.` : p.product && /other task/.test(p.why) ? `${p.id} is queued, and starts after the current ${productName(p.product)} task.` : `${p.id} is queued, and starts after the current task.`;
+  }
+  const label = (p) => `${p.id} ${p.product ? productName(p.product) : 'general'}`;
+  const now = plan.filter((p) => p.starts);
+  const later = plan.filter((p) => !p.starts);
+  const names = (list) => list.map((p) => (p.product ? productName(p.product) : p.id));
+  const joined = (list) => (list.length > 1 ? `${list.slice(0, -1).join(', ')} and ${list.at(-1)}` : list[0]);
+  return [
+    `Queued ${plan.length} campaigns: ${plan.map(label).join(', ')}.`,
+    now.length ? `${joined(names(now))} ${now.length > 1 ? 'start now, side by side' : 'starts now'}.` : 'None starts yet.',
+    ...later.map((p) => `${names([p])[0]} waits: ${p.why}.`),
+  ].join(' ');
 }
 
 // Starts the queue unless the plan's usage guard says to wait. Returns { full } (the window that is
@@ -748,12 +813,16 @@ export function act(root, path, { host, origin, marker, body, site }) {
   const reply = (status, message, extra = {}) => ({ status, type: 'json', body: JSON.stringify({ message, ...extra }) });
   if (!sameSite({ host, origin, marker, site })) return reply(403, 'Use the team page itself.');
   const full = planUsage(root)?.full;
-  const start = (id) => {
+  const start = (added) => {
+    const ids = added.tasks.map((t) => t.id);
     if (full) {
       markResume(root);
-      return reply(200, `${id} is queued. It starts by itself when the plan's ${full} window resets.`, { id });
+      return reply(200, ids.length > 1 ? `Queued ${ids.length} campaigns: ${ids.join(', ')}. They start by themselves when the plan's ${full} window resets.` : `${added.id} is queued. It starts by itself when the plan's ${full} window resets.`, { id: added.id, ids });
     }
-    return reply(200, startRun(root) ? `${id} is starting.` : `${id} is queued, and starts after the current task.`, { id });
+    // A runner that is already going picks the new tasks up within seconds; otherwise start one.
+    const message = queuedMessage(root, added); // before the runner starts anything, so the answer is about the queue as it was
+    startRun(root);
+    return reply(200, message, { id: added.id, ids });
   };
   if (path === '/tasks') {
     let task;
@@ -768,7 +837,7 @@ export function act(root, path, { host, origin, marker, body, site }) {
     const quick = quickAnswer(task, root);
     if (quick) return reply(200, quick, { quick: true });
     const added = addTask(root, task);
-    return added.id ? start(added.id) : reply(500, `The task wasn't queued: ${added.error}`);
+    return added.id ? start(added) : reply(500, `The task wasn't queued: ${added.error}`);
   }
   if (path === '/run') {
     if (full) return reply(409, `Tasks can't start until the plan's ${full} window resets.`);
