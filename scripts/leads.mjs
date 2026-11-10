@@ -716,8 +716,19 @@ switch (command) {
     gate(args);
     break;
   case 'hold': {
-    const i = args.indexOf('--owner');
-    hold(args[0], args.slice(1, i < 0 ? undefined : i).join(' '), i < 0 ? '' : args.slice(i + 1).join(' '));
+    // hold <id> "<reason>" --owner <who>; the reason may also come as --reason "<text>" (agents wrote it that way on
+    // 2026-11-10). The owner stays required: a hold names who decides.
+    const flag = (name) => {
+      const i = args.indexOf(name);
+      if (i < 0) return null;
+      const end = args.findIndex((a, k) => k > i && a.startsWith('--'));
+      const value = args.slice(i + 1, end < 0 ? undefined : end).join(' ');
+      args.splice(i, (end < 0 ? args.length : end) - i);
+      return value;
+    };
+    const owner = flag('--owner');
+    const reason = flag('--reason');
+    hold(args[0], reason ?? args.slice(1).join(' '), owner || '');
     break;
   }
   case 'release':

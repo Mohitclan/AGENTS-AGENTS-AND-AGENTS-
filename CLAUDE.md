@@ -67,9 +67,10 @@ Autopilot runs refuse any command the project's allow list doesn't match, and a 
 
 - Your working directory is this folder. Run scripts with a relative path, one command per call: `node scripts/leads.mjs gate --product motionrepo`.
 - Don't `cd`, don't write an absolute path to a script, and don't chain with `&&` or `;`, use `for` loops or `${var}`, or run `sed -i`, `awk` or `node -e`.
-- Read with Read and Grep, change files with Edit and Write, and count words with `node scripts/lint-copy.mjs` or `wc -w <file>`.
+- Read with Read, and search inside files with `grep -n` through Bash (one command, relative path, no pipe): the Grep tool isn't available in task runs, and each call to it fails. Change files with Edit and Write, and count words with `node scripts/lint-copy.mjs` or `wc -w <file>`.
+- **Write every file with the Write or Edit tool**: reports, notes, board rows, review files. `cat > file <<EOF`, `sed -i` and files in `/tmp` are refused (on 2026-11-10 a coordinator lost its whole report that way).
 - A page or API you need exactly (JSON from an API, for example) goes through WebFetch; check any date or name it summarises against the page.
-- **Read only what you need.** Everything you read is read again on every later step of your task, and that is most of what a run costs. Read a long file (lead notes, reviews, reports, research) by its part: Grep for the heading or lead ID with a few lines of context, or Read with offset and limit. Use `node scripts/leads.mjs show <id>` or `list` instead of reading `pipeline/leads.jsonl`, never read `ops/runs/` logs, and don't read a file again unless it changed.
+- **Read only what you need.** Everything you read is read again on every later step of your task, and that is most of what a run costs. Read a long file (lead notes, reviews, reports, research) by its part: `grep -n` for the heading or lead ID with a few lines of context, or Read with offset and limit. Use `node scripts/leads.mjs show <id>` or `list` instead of reading `pipeline/leads.jsonl`, never read `ops/runs/` logs, and don't read a file again unless it changed.
 - **Keep replies short:** what was asked and the RESULT block. The files hold the detail.
 - **Fetch independent pages in parallel:** put several WebFetch calls (or searches) in one message instead of one per turn. Each fetch takes about 6 seconds, and one at a time they added about 17 minutes to a lead run.
 

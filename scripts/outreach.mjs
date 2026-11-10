@@ -227,7 +227,10 @@ export function draftsState(root = ROOT, leads = latestLeads(root), requested = 
       const ok = approved.get(path);
       const sent = tests.filter((e) => e.draft === path && Date.parse(e.at) >= changed).length;
       const liveSent = lives.filter((e) => e.draft === path).length;
-      const reviewState = !review ? (requested.has(id) || Date.now() - changed < 86_400_000 ? 'in-review' : 'unreviewed')
+      // A lead on hold waits for a person before anything goes out, so its emails aren't offered for a tick (on
+      // 2026-11-10 the page offered Komplai's draft while the run had put the lead on hold).
+      const held = leads.get(id)?.hold;
+      const reviewState = held ? 'held' : !review ? (requested.has(id) || Date.now() - changed < 86_400_000 ? 'in-review' : 'unreviewed')
         : review.verdict !== 'PASS' ? 'revise'
         : review.stale ? 'changed'
         : 'ready';
@@ -277,6 +280,7 @@ export function draftsState(root = ROOT, leads = latestLeads(root), requested = 
       const why = {
         approved: `${count('declined') ? `${decidedYes} approved, ${count('declined')} declined` : 'Approved'} by ${lastBy}${sent ? `; ${sent} test email(s) sent` : ''}${liveSent ? `; ${liveSent} sent to the lead` : ''}${count('scheduled') ? `; ${count('scheduled')} scheduled` : ''}`,
         declined: `Declined by ${lastBy}: not sent`,
+        held: `Lead on hold: ${held?.reason || 'waiting for a person'}. Release the hold on the Leads page before approving`,
         'in-review': 'Waiting for its review',
         unreviewed: 'Never reviewed: ask the team to draft this lead again',
         revise: `Review says ${review?.verdict || 'no verdict'}: being revised`,

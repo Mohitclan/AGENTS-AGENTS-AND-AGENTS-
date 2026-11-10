@@ -93,6 +93,8 @@ Best regards,
 To opt out, reply 'stop' and I won't write again.
 ```
 
+**Send schedule** in every draft (working days from Email 1): Email 1 on day 0, Email 2 on day 4, Email 3 on day 11 (7 working days after Email 2). Write it as the draft's `## Send schedule` table; `scripts/followups.mjs` sends from it.
+
 Rules for both: never start with "I", never "just following up", "circling back" or "bumping this", no second question, no booking link, no new claim that isn't in the fact sheet. Write the first email's send day into the brief; never guess what day it is.
 
 ## LinkedIn note

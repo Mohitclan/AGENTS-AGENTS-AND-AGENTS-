@@ -60,8 +60,8 @@ describe('campaigns: the numbers', () => {
     const state = campaigns.campaignsState(fx.root);
     const m = byName(state).motionrepo;
     assert.deepEqual(m.funnel, { found: 4, qualified: 3, drafted: 3, approved: 1, sentTest: 2, sentLive: 1, replies: 1 });
-    // 3 drafts of 3 emails, the one sent is no longer waiting; Cobalt's lead is held
-    assert.deepEqual(m.waiting, { emails: 8, questions: 0, held: 1 });
+    // 3 drafts of 3 emails, the one sent is no longer waiting; Cobalt's lead is held, so its emails aren't offered either
+    assert.deepEqual(m.waiting, { emails: 5, questions: 0, held: 1 });
     const t = byName(state).testpilot;
     assert.deepEqual(t.funnel, { found: 2, qualified: 0, drafted: 0, approved: 0, sentTest: 0, sentLive: 0, replies: 0 });
     assert.deepEqual(byName(state).peelpress.funnel, { found: 0, qualified: 0, drafted: 0, approved: 0, sentTest: 0, sentLive: 0, replies: 0 });

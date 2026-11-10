@@ -470,7 +470,8 @@ function waitingOnPerson(id, leadsFound) {
   }
   const lines = [];
   const found = latestLeads(ROOT);
-  const ready = leadsFound.filter((l) => found.get(l)?.status === 'qualified' && !found.get(l)?.hold);
+  // qualified, not on hold, and no draft file: a lead the coordinator left at 'qualified' after drafting it still has a draft
+  const ready = leadsFound.filter((l) => found.get(l)?.status === 'qualified' && !found.get(l)?.hold && !state.drafts.some((d) => d.lead === l));
   if (leadsFound.length) {
     // A lead task drafts the outreach for the leads that qualify by itself, so what is left here is a lead whose draft didn't happen.
     lines.push(`- This run found ${leadsFound.length} lead(s); ${ready.length ? `${ready.length} qualified but still have no draft. Ask the team to try again with the button on the Outreach page, or say "draft emails for the new leads".` : 'every one that qualified has a draft, and the others did not qualify.'}`);
@@ -491,6 +492,8 @@ function usageSaved(t, startedMs) {
     cost: round(u.cost),
     models: Object.fromEntries(Object.entries(u.models).map(([name, m]) => [name, { ...m, cost: round(m.cost) }])),
     points: u.points,
+    // tasks that ran at the same time: the window's rise while this ran is shared with them, not this task's alone
+    alongside: loadQueue().filter((o) => o.id !== t.id && o.started && o.started <= now() && (!o.finished || o.finished >= (t.started || ''))).length,
     sessions: u.sessions,
     minutes: (t.usage?.minutes || 0) + Math.round((Date.now() - startedMs) / 60000),
   };
@@ -506,7 +509,7 @@ function usageText(u) {
     .join(', ');
   return (
     `About $${u.cost.toFixed(2)} at list prices (a measure of plan use, not money charged), ${u.minutes} min, ` +
-    `${u.sessions} session${u.sessions === 1 ? '' : 's'}, about ${u.points} points of the 5-hour window.${byModel ? ` By model: ${byModel}.` : ''}`
+    `${u.sessions} session${u.sessions === 1 ? '' : 's'}, ${u.alongside ? `the 5-hour window rose about ${u.points} points while it ran beside ${u.alongside} other task${u.alongside === 1 ? '' : 's'} (shared with them, not this task's alone)` : `about ${u.points} points of the 5-hour window`}.${byModel ? ` By model: ${byModel}.` : ''}`
   );
 }
 

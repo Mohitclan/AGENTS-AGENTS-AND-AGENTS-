@@ -87,7 +87,7 @@ To opt out, reply 'stop' and I won't write again.
 
 Every email, first, follow-up and last, signs off with "Best regards," and the logo signature. The copy checker fails an email without it, so it can't be sent. To change any wording, edit these blocks (and tell Claude, so the `email-template` skill matches).
 
-## A real example (Illos, passed review at 97/100)
+## An older example (Illos, 97/100, written before the 2026-11-10 template: its day 8 and wording are out of date)
 
 **Email 1. Subject: Illos's launch content**
 
