@@ -590,3 +590,32 @@ label.check { flex-direction: row !important; align-items: center; gap: 6px; fon
 .gl-item.s-unknown .gl-mark { background: rgba(255, 176, 32, .18); color: #ffd27a; }
 .gl-state { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
 .gl-fix { font-size: 12px; color: var(--warn); }
+
+/* ---- campaigns ---- */
+.camp-all { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.camp-all p { margin: 2px 0 0; }
+.camp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 16px; }
+.camp { display: flex; flex-direction: column; gap: 10px; }
+.camp p { margin: 0; }
+.camp-run { display: flex; gap: 6px; align-items: baseline; }
+.camp-run .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--live); flex: none; align-self: center; }
+.camp-funnel { display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 8px; }
+.camp-step { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+.camp-v { font-size: 22px; font-weight: 700; }
+.camp-l { color: var(--muted); font-size: 12px; }
+.camp-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; }
+.hud-link { left: 16px; top: 72px; text-decoration: none; padding: 6px 14px; }
+
+/* ---- logs as a story ---- */
+.lg { padding: 0; }
+.lg-head { display: flex; align-items: center; gap: 12px; padding: 12px 16px; cursor: pointer; }
+.lg-title { flex: 1; min-width: 0; }
+.lg-caret { width: 0; height: 0; border-left: 6px solid var(--muted); border-top: 5px solid transparent; border-bottom: 5px solid transparent; transition: transform .15s; flex: none; }
+.lg.open .lg-caret { transform: rotate(90deg); }
+.lg-problem { border-color: rgba(255, 77, 94, .5); }
+.lg-why { margin: 0; padding: 0 16px 10px 40px; }
+.story { list-style: none; margin: 0; padding: 0 16px 8px 40px; display: flex; flex-direction: column; gap: 6px; }
+.story li { display: flex; align-items: center; gap: 10px; }
+.story-t { flex: 1; min-width: 0; }
+.story .lg-bad .story-t { color: #ff9aa4; font-weight: 600; }
+.lg > .ghost, .lg > .wide { margin: 0 16px 14px 40px; }
