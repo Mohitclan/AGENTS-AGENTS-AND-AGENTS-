@@ -516,8 +516,11 @@ export function snapshot(root = ROOT) {
   base.pending = base.pending.filter(shown);
   base.others = base.others.filter(shown);
   base.sends = base.sends.filter(shown);
-  const live = base.runAlive && base.running;
-  const runEvents = live ? events.filter((e) => e.task === base.running.id) : [];
+  // Tasks run side by side: `runs` is every task being worked on now, `live` is true while any of them is.
+  const runs = base.runs.map((t) => ({ id: t.id, product: t.product || null, title: t.title, started: t.started, agents: [...new Set(working.filter((w) => w.task === t.id).map((w) => w.agent))] }));
+  const live = runs.length > 0;
+  const liveIds = new Set(runs.map((r) => r.id));
+  const runEvents = live ? events.filter((e) => liveIds.has(e.task)) : [];
   const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString();
   // Tasks are waiting but the plan's usage guard won't let them start.
   const paused = !live && !!base.usage?.full && base.tasks.some((t) => t.status === 'queued');
@@ -587,6 +590,7 @@ export function snapshot(root = ROOT) {
     campaigns,
     posts: postsCached(root),
     running: base.running ? { id: base.running.id, title: base.running.title, started: base.running.started } : null,
+    runs,
     usage: base.usage,
     kpis: {
       found: leads.length, qualified: by('qualified'), drafted: by('drafted'), contacted: by('contacted'), replied: by('replied'), ruledOut: by('disqualified'),
@@ -644,6 +648,8 @@ function signature(root) {
     }
   };
   ['ops/queue.json', 'ops/confirmations.jsonl', 'ops/board.md', 'ops/approvals.md', 'ops/messages.md', 'ops/fallbacks.md', 'ops/gate-log.jsonl', 'ops/send-log.jsonl', 'ops/replies.jsonl', 'pipeline/leads.jsonl', 'ops/runs/jarvis.lock', 'ops/runs/plan-limits.json'].forEach(add);
+  // the lane locks (one per running task) change when a task starts or ends
+  list(root, 'ops/runs/lanes', '.lock').forEach((f) => add(`ops/runs/lanes/${f}`));
   ['ops/mail-config.json', 'ops/outreach.jsonl'].forEach(add); // the pilot switch and the Emails page's decisions
   for (const f of list(root, 'outputs/outreach/replies')) add(`outputs/outreach/replies/${f}`);
   for (const dir of ['ops/runs', 'outputs/reviews', 'outputs/reports', 'outputs/research', 'outputs/outreach', 'outputs/sales', 'outputs/dev', 'knowledge/products', 'knowledge/proposals']) {
@@ -917,7 +923,7 @@ function main() {
           if (path === '/api/outreach/draft') {
             const plan = planDrafts(ROOT, ask.leads === 'new' || !ask.leads ? 'new' : [].concat(ask.leads), by);
             if (plan.error) return json(res, 409, { message: plan.error });
-            const added = addTask(ROOT, plan.task);
+            const added = addTask(ROOT, plan.task, { split: false });
             if (!added.id) return json(res, 500, { message: `The drafting task wasn't queued: ${added.error}` });
             logRequest(ROOT, plan.ids, added.id, by);
             const { full, started } = startQueued(ROOT);
@@ -1010,7 +1016,7 @@ function main() {
           if (path === '/api/questions/send') {
             const plan = answersTask(ROOT, by);
             if (!plan) return json(res, 409, { message: 'There are no new answers to send.' });
-            const added = addTask(ROOT, plan.task);
+            const added = addTask(ROOT, plan.task, { split: false });
             if (!added.id) return json(res, 500, { message: `The task wasn't queued: ${added.error}` });
             markSent(ROOT, plan.ids, added.id, by);
             const { full, started } = startQueued(ROOT);
