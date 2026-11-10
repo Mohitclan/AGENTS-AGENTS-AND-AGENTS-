@@ -626,3 +626,8 @@ label.check { flex-direction: row !important; align-items: center; gap: 6px; fon
 .story-t { flex: 1; min-width: 0; }
 .story .lg-bad .story-t { color: #ff9aa4; font-weight: 600; }
 .lg > .ghost, .lg > .wide { margin: 0 16px 14px 40px; }
+
+/* ---- emails: follow-ups grouped by lead ---- */
+.em-group { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
+.em-group h3 { margin: 4px 0 0; font-size: 15px; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.em-hint { margin: 0 0 12px; }

@@ -86,6 +86,12 @@ describe('email', () => {
     const r = lint(`${GOOD_EMAIL}\n## Email 2\n\nSubject: a very long subject line that goes on and on\n\nHi Asha,\n\nHere is the sample.\n`, 'email');
     assert.ok(failed(r, 'email-subject'));
   });
+  it('fails an email that names the AI behind the product, and leaves a notes section alone', () => {
+    for (const name of ['Anthropic', "Anthropic's Claude", 'Claude', 'OpenAI', 'GPT-4', 'Gemini']) {
+      assert.ok(failed(lint(GOOD_EMAIL.replace('Your careers page', `Parts of the code go to ${name}. Your careers page`), 'email'), 'email-ai-vendor'), name);
+    }
+    assert.ok(!failed(lint(`${GOOD_EMAIL}\n# Notes\n\nThe fact sheet says code goes to Anthropic's Claude.\n`, 'email'), 'email-ai-vendor'));
+  });
   it('fails a missing subject', () => assert.ok(failed(lint('Hi Asha,\n\nYour launch is soon. Reply "no" to opt out.\n', 'email'), 'email-subject')));
   it('fails a fake reply subject', () => assert.ok(failed(lint(GOOD_EMAIL.replace('your launch page video', 'Re: launch'), 'email'), 'email-subject')));
   it('fails a banned opener after the greeting', () => assert.ok(failed(lint(GOOD_EMAIL.replace('Your careers page', 'I wanted to reach out about your careers page'), 'email'), 'email-opener')));

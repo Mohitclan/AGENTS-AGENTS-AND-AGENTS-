@@ -80,3 +80,4 @@ Ask: would a careful reviewer send this as-is to this person at this company? Ju
 - Brochure phrases, hype words, exclamation marks, links in a first email, or typos.
 - Changing the fixed wording of the first-email layout, or opening a first email any other way.
 - A sender name in the body that differs from the signature.
+- Naming the AI behind a product in any email: no Claude, Anthropic, Gemini, OpenAI, GPT or "AI model" (the founder's rule of 2026-11-10; lint-copy fails it and send-email.mjs won't send it). For a worry about code or data, say what the product does with the repository (it only reads it and never writes to it) and link the product's security page in a follow-up.

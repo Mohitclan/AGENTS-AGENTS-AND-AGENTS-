@@ -387,6 +387,8 @@ function splitEmails(lines, start) {
   });
 }
 
+const AI_VENDOR = /\b(anthropic|claude|gemini|openai|chat ?gpt|gpt-?\d[\w.]*|llama|mistral)\b/i;
+
 function checkEmails(lines, start, report, answer = false) {
   for (const email of splitEmails(lines, start)) {
     const part = lines.slice(email.from, email.to);
@@ -409,6 +411,9 @@ function checkEmails(lines, start, report, answer = false) {
     // The email-template skill's first email ends on its signature, with no opt-out line (the human's choice, 2026-11-10).
     if (!OPT_OUT.test(text) && !HOUSE_CLOSING.test(text)) report.fail('email-optout', email.from + 1, `email ${email.n} has no opt-out line`);
     if ((text.match(/\?/g) || []).length > 1) report.warn('email-cta', email.from + 1, `email ${email.n} asks more than one question; keep to one call to action`);
+    // Emails never name the AI behind a product (the founder's rule of 2026-11-10): no Claude, Anthropic and the like.
+    const vendor = AI_VENDOR.exec(text);
+    if (vendor) report.fail('email-ai-vendor', email.from + 1, `email ${email.n} names "${vendor[0]}": don't say which AI the product uses`);
     if (/\bbook (a|your) (call|demo|meeting)\b|\bcalendly\b/i.test(text)) report.warn('email-cta', email.from + 1, `email ${email.n} asks for a booking; check the product's fact sheet allows it`);
   }
 }

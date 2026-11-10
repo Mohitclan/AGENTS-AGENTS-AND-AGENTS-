@@ -108,7 +108,7 @@ To opt out, reply 'stop' and I won't write again.
 >
 > My earlier notes were about MotionRepo and Illos's launch. It reads a repository through the GitHub App, or from a pasted public repo URL, and never writes to it.
 >
-> Parts of the code are sent to Anthropic's Claude, which writes the scripts and documents. The security page has the details:
+> It only reads your repository and never writes to it. The security page explains how your code is handled:
 > https://motionrepo.panscience.ai/security
 >
 > This is my last email. Reply with any question.
@@ -116,7 +116,7 @@ To opt out, reply 'stop' and I won't write again.
 ## Things worth deciding before going live
 
 1. **Who signs the emails.** Today it is "PanScience Launch, Launch team" from launch@panscience.xyz, a team name rather than a person. Founders usually get more replies writing as themselves: give a name and role (the sending address can stay launch@).
-2. **Email 3's opening worry.** It tells the lead that code goes to Anthropic's Claude. That is honest and required somewhere, but you may prefer "It never writes to your repository; the security page explains how your code is handled" with the link, and leave the detail to the page.
+2. **Decided on 2026-11-10: no AI names in emails.** No email says which AI the product uses (no Claude, Anthropic and the like). A worry about code is answered with what the product does with the repository and the security page link. The copy checker fails an email that names one, and it can't be sent.
 3. **Follow-ups: a call or the trial?** The skill says follow-ups offer a 15-minute call and propose a day ("Would Thursday afternoon work?"). The drafts offer the free trial instead. Pick one.
 4. **One opt-out line everywhere.** The drafts use two wordings; keep "To opt out, reply 'stop' and I won't write again."
 5. **Anything you always or never want said**, such as a price, a discount, or a client name the fact sheet allows.

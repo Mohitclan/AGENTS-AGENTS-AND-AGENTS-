@@ -399,7 +399,7 @@ function emailsOf(root, drafts, leads = latestLeads(root), pilot = pilotStatus(r
       }[m.state];
       return {
         ref: emailRef(d.path, m.n), draft: d.path, lead: d.lead, company: d.company, kind: d.kind, reply: d.reply, n: m.n, of: d.mails.length, subject, body: String(filled).trim(), state: m.state, why, sent: m.sent, liveSent: m.liveSent,
-        retry: m.retry, due: m.due, dueText: m.dueText, after: m.after, skip: m.skip, to: who.to || '', toName: who.name || '', cannotSend: who.refuse || '', review: d.review, at: m.at || d.at, opens: m.opens, openedAt: m.openedAt, openAuto: m.openAuto,
+        retry: m.retry, due: m.due, dueText: m.dueText, offset: m.offset, after: m.after, skip: m.skip, to: who.to || '', toName: who.name || '', cannotSend: who.refuse || '', review: d.review, at: m.at || d.at, opens: m.opens, openedAt: m.openedAt, openAuto: m.openAuto,
       };
     });
   });

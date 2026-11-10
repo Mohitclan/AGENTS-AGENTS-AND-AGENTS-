@@ -1517,7 +1517,10 @@ const outreachView = {
 // scheduled for that day. Only emails whose draft passed review can be decided. The Replies tab lists the answers our
 // emails got, each with a button to have the team draft an answer; the drafted answer then appears here like any
 // other email. By voice: "approve email 1 for puzari", "decline email 2 for puzari", "approve all pending emails".
-const EMAIL_TABS = [['pending', 'Pending'], ['scheduled', 'Scheduled'], ['all', 'All drafted'], ['approved', 'Sent'], ['declined', 'Declined'], ['replies', 'Replies']];
+const EMAIL_TABS = [['first', 'First emails'], ['followups', 'Follow-ups'], ['scheduled', 'Scheduled'], ['approved', 'Sent'], ['declined', 'Declined'], ['replies', 'Replies'], ['all', 'All drafted']];
+// Which email of a lead's sequence this is, in plain words: the first email, or follow-up 1 or 2 and when it goes.
+const emailRole = (m) => (m.kind === 'answer' ? 'Answer' : m.n === 1 ? 'First email' : `Follow-up ${m.n - 1} of ${m.of - 1}`);
+const followTiming = (m) => (m.dueText ? `Goes on ${m.dueText}, only if there's no reply` : `Goes ${m.offset ? `${m.offset} working days` : 'a few days'} after the first email, only if there's no reply`);
 const EMAIL_LABEL = { pending: 'Waiting for you', approved: 'Sent', declined: 'Declined', waiting: 'In review', scheduled: 'Scheduled', skipped: 'Skipped' };
 const EMAIL_PILL = { pending: 'p-needs_approval', approved: 'p-done', declined: 'p-failed', waiting: 'p-running', scheduled: 'p-queued', skipped: 'p-failed' };
 // Open tracking (scripts/opens.mjs): how often the email's image was loaded, and when last. A hint, not proof it was read.
@@ -1592,7 +1595,9 @@ function emailCard(m, live) {
     : m.state === 'scheduled' ? `<button type="button" class="em-no small-no" data-decide="decline" aria-label="Cancel the scheduled email ${m.n} for ${who}">✗ Cancel</button>`
     : m.state === 'declined' ? `<button type="button" class="em-yes small-yes" data-decide="approve" aria-label="Send email ${m.n} for ${who} after all">✓ Send after all</button>`
     : m.state === 'approved' && m.retry ? `<button type="button" class="em-yes small-yes" data-decide="approve" aria-label="Try sending email ${m.n} for ${who} again">✓ Try sending again</button>` : '';
-  const head = m.kind === 'answer' ? `<span class="muted tiny">Answer to ${esc(m.reply?.fromName || m.reply?.from || 'a reply')}</span>` : `<span class="muted tiny">Email ${m.n} of ${m.of}</span>`;
+  const head = m.kind === 'answer' ? `<span class="muted tiny">Answer to ${esc(m.reply?.fromName || m.reply?.from || 'a reply')}</span>`
+    : m.n === 1 ? `<span class="pill p-running">First email</span>`
+    : `<span class="pill">${esc(emailRole(m))}</span><span class="muted tiny">${esc(followTiming(m))}</span>`;
   // With the pilot off, say where a tick would send it, so a person sees the address before ticking.
   const to = !live ? '' : m.to ? `<div class="em-to tiny muted">To: ${m.toName ? `${esc(m.toName)} ` : ''}&lt;${esc(m.to)}&gt;</div>` : `<div class="em-to tiny bad-text">${esc(m.cannotSend)}</div>`;
   return `<article class="em-card s-${esc(m.state)}${open ? ' open' : ''}" data-ref="${esc(m.ref)}">
@@ -1620,7 +1625,7 @@ function replyCard(r) {
 }
 
 const emailsView = {
-  tab: 'pending',
+  tab: 'first',
   open: new Set(),
   onClick: null,
   build() {
@@ -1659,7 +1664,8 @@ const emailsView = {
     };
     // the page's one click handler is taken off again when the page is left (see leave)
     $('#view').addEventListener('click', emailsView.onClick);
-    $('#em-all').addEventListener('click', (e) => decideEmail(e.currentTarget, 'all', 'approve'));
+    // approves every email shown on this tab: all first emails, or all follow-ups, never both at once
+    $('#em-all').addEventListener('click', (e) => decideEmail(e.currentTarget, (emailsView.shownRefs || []).slice(), 'approve'));
     const typed = $('#gl-type');
     $('#gl-end').addEventListener('click', () => {
       $('#gl-confirm').hidden = false;
@@ -1693,24 +1699,41 @@ const emailsView = {
     $('#gl-end').hidden = live;
     $('#gl-back').hidden = !live || !o.pilot.canRestore;
     if (live) $('#gl-confirm').hidden = true;
-    $('#em-intro').innerHTML = `Every email the team drafted, one at a time. <b>✓</b> sends it, <b>✗</b> stops it. ${live ? 'With the pilot off, ✓ sends to the lead. Email 2 or 3 ticked early is scheduled for its working day.' : 'During the pilot ✓ sends [TEST] copies to Purab, Tanvi and Mohit only, never to the lead.'} Only emails whose draft passed review can be sent. By voice: <q>approve email 1 for PuzariCloud</q>, <q>decline email 2 for PuzariCloud</q>, <q>approve all pending emails</q>.`;
-    const tabs = { pending: all.filter((m) => m.state === 'pending'), scheduled: all.filter((m) => m.state === 'scheduled'), all, approved: all.filter((m) => m.state === 'approved'), declined: all.filter((m) => m.state === 'declined'), replies };
+    $('#em-intro').innerHTML = `Each lead gets <b>one first email</b> and up to <b>two follow-ups</b>, which go days later and only if the lead hasn't replied. <b>First emails</b> are the ones to send now; <b>Follow-ups</b> are listed apart, by lead. <b>✓</b> sends an email, <b>✗</b> stops it. ${live ? 'With the pilot off, ✓ sends to the lead. Email 2 or 3 ticked early is scheduled for its working day.' : 'During the pilot ✓ sends [TEST] copies to Purab, Tanvi and Mohit only, never to the lead.'} Only emails whose draft passed review can be sent. By voice: <q>approve email 1 for PuzariCloud</q>, <q>decline email 2 for PuzariCloud</q>, <q>approve all pending emails</q>.`;
+    const pending = all.filter((m) => m.state === 'pending');
+    const tabs = { first: pending.filter((m) => m.kind === 'answer' || m.n === 1), followups: pending.filter((m) => m.kind !== 'answer' && m.n > 1), scheduled: all.filter((m) => m.state === 'scheduled'), all, approved: all.filter((m) => m.state === 'approved'), declined: all.filter((m) => m.state === 'declined'), replies };
     for (const b of $$('[data-tab]')) {
       b.setAttribute('aria-selected', String(b.dataset.tab === emailsView.tab));
       $(`[data-n="${b.dataset.tab}"]`).textContent = (b.dataset.tab === 'replies' ? replies.filter((r) => r.canDraft).length : tabs[b.dataset.tab].length) || '';
     }
     const allBtn = $('#em-all');
-    allBtn.hidden = emailsView.tab !== 'pending' || tabs.pending.length < 2;
-    allBtn.textContent = `✓ Approve all ${tabs.pending.length}`;
     const shown = tabs[emailsView.tab];
+    const bulk = ['first', 'followups'].includes(emailsView.tab) && shown.length > 1;
+    emailsView.shownRefs = bulk ? shown.map((m) => m.ref) : [];
+    allBtn.hidden = !bulk;
+    allBtn.textContent = `✓ Approve all ${shown.length} ${emailsView.tab === 'first' ? 'first emails' : 'follow-ups'}`;
     const empty = {
-      pending: 'No email is waiting for you. New drafts appear here once they pass review.',
+      first: 'No first email is waiting for you. New drafts appear here once they pass review.',
+      followups: 'No follow-up is waiting for you.',
       scheduled: 'Nothing is scheduled. A follow-up ticked before its day appears here until it goes.',
       all: 'No emails drafted yet. Ask for drafts on the Outreach page or by voice.',
       approved: 'Nothing sent yet.', declined: 'Nothing declined.',
       replies: 'No replies yet. The inbox is read every 20 minutes while a mail password is set.',
     }[emailsView.tab];
-    $('#em-list').innerHTML = shown.length ? shown.map((m) => (emailsView.tab === 'replies' ? replyCard(m) : emailCard(m, live))).join('') : `<p class="muted em-empty">${esc(empty)}</p>`;
+    let html;
+    if (!shown.length) html = `<p class="muted em-empty">${esc(empty)}</p>`;
+    else if (emailsView.tab === 'replies') html = shown.map(replyCard).join('');
+    else if (emailsView.tab === 'followups') {
+      // grouped by lead, under where that lead's first email stands
+      const byLead = new Map();
+      for (const m of shown) byLead.set(m.draft, [...(byLead.get(m.draft) || []), m]);
+      html = `<p class="muted tiny em-hint">${live ? 'A ✓ on a follow-up schedules it for its day; it goes only if the lead hasn\'t replied.' : 'During the pilot a ✓ sends the follow-up\'s [TEST] copy straight away, so you can read it. For a real lead it would wait its days.'}</p>` + [...byLead.values()].map((list) => {
+        const first = all.find((x) => x.draft === list[0].draft && x.n === 1);
+        const where = !first ? '' : first.state === 'pending' ? 'First email: still waiting for you' : `First email: ${emailLabel(first).toLowerCase()}`;
+        return `<section class="em-group"><h3>${esc(list[0].company)} <span class="muted tiny">${esc(where)}</span></h3>${list.map((m) => emailCard(m, live)).join('')}</section>`;
+      }).join('');
+    } else html = shown.map((m) => emailCard(m, live)).join('');
+    $('#em-list').innerHTML = html;
   },
 };
 
