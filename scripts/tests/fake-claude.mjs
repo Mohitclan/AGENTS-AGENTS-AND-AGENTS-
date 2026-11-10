@@ -83,5 +83,9 @@ process.stdin.on('end', async () => {
   mkdirSync(join(process.cwd(), 'outputs', 'reports'), { recursive: true });
   writeFileSync(join(process.cwd(), 'outputs', 'reports', `${id}.md`), `# ${id}\n\n## Result\nDone (${process.env.JARVIS_TASK_ID}).\n`);
   const status = /needs approval/i.test(input) ? 'needs_approval' : 'done';
-  emit({ type: 'result', is_error: false, result: `All finished.\n\nJARVIS\nstatus: ${status}\nreport: outputs/reports/${id}.md\n`, num_turns: 5 });
+  emit({
+    type: 'result', is_error: false, result: `All finished.\n\nJARVIS\nstatus: ${status}\nreport: outputs/reports/${id}.md\n`, num_turns: 5,
+    total_cost_usd: 1.25,
+    modelUsage: { 'claude-sonnet-5-5': { inputTokens: 10, outputTokens: 20, cacheReadInputTokens: 30, cacheCreationInputTokens: 40, costUSD: 1 }, 'claude-opus-5-5': { inputTokens: 1, outputTokens: 2, cacheReadInputTokens: 3, cacheCreationInputTokens: 4, costUSD: 0.25 } },
+  });
 });

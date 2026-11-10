@@ -26,8 +26,9 @@
 //     drafting lane's ops/runs/lane/<id>-*.log): the list-price cost (a proxy for plan use, not money charged),
 //     per model, and the 5-hour window points the run used: the rise of `five_hour.utilization` across the
 //     run's rate_limit_event lines (a little under the truth: the first reading comes after the first call).
+//     A run with no log on this computer counts the `usage` Jarvis saved in ops/queue.json when it finished.
 //
-// Exports: weekRange, lastWeek, parseDay, sourceOf, collectWeek, usageOfLog, adviceFrom, renderReport, writeWeekly.
+// Exports: weekRange, lastWeek, parseDay, sourceOf, collectWeek, usageOfLog, usageOfTask, adviceFrom, renderReport, writeWeekly.
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ROOT, frontmatter, isMain } from './_shared.mjs';
@@ -153,9 +154,12 @@ export function usageOfLog(text) {
   return out;
 }
 
-// One task's use: its own log plus the drafting lane's logs. `logged` is false when this computer has none.
-function usageOfTask(root, id) {
+// One task's use: its own log plus the drafting lane's logs. With no log on this computer, the use Jarvis saved in
+// the queue when the run finished (`saved`, the task's `usage`), so a run made on another computer still counts.
+// `logged` is false when neither is there.
+export function usageOfTask(root, id, saved) {
   const files = [`ops/runs/${id}.log`, ...listDir(root, 'ops/runs/lane', '.log').filter((n) => n.startsWith(`${id}-`)).map((n) => `ops/runs/lane/${n}`)].filter((f) => existsSync(join(root, f)));
+  if (!files.length && saved) return { cost: saved.cost || 0, models: saved.models || {}, points: saved.points || 0, sessions: saved.sessions || 0, logged: true };
   const total = { cost: 0, models: {}, points: 0, sessions: 0, logged: files.length > 0 };
   for (const f of files) {
     const u = usageOfLog(readText(root, f));
@@ -254,7 +258,7 @@ export function collectWeek(root, week) {
   const count = (which) => decisions.filter((e) => e.decision === which).reduce((n, e) => n + (e.emails || []).length, 0);
 
   // plan use
-  const runs = finished.map((t) => ({ id: t.id, task: t.task, status: t.status, finished: t.finished, ...usageOfTask(root, t.id) }));
+  const runs = finished.map((t) => ({ id: t.id, task: t.task, status: t.status, finished: t.finished, ...usageOfTask(root, t.id, t.usage) }));
   const models = {};
   for (const r of runs) for (const [name, m] of Object.entries(r.models)) models[name] = (models[name] || 0) + m.cost;
 
@@ -329,7 +333,7 @@ export function renderReport(data, { now = new Date() } = {}) {
     `- Leads found: ${data.leads.found} in ${plural(data.leads.runs.length, 'run')}; ${data.leads.imported} new in the pipeline`,
     `- Drafts written: ${data.drafts.written.length}, passed review: ${data.drafts.passed}`,
     `- Emails approved: ${data.decisions.approved}, declined: ${data.decisions.declined}`,
-    `- Plan use: ${!plan.runs.length ? 'no runs finished' : !plan.logged ? `${plural(plan.runs.length, 'run')} finished, none with a log on this computer` : `${money(plan.cost)} at list prices over ${plural(plan.runs.length, 'run')}, about ${plan.points} points of the 5-hour window`}`,
+    `- Plan use: ${!plan.runs.length ? 'no runs finished' : !plan.logged ? `${plural(plan.runs.length, 'run')} finished, none with its use recorded` : `${money(plan.cost)} at list prices over ${plural(plan.runs.length, 'run')}, about ${plan.points} points of the 5-hour window`}`,
   ]);
 
   section('Do more of, do less of', adviceFrom(data).map((l) => `- ${l}`));
@@ -373,7 +377,7 @@ export function renderReport(data, { now = new Date() } = {}) {
     ? 'No data yet: no run finished this week.'
     : [table(['Run', 'Task', 'List price', 'By model', '5-hour points'], runs.map((r) => [r.id, r.task.slice(0, 60), r.logged ? money(r.cost) : 'no log here', r.logged ? byModel(r) : '-', r.logged ? r.points : '-'])),
       ...(moreRuns ? ['', moreRuns] : []), '',
-      `Total: ${money(plan.cost)} and about ${plan.points} points of the 5-hour window over ${plural(plan.runs.length, 'run')} (${plan.logged} with a log on this computer).`,
+      `Total: ${money(plan.cost)} and about ${plan.points} points of the 5-hour window over ${plural(plan.runs.length, 'run')} (${plan.logged} with their use recorded).`,
       ...(Object.keys(plan.models).length ? ['', 'By model:', '', table(['Model', 'List price', 'Share'], Object.entries(plan.models).sort((a, b) => b[1] - a[1]).map(([n, c]) => [modelName(n), money(c), plan.cost ? `${Math.round((c / plan.cost) * 100)}%` : '-']))] : []), '',
       'Costs are the list prices of the tokens a run used: a proxy for plan use, not money charged. Points are how far the 5-hour window rose while the run went on, read from its own log.']);
 
