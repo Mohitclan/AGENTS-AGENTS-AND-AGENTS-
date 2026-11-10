@@ -14,30 +14,30 @@ These are the templates the outreach agent uses today (the `email-template` skil
 
 Every follow-up stops at once if they reply or opt out.
 
-## Email 1: first contact (60 to 100 words)
+## Email 1: first contact (approved 2026-11-10, under 150 words)
+
+The human gave this template on 2026-11-10, and the `email-template` skill now uses it word for word. Only the `{{...}}` parts change per lead.
 
 ```
-Subject: {{Company}}'s {{topic}}            [2 to 5 words, about them, e.g. "Illos's launch content"]
+Subject: {{Company}}'s {{topic}}            [2 to 5 words, about them]
 
 Hi {{First name}},
 
-{{One specific fact about them, from public research: a launch, a release, a post, a hire.}}
+I came across {{Company}} and noticed that {{one specific fact about them, from public research: a launch, a release, a post, a hire}}.
 
-{{An honest guess at the problem it causes them, said as a guess.}}
+With {{the business activity or challenge behind it}}, {{the problem our product solves}} can often take valuable time and resources away from {{their core priorities}}.
 
-I'm {{Sender name}} from PanScience Innovations, and our product {{Product}} {{what it does, in one sentence, present tense}}.
+I'm from the PanScience Innovations team, and we {{what the product does, present tense}} to help {{who it is for}} achieve {{the main outcome}}.
 
-{{At most one proof point, from confirmed facts only. Leave it out rather than use a weak one.}}
+{{Optional: one proof point, result, use case or attached resource, from confirmed facts only.}}
 
-Would it be useful for {{Company}}?
+I'd be glad to walk you through how {{Product}} could help {{Company}} on a short call or briefing, whenever suits you.
 
-To opt out, reply 'stop' and I won't write again.
-
-{{Sender name}}, {{Sender role}}, PanScience Innovations
-{{Sender email}}
+Best regards,
+PanScience Innovations              [sent as the logo signature: docs/brand/email-signature.html]
 ```
 
-Rules: no links in Email 1, no attachments unless named, no hype words, no exclamation marks, never open with us.
+Rules: no opt-out line on Email 1 (follow-ups keep theirs), no links in the body, no hype words, no exclamation marks.
 
 ## Email 2: follow-up (45 to 75 words, same thread)
 
