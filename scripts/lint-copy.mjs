@@ -20,7 +20,7 @@ const LOG = join(ROOT, 'ops', 'gate-log.jsonl');
 const TYPES = ['general', 'email', 'social', 'seo'];
 const OPT_OUT = /\b(opt.?out|unsubscribe|reply ['"“]?(no|stop|remove)|won['’]t write again|not relevant|no more emails)\b/i;
 const SUBJECT_MAX_WORDS = 6;
-const EMAIL_MAX_WORDS = 120;
+const EMAIL_MAX_WORDS = 150; // greeting, signature and opt-out included; the house first email is about 130 (2026-11-10)
 const toRel = (p) => relative(ROOT, p).split(sep).join('/');
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const wordRe = (w) => new RegExp(`(?<![\\w-])${escapeRe(w).replace(/['’]/g, "['’]")}(?![\\w-])`, 'i');
@@ -404,9 +404,10 @@ function checkEmails(lines, start, report, answer = false) {
     const opener = noGreeting.toLowerCase();
     const bad = RULES.bannedOpeners.find((o) => opener.startsWith(o));
     if (bad) report.fail('email-opener', email.from + 1, `email ${email.n} opens with "${bad}"`);
-    else if (/^i\b/i.test(noGreeting)) report.warn('email-opener', email.from + 1, `email ${email.n}'s first sentence starts with "I"; open on their problem`);
+    else if (/^i\b/i.test(noGreeting) && !(RULES.houseOpeners || []).some((o) => opener.startsWith(o))) report.warn('email-opener', email.from + 1, `email ${email.n}'s first sentence starts with "I"; open on their problem`);
     if (countWords(text) > EMAIL_MAX_WORDS) report.fail('email-length', email.from + 1, `email ${email.n} has ${countWords(text)} words; the limit is ${EMAIL_MAX_WORDS}`);
-    if (!OPT_OUT.test(text)) report.fail('email-optout', email.from + 1, `email ${email.n} has no opt-out line`);
+    // The email-template skill's first email ends on its signature, with no opt-out line (the human's choice, 2026-11-10).
+    if (!OPT_OUT.test(text) && !HOUSE_CLOSING.test(text)) report.fail('email-optout', email.from + 1, `email ${email.n} has no opt-out line`);
     if ((text.match(/\?/g) || []).length > 1) report.warn('email-cta', email.from + 1, `email ${email.n} asks more than one question; keep to one call to action`);
     if (/\bbook (a|your) (call|demo|meeting)\b|\bcalendly\b/i.test(text)) report.warn('email-cta', email.from + 1, `email ${email.n} asks for a booking; check the product's fact sheet allows it`);
   }
@@ -415,6 +416,8 @@ function checkEmails(lines, start, report, answer = false) {
 // B6, sequence level: what checkEmails can't see because it reads each email alone. Warnings only.
 const MEETING_ASK = /\b(book|schedule|set up|grab|hop on|jump on|get on)\b[^.?!\n]{0,25}\b(call|demo|meeting|chat)\b|\bcalendly\b|\b(quick|short|15[- ]minute|20[- ]minute|30[- ]minute|\d+[- ]min(ute)?)\s+(call|chat|demo)\b|\bcan we (talk|chat|speak|jump)\b/i;
 const EXISTING_BOOKING_ASK = /\bbook (a|your) (call|demo|meeting)\b|\bcalendly\b/i;
+// The email-template skill's first email ends on this offer by design (the human's template, 2026-11-10).
+const HOUSE_CLOSING = /\bI'd be glad to walk you through how\b[^.?!\n]*\bon a short call or briefing, whenever suits you\b/i;
 
 // The one ask an email ends on: the last question, else the last sentence with a link in it.
 function ctaOf(part, subjectAt) {
@@ -443,7 +446,7 @@ function checkSequence(lines, start, report) {
       else subjects.set(subject, email.n);
     }
     const text = part.filter((l, k) => k !== subjectAt && !/^#/.test(l)).join(' ');
-    if (email.n === 1 && MEETING_ASK.test(text) && !EXISTING_BOOKING_ASK.test(text)) report.warn('email-sequence', email.from + 1, 'email 1 asks for a call or meeting; the first step should be a question or a sample, not a meeting');
+    if (email.n === 1 && MEETING_ASK.test(text.replace(HOUSE_CLOSING, '')) && !EXISTING_BOOKING_ASK.test(text)) report.warn('email-sequence', email.from + 1, 'email 1 asks for a call or meeting; the first step should be a question or a sample, not a meeting');
     const stuck = [...text.matchAll(URL_RE)].map((m) => m[0]).find((u) => /[.,;:!?*_]$/.test(u));
     if (stuck) report.warn('url-punctuation', email.from + 1, `email ${email.n}: "${stuck.slice(-1)}" is stuck to the end of a link (${stuck.slice(0, 50)}) and can break it; leave a space or a line break after the URL`);
     const cta = ctaOf(part, subjectAt);

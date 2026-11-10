@@ -88,12 +88,24 @@ describe('email', () => {
   });
   it('fails a missing subject', () => assert.ok(failed(lint('Hi Asha,\n\nYour launch is soon. Reply "no" to opt out.\n', 'email'), 'email-subject')));
   it('fails a fake reply subject', () => assert.ok(failed(lint(GOOD_EMAIL.replace('your launch page video', 'Re: launch'), 'email'), 'email-subject')));
-  it('fails a banned opener after the greeting', () => assert.ok(failed(lint(GOOD_EMAIL.replace('Your careers page', 'I came across your careers page'), 'email'), 'email-opener')));
+  it('fails a banned opener after the greeting', () => assert.ok(failed(lint(GOOD_EMAIL.replace('Your careers page', 'I wanted to reach out about your careers page'), 'email'), 'email-opener')));
+  it('passes the email-template first email with no opt-out line, and still fails any other email without one', () => {
+    const house = `## Email 1\n\nSubject: Acme's launch videos\n\nHi Asha,\n\nI came across Acme and noticed that you shipped version 2.0 last week.\n\nI'd be glad to walk you through how MotionRepo could help Acme on a short call or briefing, whenever suits you.\n\nBest regards,\n{{SENDER_NAME}}\n{{SENDER_ROLE}}\n{{COMPANY_NAME}}\n`;
+    assert.ok(!failed(lint(house, 'email'), 'email-optout'));
+    assert.ok(failed(lint(`${house}\n## Email 2\n\nSubject: Re: Acme's launch videos\n\nHi Asha,\n\nMy note on Monday was about launch videos.\n`, 'email'), 'email-optout'), 'a follow-up still needs one');
+  });
+  it('passes the house opener from the email-template skill, with no warning about starting with I', () => {
+    const r = lint(GOOD_EMAIL.replace('Your careers page lists', 'I came across Acme and noticed that your careers page lists'), 'email');
+    assert.ok(!failed(r, 'email-opener') && !warned(r, 'email-opener'), r.out);
+  });
   it('warns on a first sentence starting with I', () => assert.ok(warned(lint(GOOD_EMAIL.replace('Your careers page lists', 'I read that your careers page lists'), 'email'), 'email-opener')));
-  it('fails an email over 120 words', () => assert.ok(failed(lint(GOOD_EMAIL.replace('Worth a look', `${'word '.repeat(130)}Worth a look`), 'email'), 'email-length')));
+  it('fails an email over 150 words, and passes one a little under', () => {
+    assert.ok(failed(lint(GOOD_EMAIL.replace('Worth a look', `${'word '.repeat(150)}Worth a look`), 'email'), 'email-length'));
+    assert.ok(!failed(lint(GOOD_EMAIL.replace('Worth a look', `${'word '.repeat(60)}Worth a look`), 'email'), 'email-length'));
+  });
   it('fails a missing opt-out', () => assert.ok(failed(lint(GOOD_EMAIL.replace(`If this isn't relevant, reply "no" and I won't write again.`, ''), 'email'), 'email-optout')));
   it('applies the word limit to every email', () => {
-    const r = lint(`${GOOD_EMAIL}\n## Email 3\n\nSubject: one more thing\n\nHi Asha,\n\n${'word '.repeat(125)}\n\nReply "no" to opt out.\n`, 'email');
+    const r = lint(`${GOOD_EMAIL}\n## Email 3\n\nSubject: one more thing\n\nHi Asha,\n\n${'word '.repeat(155)}\n\nReply "no" to opt out.\n`, 'email');
     assert.ok(failed(r, 'email-length'));
     assert.match(r.out, /email 2 has \d+ words/);
   });
@@ -103,7 +115,7 @@ describe('email', () => {
     assert.match(r.out, /email 2 has no opt-out line/);
   });
   it('stops an email at the next heading', () => {
-    const r = lint(`${GOOD_EMAIL}\n## LinkedIn\n\n${'word '.repeat(140)}\n`, 'email');
+    const r = lint(`${GOOD_EMAIL}\n## LinkedIn\n\n${'word '.repeat(170)}\n`, 'email');
     assert.equal(r.code, 0, r.out);
   });
   it('warns on two questions in one email', () => assert.ok(warned(lint(GOOD_EMAIL.replace('Worth a look before Friday?', 'Worth a look before Friday? Or next week?'), 'email'), 'email-cta')));
@@ -337,6 +349,9 @@ describe('A18 tracking parameters and B6 sequence checks (warnings)', () => {
     assert.ok(warned(r, 'email-sequence'));
     assert.match(r.out, /email 1 asks for a call/);
     assert.ok(!warned(lint(seqEmail(1, 'your launch video', 'Worth a look before Friday?'), 'email'), 'email-sequence'));
+    const house = "I'd be glad to walk you through how MotionRepo could help Acme on a short call or briefing, whenever suits you.";
+    assert.ok(!warned(lint(seqEmail(1, 'your launch video', house), 'email'), 'email-sequence'), 'the email-template closing is not a meeting ask');
+    assert.ok(warned(lint(seqEmail(1, 'your launch video', `${house} Can we hop on a quick call this week?`), 'email'), 'email-sequence'), 'another call ask still warns');
   });
   it('warns when two emails in a row end on the same kind of ask', () => {
     const r = lint(seqEmail(1, 'your launch video', 'Worth a look before Friday?') + seqEmail(2, 'a sample for you', 'Worth a look this week?'), 'email');

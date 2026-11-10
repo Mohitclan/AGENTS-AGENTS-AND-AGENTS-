@@ -72,8 +72,10 @@
   ],
   "tier3LimitPercent": 3,
   "emDashPer1000Words": 1,
+  "_openerComment": "houseOpeners: how the email-template skill's first email opens (given by the human on 2026-11-10), so it passes even though it starts with \"I\". bannedOpeners still fail every other opener on the list.",
+  "houseOpeners": ["i came across"],
   "bannedOpeners": [
-    "i came across", "i wanted to reach out", "i'm reaching out", "i am reaching out", "i noticed", "i saw",
+    "i wanted to reach out", "i'm reaching out", "i am reaching out", "i noticed", "i saw",
     "we help companies like yours", "we help companies like", "my name is", "hope you", "hi there, i", "quick question"
   ],
   "sourceMarkers": ["source:", "sources:", "retrieved:", "observed:", "checked:", "evidence:", "told by", "http://", "https://", "knowledge/", "outputs/", "repos/", "[p:", "[c:"]

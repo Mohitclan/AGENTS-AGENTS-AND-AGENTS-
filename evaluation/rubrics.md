@@ -73,9 +73,9 @@ Leads that fail the spot-check are listed by ID so the coordinator can mark them
 |---|---|
 | Personalisation comes from the lead's own evidence; no fake familiarity | 25 |
 | Right product and value for this lead, using confirmed facts only | 25 |
-| Clear and short: email under 120 words, one call to action, honest subject line | 20 |
+| Clear and short: email under 150 words (greeting, signature and opt-out included), first email in the email-template skill's fixed layout, one call to action, honest subject line | 20 |
 | Follow-ups each add something new | 15 |
-| Compliance: real sender, opt-out line, no false urgency or misleading claims | 15 |
+| Compliance: real sender, opt-out line on every email except the email-template first email (which ends on its signature), no false urgency or misleading claims | 15 |
 
 ## 5. Sales asset (reply, call prep, proposal, battlecard)
 
