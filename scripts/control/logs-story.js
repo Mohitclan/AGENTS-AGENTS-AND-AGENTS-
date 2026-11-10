@@ -86,7 +86,7 @@ export function buildGroups(events, tasks = [], now = Date.now()) {
     const ended = t?.finished ? time(t.finished) : 0;
     const running = t?.status === 'running';
     return {
-      id, title: t?.title || id, product: t?.product || null, status: t?.status || 'unknown', report: t?.report || '', note: t?.note || '', running,
+      id, title: t?.title || (/^T-/.test(id) ? 'A specialist\'s part of a larger task' : id), product: t?.product || null, status: t?.status || 'unknown', report: t?.report || '', note: t?.note || '', running,
       started: Number.isFinite(started) && started ? started : 0, finished: ended,
       ms: started && (ended || running) ? (ended || now) - started : null,
       events: evs,
