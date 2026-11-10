@@ -44,7 +44,7 @@ export const DEFAULT_SCHEDULE = [
     kind: 'task',
     every: 'daily 02:00',
     // Peerlist is left out: the lead-sources skill says only a person can read it, so a sweep would only spend fetches on it.
-    task: 'Nightly lead sweep for motionrepo: only products launched in the last 2 days on the launch boards in the lead-sources skill that agents can read (Product Hunt, Show HN, the Indian launch boards). Prove at most 5 leads, stop early when nothing new turns up, then draft emails for the leads that qualify.',
+    task: 'Nightly lead sweep for all products: find at most 3 new leads that fit the product\'s ideal customer, from sources not searched in the last week (the lead-sources skill), stop early when nothing new turns up, then draft emails for the leads that qualify.',
     enabled: true,
     last_run: null,
     skip_over: 0.6,

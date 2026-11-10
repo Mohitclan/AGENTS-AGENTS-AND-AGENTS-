@@ -38,13 +38,14 @@ const at = (s) => {
 };
 const istDay = (ms) => new Date(ms + 5.5 * 3_600_000).toISOString().slice(0, 10);
 
-// The switch is on unless a person turned it off. `since` is when it was first seen, so tasks that ended before the
+// The switch is off until a person turns it on on the Campaigns page. `since` is when it was first seen, so tasks that ended before the
 // feature existed never start a chain.
 export function loadKeepGoing(root = ROOT, now = Date.now()) {
   const file = join(root, ...FILE);
   const s = readJson(file, null);
-  if (s && typeof s === 'object') return { on: s.on !== false, since: s.since || new Date(now).toISOString(), stopped: s.stopped || {}, chained: Array.isArray(s.chained) ? s.chained : [] };
-  const fresh = { on: true, since: new Date(now).toISOString(), stopped: {}, chained: [] };
+  if (s && typeof s === 'object') return { on: s.on === true, since: s.since || new Date(now).toISOString(), stopped: s.stopped || {}, chained: Array.isArray(s.chained) ? s.chained : [] };
+  // off until a person turns it on (2026-11-10: agents run once a day, otherwise only when asked)
+  const fresh = { on: false, since: new Date(now).toISOString(), stopped: {}, chained: [] };
   saveKeepGoing(root, fresh);
   return fresh;
 }

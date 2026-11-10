@@ -1,6 +1,7 @@
+import { draftText } from './_outreach-fixture.mjs';
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync } from 'node:fs';
-import { after, describe, it } from 'node:test';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { after, before, describe, it } from 'node:test';
 import { classify, matchSend, plan, replyFile, replyStop, stopKey, stripQuoted } from '../replies.mjs';
 import { makeCopy } from './_helpers.mjs';
 
@@ -145,6 +146,11 @@ describe('replies: stopping a sequence', () => {
 describe('send-email refuses a live send after an answer', () => {
   const repo = makeCopy();
   after(() => repo.remove());
+  // its own draft, so the test doesn't depend on the real outputs (a fresh start clears them)
+  before(() => {
+    mkdirSync(repo.path('outputs', 'outreach'), { recursive: true });
+    writeFileSync(repo.path('outputs', 'outreach', 'L-ab940a31.md'), draftText('L-ab940a31'));
+  });
 
   // The pilot list and the sender change as the pilot goes on, so read them from the copy's settings.
   const config = () => JSON.parse(readFileSync(repo.path('ops', 'mail-config.json'), 'utf8'));

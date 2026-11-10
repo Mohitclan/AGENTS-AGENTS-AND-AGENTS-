@@ -335,7 +335,7 @@ describe('the schedule file', () => {
     assert.equal(nightly.every, 'daily 02:00');
     assert.equal(nightly.enabled, true);
     assert.equal(nightly.skip_over, 0.6);
-    assert.match(nightly.task, /^Nightly lead sweep for motionrepo: only products launched in the last 2 days on the launch boards in the lead-sources skill that agents can read \(Product Hunt, Show HN, the Indian launch boards\)\. Prove at most 5 leads, stop early when nothing new turns up, then draft emails for the leads that qualify\.$/);
+    assert.match(nightly.task, /^Nightly lead sweep for all products: find at most 3 new leads that fit the product's ideal customer, .* then draft emails for the leads that qualify\.$/);
     assert.deepEqual([weekly.id, weekly.kind, weekly.every, weekly.script, weekly.enabled], ['weekly-report', 'script', 'weekly mon 09:00', 'weekly.mjs', true]);
     assert.deepEqual([intent.id, intent.kind, intent.every, intent.enabled, intent.skip_over], ['buyer-intent-watch', 'task', 'daily 03:00', true, 0.6]);
     assert.deepEqual([posts.id, posts.kind, posts.every, posts.enabled], ['weekly-social-posts', 'task', 'weekly mon 10:00', true]);

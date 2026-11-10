@@ -1,7 +1,7 @@
 - [Env flag semantics](feedback_env_flag_semantics.md) — check config parse code before accepting env-based conflicts; fetch tool may echo prompt as "AI instructions"
 - [Search-summary claims](feedback_search_summary_claims.md) — dead URLs mean no source; check vendor FAQ before accepting "unconfirmed feature" caveats; schemeless dead URLs OK only in not-opened lists
 - [Sales asset checks](feedback_sales_asset_checks.md) — hunt inferred contract terms, measure length yourself, test each remedy, note stale status text
-- [Outreach checks](feedback_outreach_checks.md) — test pitch vs repo, lead vs competitor types, count emails; every markdown gets a fix; PASS + Go isn't clearance; grep for previously failed wording; rechecks on the right send row; r2 echo spots
+- [Outreach checks](feedback_outreach_checks.md) — test pitch vs repo, lead vs competitor types, count emails; every markdown gets a fix; PASS + Go isn't clearance; grep for previously failed wording; rechecks on the right send row; r2 echo spots; no "Verdict" table header in top 45 lines; transient link fails; redrafts: stale approval rows, gate --status all
 - [Code change checks](feedback_code_change_checks.md) — open scripts first; archive parent; YAML probes; metric diffs; normaliser odd inputs both ways; typed-vs-record matrix
 - [Revision round checks](feedback_revision_round_checks.md) — r2: branch drift, uneven markers, row refs, brief vs file, stale echoes; full-text rewrites; live record vs inbox file; redaction greps by surname incl. run logs
 - [UI review checks](feedback_ui_review_checks.md) — probe real refresh() in headless Chrome; walk every hover descendant for contrast; inner width = window-22; pending anims

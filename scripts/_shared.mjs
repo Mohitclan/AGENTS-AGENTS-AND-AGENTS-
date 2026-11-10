@@ -4,6 +4,10 @@ import { homedir } from 'node:os';
 import { delimiter, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+// Schedules, queue times and reports use India time on every machine, an AWS server (UTC by default) included,
+// unless TZ is set: the 02:00 lead sweep is 2 am in India.
+process.env.TZ ||= 'Asia/Kolkata';
+
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 // The Claude Code command line the background runs use: CLAUDE_BIN, else `claude` on the PATH, else

@@ -30,5 +30,6 @@ On a revision round, go past "was each fix made" and test what the fix introduce
 - Lead fixes arrive as a corrected inbox file plus later coordinator `next`/`hold`/status commands. Judge the live record (`leads.mjs show`) and its `history` order, and flag any stale field left in the inbox file, because re-importing it overwrites the live one.
 - Before accepting "Stop only because of a hold", read `gateOf` and its CRITICAL_SIGNALS list to confirm the hold is the sole Stop source.
 - Redaction rounds: grep the surname and town (not first names) across the whole repo, ops/runs logs included, and test the author's "files still holding it" list. In T-20261106-04 r2 two listed files named a different maker who shared two first names, and two run logs were missed. Before writing "this review records neither X", grep my own review: r1 quoted the age in a fix row and a rewrite "Now:" line.
+- When a stock sentence replaces a removed one (e.g. the read-only line under the no-AI-vendor rule), read the sentence before it: in T-20261110-16 the new line repeated the previous sentence's "never writes" clause. Untracked drafts have no diff, so check against the earlier review's line references and say the diff couldn't be proved.
 
 Related: [[feedback_sales_asset_checks]], [[feedback_search_summary_claims]], [[feedback_lead_batch_checks]]

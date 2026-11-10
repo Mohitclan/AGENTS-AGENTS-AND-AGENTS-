@@ -98,6 +98,7 @@ export async function outreachFixture({ extraLeads = [], noSchedule = [] } = {})
   // The mailbox points nowhere: even a send that got past every check could not reach anyone.
   const config = JSON.parse(readFileSync(repo.path('ops', 'mail-config.json'), 'utf8'));
   config.smtp = { host: '127.0.0.1', port: 9, user: 'sender@ourco.test' };
+  delete config.replies; // automatic answer drafts as shipped (on); the real settings may have them off
   writeFileSync(repo.path('ops', 'mail-config.json'), JSON.stringify(config, null, 2));
   const mod = (name) => import(`${repo.dir}/scripts/${name}`); // the copy's own modules, so ROOT is the copy
   const { ROOT: root } = await mod('_shared.mjs'); // as its modules see it (macOS resolves /var to /private/var): pass this, not repo.dir

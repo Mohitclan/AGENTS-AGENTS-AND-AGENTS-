@@ -4,10 +4,10 @@
     "name": "Nightly lead sweep",
     "kind": "task",
     "every": "daily 02:00",
-    "task": "Nightly lead sweep for motionrepo: only products launched in the last 2 days on the launch boards in the lead-sources skill that agents can read (Product Hunt, Show HN, the Indian launch boards). Prove at most 5 leads, stop early when nothing new turns up, then draft emails for the leads that qualify.",
+    "task": "Nightly lead sweep for all products: find at most 3 new leads that fit the product's ideal customer, from sources not searched in the last week (the lead-sources skill), stop early when nothing new turns up, then draft emails for the leads that qualify.",
     "enabled": true,
-    "last_run": null,
-    "skip_over": 0.6
+    "skip_over": 0.6,
+    "last_run": null
   },
   {
     "id": "weekly-report",
@@ -15,38 +15,42 @@
     "kind": "script",
     "every": "weekly mon 09:00",
     "script": "weekly.mjs",
-    "enabled": true,
-    "last_run": null
+    "enabled": false,
+    "last_run": null,
+    "last_note": "Off since 2026-11-10: the founder wants agents to run once a day (the 02:00 lead sweep) and otherwise only when asked."
   },
   {
     "kind": "task",
-    "enabled": true,
-    "last_run": null,
+    "enabled": false,
     "id": "buyer-intent-watch",
     "name": "Buyer-intent watch",
     "every": "daily 03:00",
     "task": "Buyer-intent watch for motionrepo, run by community-manager: with the buyer-intent-search skill, find up to 8 public posts from the last 2 days where people ask how to make a launch video, a demo or docs from a repo, or complain about the tools they use; save them with a suggested reply each to outputs/research/intent/<date>.md; post nothing.",
-    "skip_over": 0.6
+    "skip_over": 0.6,
+    "last_run": null,
+    "last_note": "Off since 2026-11-10: the founder wants agents to run once a day (the 02:00 lead sweep) and otherwise only when asked."
   },
   {
     "kind": "task",
-    "enabled": true,
-    "last_run": null,
+    "enabled": false,
     "id": "weekly-social-posts",
     "name": "Weekly social posts",
     "every": "weekly mon 10:00",
     "task": "Plan and draft this week's social posts for motionrepo: social-planner writes the week's calendar (outputs/marketing/calendar/), then social-writer drafts 3 LinkedIn posts in the founder's voice (linkedin-founder skill), 2 X posts and 1 dev.to post outline, from confirmed facts only, each saved to outputs/marketing/posts/ and reviewed by the evaluator; publish nothing.",
-    "skip_over": 0.6
+    "skip_over": 0.6,
+    "last_run": null,
+    "last_note": "Off since 2026-11-10: the founder wants agents to run once a day (the 02:00 lead sweep) and otherwise only when asked."
   },
   {
     "kind": "task",
-    "enabled": true,
-    "last_run": null,
+    "enabled": false,
     "id": "weekly-social-report",
     "name": "Weekly social report",
     "every": "weekly mon 11:00",
     "task": "Weekly social report for motionrepo: social-analyst reads ops/posts.jsonl and ops/social-metrics.jsonl (when they exist) and writes outputs/marketing/social-weekly-<date>.md with what worked, honest about small numbers, and up to three tests for next week; publish nothing.",
-    "skip_over": 0.6
+    "skip_over": 0.6,
+    "last_run": null,
+    "last_note": "Off since 2026-11-10: the founder wants agents to run once a day (the 02:00 lead sweep) and otherwise only when asked."
   },
   {
     "id": "social-metrics",
@@ -54,7 +58,8 @@
     "kind": "script",
     "every": "daily 08:00",
     "script": "social-metrics.mjs",
-    "enabled": true,
-    "last_run": null
+    "enabled": false,
+    "last_run": null,
+    "last_note": "Off since 2026-11-10: the founder wants agents to run once a day (the 02:00 lead sweep) and otherwise only when asked."
   }
 ]
