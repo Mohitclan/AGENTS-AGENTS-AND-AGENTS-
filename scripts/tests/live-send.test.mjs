@@ -537,4 +537,38 @@ describe('a real send through send-email.mjs (a local sink: no mail leaves this 
     assert.match(r.message, /^Email 1 for Acme already went to the lead\.$|^Email 1 for Acme is already approved and sent\.$/);
     assert.equal(received.length, 2);
   });
+
+  // Production (2026-11-10): after go live, every email reaches the lead itself, as a real email in the house format,
+  // never as a [TEST] copy and never to the pilot's test inboxes.
+  it('sends the first email to the lead with no [TEST] mark, the logo signature, and none of the pilot inboxes', () => {
+    const toLead = received[0];
+    assert.deepEqual(toLead.rcpt, ['<jane@acme.test>']);
+    assert.doesNotMatch(toLead.text, /\[TEST\]/);
+    assert.match(toLead.text, /Content-Type: text\/html/i, 'it goes as HTML');
+    assert.match(toLead.text, /Content-Type: image\/png/i, 'with the logo signature attached inline');
+    assert.match(toLead.text, /Best regards,/);
+    const pilot = ['1609purab@gmail.com', 'tanvinishad.official@gmail.com', 'mohitkumar.sep08@gmail.com'];
+    for (const m of received) for (const to of m.rcpt) assert.ok(!pilot.some((p) => to.includes(p)), `went to a pilot inbox: ${to}`);
+  });
+
+  it('sends a ticked follow-up to the lead on its day, also with the logo signature', async () => {
+    const { sendDue } = await fx.mod('followups.mjs');
+    const before = received.length;
+    const was = process.env.SMTP_PASS;
+    process.env.SMTP_PASS = 'test-only';
+    let r;
+    try {
+      r = await sendDue(fx.root, new Date(Date.now() + 21 * 86_400_000)); // well past Email 2's working day
+    } finally {
+      if (was === undefined) delete process.env.SMTP_PASS;
+      else process.env.SMTP_PASS = was;
+    }
+    assert.equal(r.sent.length, 1, JSON.stringify(r));
+    const followUp = received.slice(before).find((m) => m.rcpt[0] === '<jane@acme.test>');
+    assert.ok(followUp, 'the follow-up reached the lead');
+    assert.doesNotMatch(followUp.text, /\[TEST\]/);
+    assert.match(followUp.text, /Subject: Second/);
+    assert.match(followUp.text, /Content-Type: image\/png/i, 'logo signature on the follow-up too');
+    assert.match(followUp.text, /reply 'stop'|reply =E2=80=98stop|reply &#39;stop/i, 'the follow-up keeps its opt-out line');
+  });
 });

@@ -97,6 +97,10 @@ To opt out, reply 'stop' and I won't write again.
 
 Rules for both: never start with "I", never "just following up", "circling back" or "bumping this", no second question, no booking link, no new claim that isn't in the fact sheet. Write the first email's send day into the brief; never guess what day it is.
 
+## Answers to replies
+
+An answer to a lead's reply is a real email too: it ends with "Best regards," and `{{COMPANY_NAME}}` on the next line (the logo signature), then the opt-out line, like the follow-ups. lint-copy fails it otherwise.
+
 ## LinkedIn note
 
 Under 300 characters, tied to the same evidence, same "product is ready" wording, no pitch.

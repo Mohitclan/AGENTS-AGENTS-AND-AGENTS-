@@ -411,9 +411,10 @@ function checkEmails(lines, start, report, answer = false) {
     // The email-template skill's first email ends on its signature, with no opt-out line (the human's choice, 2026-11-10).
     if (!OPT_OUT.test(text) && !HOUSE_CLOSING.test(text)) report.fail('email-optout', email.from + 1, `email ${email.n} has no opt-out line`);
     if ((text.match(/\?/g) || []).length > 1) report.warn('email-cta', email.from + 1, `email ${email.n} asks more than one question; keep to one call to action`);
-    // Every email, first, follow-up and last, signs off with the house signature (the founder's rule of 2026-11-10):
+    // Every email, first, follow-up, last and an answer to a reply, signs off with the house signature (the founder's
+    // rule of 2026-11-10):
     // "Best regards," then {{COMPANY_NAME}} on the next line, which send-email.mjs turns into the logo signature.
-    if (!answer && !part.some((l, k) => /^Best regards,\s*$/.test(l.trim()) && /^(\{\{COMPANY_NAME\}\}|PanScience Innovations)\s*$/.test((part.slice(k + 1).find((x) => x.trim()) || '').trim()))) report.fail('email-signature', email.from + 1, `email ${email.n} doesn't end with "Best regards," and {{COMPANY_NAME}} (the logo signature)`);
+    if (!part.some((l, k) => /^Best regards,\s*$/.test(l.trim()) && /^(\{\{COMPANY_NAME\}\}|PanScience Innovations)\s*$/.test((part.slice(k + 1).find((x) => x.trim()) || '').trim()))) report.fail('email-signature', email.from + 1, `email ${email.n} doesn't end with "Best regards," and {{COMPANY_NAME}} (the logo signature)`);
     // Emails never name the AI behind a product (the founder's rule of 2026-11-10): no Claude, Anthropic and the like.
     const vendor = AI_VENDOR.exec(text);
     if (vendor) report.fail('email-ai-vendor', email.from + 1, `email ${email.n} names "${vendor[0]}": don't say which AI the product uses`);
