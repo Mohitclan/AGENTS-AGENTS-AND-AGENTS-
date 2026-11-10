@@ -1129,10 +1129,10 @@ function productOfText(text, products) {
 const runProduct = (run, products) => run.product || productOfText(run.title, products);
 
 const CAMPAIGN_TASKS = {
-  research: (p) => `Research ${p.name}: find its competitors and write the competitor file, and describe its ideal customer.`,
+  research: (p) => `Starter research for ${p.name}: its top 3 competitors and a short ideal-customer profile in its competitor file, from at most 8 pages.`,
   leads: (p) => `Find new ${p.name} leads that fit its ideal customer, with evidence, and draft emails for those that qualify.`,
   drafts: (p) => `Draft an email sequence for every qualified ${p.name} lead that has none yet, and have the evaluator review them.`,
-  all: (p) => `Run the campaign end to end for ${p.name}: research if it has no competitor file yet, then find leads and draft emails for those that qualify.`,
+  all: (p) => `Run the campaign end to end for ${p.name}: starter research if it has no competitor file yet (top 3 competitors and a short ideal-customer profile), then find leads (at most 3 for a first batch) and draft emails for those that qualify.`,
 };
 
 function campaignCard(p, runs, products) {

@@ -8,8 +8,6 @@ color: green
 memory: project
 skills:
   - lead-sources
-  - browser-research
-  - buyer-intent-search
   - fact-sourcing
 fallback: lead-scout-fallback
 ---
@@ -46,3 +44,10 @@ Then the dropped counts and the blocked list.
 - Don't ask other agents; you have nobody to call.
 
 End with the RESULT block from CLAUDE.md. Put the candidate count, the dropped count and the blocked sources in the summary.
+
+## Skills to open when needed
+
+These playbooks are not preloaded, to keep every step of your task cheaper. Read the file when its moment comes, once per task:
+
+- `.claude/skills/browser-research/SKILL.md`: when WebFetch returns a blank or "enable JavaScript" page, before any browser call.
+- `.claude/skills/buyer-intent-search/SKILL.md`: when the brief asks for need evidence or buyer-intent posts.

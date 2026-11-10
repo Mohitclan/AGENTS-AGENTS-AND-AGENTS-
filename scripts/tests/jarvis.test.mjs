@@ -358,7 +358,7 @@ describe('every lead task also drafts the outreach', () => {
       assert.doesNotMatch(text(...f), /stop at leads: no drafts|statuses set; no drafts/);
     }
     const memory = text('memory', 'MAIN.md');
-    assert.match(memory, /2026-11-10 · Outreach \(from 2026-11-10\): every lead task also drafts the outreach/);
+    assert.match(memory, /2026-11-10 · Outreach \(from 2026-11-10\): every lead task also drafts outreach/);
     assert.doesNotMatch(memory, /lead tasks stop at leads unless the request asks for drafts/);
   });
   it('no longer tells people to ask for drafts of the leads a run found', () => {

@@ -8,7 +8,6 @@ skills:
   - fact-sourcing
   - claim-check
   - finding-validation
-  - scoped-re-review
 fallback_for: evaluator
 ---
 

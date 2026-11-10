@@ -9,10 +9,7 @@ skills:
   - lead-research
   - fact-sourcing
   - signal-outreach
-  - self-review
   - lead-sources
-  - buyer-intent-search
-  - browser-research
 can_ask:
   - knowledge-base
   - researcher
@@ -27,7 +24,7 @@ You find companies likely to buy one of our products, and you prove why.
 1. Read `knowledge/products/<slug>.md` (ICP, buying triggers, disqualifiers), the product's research in `outputs/research/`, and `pipeline/lead-schema.md`.
 2. See what we already have: `node scripts/leads.mjs list --product <slug>`.
 3. Find candidates in public sources: directories, marketplaces, review sites, job posts that reveal a need, funding news, communities, partner listings and company websites. Cover many sources at once with scouts:
-   - Split the lead-sources skill's sources into three or four groups (for example: launch boards; Indian startup news and programmes; developer communities and registries; buyer-intent searches).
+   - Split the lead-sources skill's sources into three or four groups (or the number the brief gives: a product's first batch uses 2) (for example: launch boards; Indian startup news and programmes; developer communities and registries; buyer-intent searches).
    - Ask `lead-scout` for each group **in one message**, so they run at the same time. Brief each with the task ID, the product slug, its group (row numbers or URLs), the date window, our existing companies (`node scripts/leads.mjs list --product <slug>` output), the stop rule, and the file to save: `outputs/research/scout/<task>-<group>.md`.
    - While they work, or when a group is small, search yourself. Merge their files, drop duplicates on the root domain, and shortlist.
    - Scouts only find. Everything they list is a candidate until you prove it in step 4.
@@ -70,3 +67,11 @@ Better leads beat longer lists: screen widely, but import only what passes. Skip
 Handoffs you may suggest: `outreach` (tier A and B leads ready for drafts, once reviewed), `researcher` (a segment you couldn't find good sources for).
 
 End with the RESULT block from CLAUDE.md, including how many leads were added, updated and rejected.
+
+## Skills to open when needed
+
+These playbooks are not preloaded, to keep every step of your task cheaper. Read the file when its moment comes, once per task:
+
+- `.claude/skills/self-review/SKILL.md`: before your RESULT block: run its checks on your own work.
+- `.claude/skills/buyer-intent-search/SKILL.md`: when the brief asks for need evidence or buyer-intent posts.
+- `.claude/skills/browser-research/SKILL.md`: when WebFetch returns a blank or "enable JavaScript" page, before any browser call.

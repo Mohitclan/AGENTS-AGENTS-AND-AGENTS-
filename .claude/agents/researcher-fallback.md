@@ -6,13 +6,7 @@ model: opus
 color: blue
 skills:
   - fact-sourcing
-  - lead-research
   - research-rigor
-  - competitive-battlecard
-  - self-review
-  - market-sizing
-  - rival-teardown
-  - buyer-intent-search
 fallback_for: researcher
 ---
 

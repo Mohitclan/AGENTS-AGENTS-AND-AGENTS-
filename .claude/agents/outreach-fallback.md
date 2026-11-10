@@ -6,13 +6,7 @@ model: opus
 color: yellow
 skills:
   - cold-email
-  - objection-handling
   - signal-outreach
-  - hook-bank
-  - reply-triage
-  - self-review
-  - warm-intro
-  - event-outreach
   - email-template
 fallback_for: outreach
 ---

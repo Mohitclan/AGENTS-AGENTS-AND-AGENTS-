@@ -6,8 +6,6 @@ model: opus
 color: green
 skills:
   - lead-sources
-  - browser-research
-  - buyer-intent-search
   - fact-sourcing
 fallback_for: lead-scout
 ---
