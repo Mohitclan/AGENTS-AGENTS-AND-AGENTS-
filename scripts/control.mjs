@@ -31,6 +31,7 @@ import { BRAND, faviconHref, lockupSvg } from './control/gems/logo.js';
 import { askGuide, guideContext } from './guide.mjs';
 import { listSongs, sendSong } from './music.mjs';
 import { projectsApi } from './projects.mjs';
+import { campaignsState, productList, productOf } from './campaigns.mjs';
 import { approveAndSend, decideEmails, draftEmails, logRequest, outreachState, planApproval, planDrafts, planEmails } from './outreach.mjs';
 import { sendDue } from './followups.mjs';
 import { setPilot } from './golive.mjs';
@@ -492,6 +493,21 @@ function postsCached(root) {
   return postsMemo.value;
 }
 
+// The Campaigns page's numbers; they follow the outreach and question states, so they are rebuilt with them.
+let campaignsMemo = { key: '', value: null };
+function campaignsCached(root, outreach, questions) {
+  const stamp = (rel) => { try { return statSync(join(root, rel)).mtimeMs; } catch { return 0; } };
+  const key = `${(outreach?.emails || []).map((e) => e.state).join('')}|${outreach?.drafts?.length}|${questions?.open}|${['pipeline/leads.jsonl', 'ops/send-log.jsonl', 'ops/replies.jsonl'].map(stamp).join(',')}|${productList(root).map((p) => p.slug + p.factSheet).join(',')}|${existsSync(join(root, 'knowledge', 'competitors')) ? readdirSync(join(root, 'knowledge', 'competitors')).join(',') : ''}`;
+  if (key !== campaignsMemo.key) {
+    try {
+      campaignsMemo = { key, value: campaignsState(root, { outreach, questions }) };
+    } catch (error) {
+      campaignsMemo = { key, value: { products: [], error: error.message } };
+    }
+  }
+  return campaignsMemo.value;
+}
+
 export function snapshot(root = ROOT) {
   const base = collect(root);
   const roster = loadRoster(root);
@@ -560,11 +576,15 @@ export function snapshot(root = ROOT) {
     ...list(root, 'knowledge/proposals').filter((f) => f !== 'README.md' && !/-changes\.md$/.test(f)).map((f) => ({ kind: 'knowledge', id: f.replace(/\.md$/, ''), text: `Proposal waiting for a person to apply and confirm: ${f}`, ref: `knowledge/proposals/${f}` })),
   ];
   const reviews = events.filter((e) => e.kind === 'review');
+  const outreach = outreachCached(root);
+  const questions = questionsCached(root);
+  const campaigns = campaignsCached(root, outreach, questions);
   return {
     at: new Date().toISOString(),
     live: !!live,
-    outreach: outreachCached(root),
-    questions: questionsCached(root),
+    outreach,
+    questions,
+    campaigns,
     posts: postsCached(root),
     running: base.running ? { id: base.running.id, title: base.running.title, started: base.running.started } : null,
     usage: base.usage,
@@ -578,7 +598,7 @@ export function snapshot(root = ROOT) {
     agents,
     feed: events.filter((e) => e.kind !== 'read').slice(0, 60),
     flags,
-    tasks: base.tasks.map((t) => ({ id: t.id, title: t.title, status: t.status, added: t.added, started: t.started, finished: t.finished, report: t.report, note: t.note })),
+    tasks: base.tasks.map((t) => ({ id: t.id, product: t.product || productOf(t.task, campaigns.products || []), title: t.title, status: t.status, added: t.added, started: t.started, finished: t.finished, report: t.report, note: t.note })),
     leads: leads.map((l) => ({ id: l.id, company: l.company, status: l.status, tier: l.tier, score: l.score, segment: l.segment, contact: l.contact?.channel || null, evidence: (l.evidence || []).filter((e) => !e.superseded).length, next: l.next_action, sequence: l.sequence, review: l.review, hold: l.hold?.reason || null, updated: l.updated_at, reason: l.disqualify_reason || null })),
     approvals: approvals.length,
     schedule: scheduleState(root),
@@ -639,7 +659,7 @@ function signature(root) {
 
 const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.glb': 'model/gltf-binary', '.png': 'image/png', '.jpg': 'image/jpeg', '.mp3': 'audio/mpeg', '.wav': 'audio/wav' };
-const STATIC_FILES = /^(app\.js|app\.css|signin\.js|(gems|office3d|world)\/[\w-]+\.(js|css))$/;
+const STATIC_FILES = /^(app\.js|app\.css|signin\.js|logs-story\.js|(gems|office3d|world)\/[\w-]+\.(js|css))$/;
 // The 3D office: its character model, and the Three.js files it uses (copied in by
 // scripts/vendor-three.mjs). Both are cached for a day; everything else is no-store.
 const ASSET_FILES = /^assets\/((people\/)?[\w-]+\.glb|people\/Textures\/[\w-]+\.png|world\/[\w-]+\.jpg|crew\/[\w-]+\.png|sounds\/[\w-]+\.(mp3|wav)|dog\/[\w-]+\.png)$/;

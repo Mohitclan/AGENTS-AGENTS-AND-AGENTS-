@@ -21,6 +21,7 @@ import { MAPS } from './world/maps.js';
 import { OFFICES, officeById } from './world/offices.js';
 import { createWorld3D, webgl3dAvailable } from './world/world3d.js';
 import { createWorld } from './world/worldview.js';
+import { buildGroups, duration, filterGroups, isNoise, isProblem, storyLines, TASK_BAD } from './logs-story.js';
 
 // The agents' names and jobs as people read them. Their characters live in gems/identities.js.
 const AGENTS = {
@@ -110,6 +111,7 @@ function shell() {
     <a class="brand" href="#/">${lockupSvg('brand-logo', BRAND.name)}</a>
     <nav class="nav" aria-label="Pages">
       <a href="#/offices" data-nav="offices">Offices</a>
+      <a href="#/campaigns" data-nav="campaigns">Campaigns</a>
       <a href="#/" data-nav="home">Home</a>
       <a href="#/working" data-nav="working">Working</a>
       <a href="#/team" data-nav="team">Team</a>
@@ -251,7 +253,10 @@ function updateShell(snap) {
   $('#posts-count').textContent = snap.posts?.counts?.waiting || '';
   $('#live').className = `live ${snap.live ? 'on' : ''}`;
   $('#live').innerHTML = snap.live ? '<i></i>Live' : '<i></i>Idle';
-  $('#top-run').innerHTML = snap.running ? `<b>${esc(snap.running.id)}</b> ${esc(snap.running.title)}` : '<span class="muted">No task running. Give the team one on the overview.</span>';
+  const runs = runsOf(snap);
+  const prods = snap.campaigns?.products || [];
+  $('#top-run').innerHTML = runs.length > 1 ? `<a href="#/campaigns"><b>${runs.length} tasks running:</b> ${runs.map((r) => esc(prods.find((p) => p.slug === runProduct(r, prods))?.name || r.id)).join(', ')}</a>`
+    : runs.length ? `<b>${esc(runs[0].id)}</b> ${esc(runs[0].title)}` : '<span class="muted">No task running. Give the team one on the overview, or start a campaign.</span>';
   dock.update(snap.agents);
   const nav = $('#agents-nav');
   if (nav.children.length !== snap.agents.length) {
@@ -1111,43 +1116,143 @@ const agentView = {
   },
 };
 
+// ---- campaigns -----------------------------------------------------------------------------------
+
+// Every task running now: the state's `runs` (tasks for different products run side by side), or the one `running`.
+const runsOf = (snap) => snap?.runs || (snap?.running && snap.live ? [{ ...snap.running, product: null, agents: [] }] : []);
+// The product a run or task is about: the one product its text names.
+function productOfText(text, products) {
+  const t = String(text || '').toLowerCase();
+  const hit = products.filter((p) => t.includes(p.name.toLowerCase()) || new RegExp(`\\b${p.slug}\\b`).test(t));
+  return hit.length === 1 ? hit[0].slug : null;
+}
+const runProduct = (run, products) => run.product || productOfText(run.title, products);
+
+const CAMPAIGN_TASKS = {
+  research: (p) => `Research ${p.name}: find its competitors and write the competitor file, and describe its ideal customer.`,
+  leads: (p) => `Find new ${p.name} leads that fit its ideal customer, with evidence, and draft emails for those that qualify.`,
+  drafts: (p) => `Draft an email sequence for every qualified ${p.name} lead that has none yet, and have the evaluator review them.`,
+  all: (p) => `Run the campaign end to end for ${p.name}: research if it has no competitor file yet, then find leads and draft emails for those that qualify.`,
+};
+
+function campaignCard(p, runs, products) {
+  const f = p.funnel;
+  const r = p.readiness;
+  const now = runs.filter((x) => runProduct(x, products) === p.slug);
+  const running = now.length
+    ? `<p class="camp-run"><i class="live-dot"></i><b>Running now:</b> ${now.map((x) => `${esc(x.title || x.id)}${x.agents?.length ? ` <span class="muted">(${x.agents.map((a) => esc(agentName(a))).join(', ')})</span>` : ''}`).join('; ')}</p>`
+    : '<p class="camp-run idle muted">Idle</p>';
+  const step = (label, value, note = '') => `<div class="camp-step"><div class="camp-v">${esc(value)}</div><div class="camp-l">${esc(label)}</div>${note ? `<div class="kpi-n">${esc(note)}</div>` : ''}</div>`;
+  const wait = [
+    p.waiting.emails ? `<a href="#/emails">${p.waiting.emails} ${p.waiting.emails === 1 ? 'email' : 'emails'} to tick</a>` : '',
+    p.waiting.questions ? `<a href="#/questions">${p.waiting.questions} open ${p.waiting.questions === 1 ? 'question' : 'questions'}</a>` : '',
+    p.waiting.held ? `<a href="#/leads">${p.waiting.held} ${p.waiting.held === 1 ? 'lead' : 'leads'} on hold</a>` : '',
+  ].filter(Boolean);
+  const go = r.next === 'Ready' ? 'p-done' : r.next.startsWith('Start') ? 'p-needs_approval' : 'p-queued';
+  return `<section class="card camp" data-product="${esc(p.slug)}">
+    <div class="sec-h"><h2>${esc(p.name)}</h2>${p.website ? `<a class="tiny" href="${esc(p.website)}" target="_blank" rel="noreferrer">${esc(p.website.replace(/^https?:\/\//, ''))}</a>` : ''}</div>
+    ${running}
+    <div class="camp-funnel">${step('Leads found', f.found)}${step('Qualified', f.qualified)}${step('Drafted', f.drafted, 'leads')}${step('Approved', f.approved, 'emails ticked')}${step('Sent', f.sentTest + f.sentLive, `${f.sentTest} test · ${f.sentLive} live`)}${step('Replies', f.replies)}</div>
+    <p class="camp-wait"><b>Waiting for a person:</b> ${wait.length ? wait.join(' · ') : '<span class="muted">nothing</span>'}</p>
+    <p class="camp-ready"><span class="pill ${go}">${esc(r.next)}</span> <span class="muted tiny">Fact sheet ${r.confirmed ? 'confirmed' : esc(r.factSheet)} · competitor file ${r.competitor ? 'present' : 'missing'} · ${r.leads} ${r.leads === 1 ? 'lead' : 'leads'}</span></p>
+    <div class="camp-actions">
+      <button class="${r.next.startsWith('Start') ? 'primary' : ''}" data-task="research" data-p="${esc(p.slug)}">Research</button>
+      <button data-task="leads" data-p="${esc(p.slug)}">Find leads and draft emails</button>
+      <button data-task="drafts" data-p="${esc(p.slug)}">Draft emails for qualified leads</button>
+    </div>
+  </section>`;
+}
+
+const campaignsView = {
+  key: '',
+  build() {
+    campaignsView.key = '';
+    $('#view').innerHTML = `
+    <div class="page-h"><h1>Campaigns</h1><p class="muted">One card per product: what the team is doing for it, where its leads and emails stand, and what waits for you.</p></div>
+    <section class="card camp-all"><div><b>Run all</b><p class="muted tiny" id="camp-note"></p></div><button class="primary" id="camp-all">Run all campaigns</button></section>
+    <div class="camp-grid" id="camp-body"></div>`;
+    $('#camp-all').addEventListener('click', async () => {
+      const products = store.snap.campaigns?.products || [];
+      $('#camp-all').disabled = true;
+      try {
+        for (const p of products) await api('/api/tasks', { task: CAMPAIGN_TASKS.all(p) });
+        toast(`Sent ${products.length} ${products.length === 1 ? 'task' : 'tasks'} to the team, one per product.`);
+      } catch (error) {
+        toast(error.message, true);
+      } finally {
+        $('#camp-all').disabled = false;
+      }
+    });
+    $('#camp-body').addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-task]');
+      if (!b) return;
+      const p = store.snap.campaigns.products.find((x) => x.slug === b.dataset.p);
+      b.disabled = true;
+      try {
+        toast((await api('/api/tasks', { task: CAMPAIGN_TASKS[b.dataset.task](p) })).message);
+      } catch (error) {
+        toast(error.message, true);
+      } finally {
+        b.disabled = false;
+      }
+    });
+  },
+  update(snap) {
+    const products = snap.campaigns?.products || [];
+    const u = snap.usage?.fiveHour;
+    $('#camp-note').textContent = `Sends one task for each of ${products.length} products. Each task uses your Max plan${u ? `: the 5-hour window is at ${u.reset ? 0 : u.used}%` : ''}. Tasks wait while a window is over 85%.`;
+    const runs = runsOf(snap);
+    const key = JSON.stringify([products, runs.map((r) => [r.id, r.product, r.agents])]);
+    if (key === campaignsView.key) return;
+    campaignsView.key = key;
+    $('#camp-body').innerHTML = products.map((p) => campaignCard(p, runs, products)).join('') || '<p class="muted">No products yet. Add one under knowledge/products.</p>';
+  },
+};
+
 // ---- logs ----------------------------------------------------------------------------------------
 
 const logs = {
+  f: { product: '', agent: '', problems: false, q: '', limit: 25 },
+  open: new Map(), // task ID -> opened or closed by the reader (running tasks start open)
+  details: new Set(), // task IDs whose raw steps are shown
   build() {
-    const f = store.filters;
+    const f = logs.f;
     const agents = [...roster().map((a) => a.name), 'system'];
+    const products = store.snap?.campaigns?.products || [];
     $('#view').innerHTML = `
-    <div class="page-h"><h1>Logs</h1><p class="muted">Every step every agent took: hand-offs, web lookups, files, reviews, checks, sends and failures.</p></div>
+    <div class="page-h"><h1>Logs</h1><p class="muted">What the team did, task by task, in plain words. Open a task to read its steps.</p></div>
     <section class="card filters">
+      <label>Product <select id="f-product"><option value="">All products</option>${products.map((p) => `<option value="${esc(p.slug)}" ${f.product === p.slug ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
       <label>Agent <select id="f-agent"><option value="">All agents</option>${agents.map((n) => `<option value="${esc(n)}" ${f.agent === n ? 'selected' : ''}>${esc(agentName(n))}</option>`).join('')}</select></label>
-      <label>Kind <select id="f-kind"><option value="">All kinds</option>${Object.entries(KIND).map(([k, v]) => `<option value="${k}" ${f.kind === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></label>
-      <label>Result <select id="f-status"><option value="">All</option><option value="failed" ${f.status === 'failed' ? 'selected' : ''}>Failed only</option><option value="ok" ${f.status === 'ok' ? 'selected' : ''}>OK only</option></select></label>
-      <label class="grow">Search <input id="f-q" type="search" value="${esc(f.q)}" placeholder="Company, file, URL…"></label>
-      <label class="check"><input type="checkbox" id="f-reads" ${f.reads ? 'checked' : ''}> File reads</label>
-      <div class="seg" role="group" aria-label="View"><button data-view="table" aria-pressed="${f.view === 'table'}">Table</button><button data-view="lanes" aria-pressed="${f.view === 'lanes'}">Columns per agent</button></div>
+      <label class="grow">Search <input id="f-q" type="search" value="${esc(f.q)}" placeholder="Company, file, task…"></label>
+      <label class="check"><input type="checkbox" id="f-problems" ${f.problems ? 'checked' : ''}> Only problems</label>
     </section>
     <section id="log-body"><p class="muted">Loading…</p></section>`;
     const on = (id, key, ev = 'change') => $(id).addEventListener(ev, (e) => {
       f[key] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
-      f.limit = 400;
+      f.limit = 25;
       logs.paint();
     });
+    on('#f-product', 'product');
     on('#f-agent', 'agent');
-    on('#f-kind', 'kind');
-    on('#f-status', 'status');
     on('#f-q', 'q', 'input');
-    on('#f-reads', 'reads');
-    $('.seg').addEventListener('click', (e) => {
-      const b = e.target.closest('[data-view]');
-      if (!b) return;
-      f.view = b.dataset.view;
-      for (const x of $$('.seg button')) x.setAttribute('aria-pressed', String(x === b));
-      logs.paint();
-    });
+    on('#f-problems', 'problems');
     $('#log-body').addEventListener('click', (e) => {
       if (e.target.id === 'more') {
-        f.limit += 400;
+        f.limit += 25;
+        return logs.paint();
+      }
+      const det = e.target.closest('[data-details]');
+      if (det) {
+        const id = det.dataset.details;
+        if (logs.details.has(id)) logs.details.delete(id);
+        else logs.details.add(id);
+        return logs.paint();
+      }
+      if (e.target.closest('a')) return;
+      const head = e.target.closest('[data-toggle]');
+      if (head) {
+        logs.open.set(head.dataset.toggle, !head.closest('.lg').classList.contains('open'));
         logs.paint();
       }
     });
@@ -1167,22 +1272,36 @@ const logs = {
     logs.load(false);
   },
   paint() {
-    const f = store.filters;
-    const q = f.q.trim().toLowerCase();
-    const list = (store.logs || []).filter((e) => (f.reads || e.kind !== 'read') && (!f.agent || e.agent === f.agent) && (!f.kind || e.kind === f.kind)
-      && (!f.status || (f.status === 'failed' ? e.status === 'failed' : e.status !== 'failed')) && (!q || `${e.text} ${e.task || ''} ${e.ref || ''}`.toLowerCase().includes(q)));
+    const f = logs.f;
     const body = $('#log-body');
-    if (f.view === 'lanes') {
-      const names = f.agent ? [f.agent] : [...roster().map((a) => a.name), 'system'];
-      body.innerHTML = `<div class="lanes">${names.map((n) => {
-        const mine = list.filter((e) => e.agent === n);
-        const bad = mine.filter((e) => e.status === 'failed').length;
-        return `<section class="lane" data-agent="${esc(n)}"><header>${face(n)}<div><b>${esc(agentName(n))}</b><div class="muted tiny">${mine.length} entries${bad ? ` · <span class="bad-text">${bad} failed</span>` : ''}</div></div></header><ol class="feed">${mine.slice(0, 80).map((e) => `<li class="ev s-${esc(e.status)}"><div class="ev-body"><div class="ev-top">${chip(e.kind)}${verdictChip(e.verdict)}<time title="${esc(stamp(e.at))}">${esc(ago(e.at))}</time></div><div class="ev-text">${esc(e.text)}</div>${e.ref ? fileLink(e.ref) : ''}</div></li>`).join('') || '<li class="muted tiny">Nothing here.</li>'}</ol></section>`;
-      }).join('')}</div>`;
-      return;
-    }
-    const rows = list.slice(0, f.limit);
-    body.innerHTML = `<div class="card"><div class="sec-h"><h2>${list.length} entries</h2><span class="muted tiny">Newest first</span></div><div class="wide"><table class="tbl logs-tbl"><thead><tr><th>When</th><th>Agent</th><th>Kind</th><th>What happened</th><th>Task</th><th></th></tr></thead><tbody>${rows.map((e) => `<tr class="s-${esc(e.status)}"><td class="nowrap" title="${esc(e.at)}">${esc(stamp(e.at))}</td><td class="nowrap">${face(e.agent)} ${esc(agentName(e.agent))}</td><td>${chip(e.kind)}</td><td>${esc(e.text)}</td><td class="nowrap">${e.task ? `<code>${esc(e.task)}</code>` : ''}</td><td>${e.ref ? fileLink(e.ref) : ''}</td></tr>`).join('')}</tbody></table></div>${list.length > rows.length ? '<button class="ghost" id="more">Show more</button>' : ''}</div>`;
+    if (!body || !store.logs) return;
+    const products = store.snap?.campaigns?.products || [];
+    // A task's product: the one the state gives it, else the one product its words name.
+    const tasks = (store.snap?.tasks || []).map((t) => ({ ...t, product: t.product || productOfText(t.title, products) }));
+    const groups = filterGroups(buildGroups(store.logs, tasks), f);
+    const shown = groups.slice(0, f.limit);
+    const time = (iso) => (iso ? new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '');
+    body.innerHTML = shown.map((g) => {
+      const key = g.id || 'none';
+      const open = logs.open.has(key) ? logs.open.get(key) : g.running || !!(f.q || f.problems);
+      const lines = storyLines(g.events, agentName);
+      const hidden = g.events.filter(isNoise).length;
+      const pName = products.find((p) => p.slug === g.product)?.name;
+      const bad = TASK_BAD.has(g.status) || g.problems > 0;
+      const why = TASK_BAD.has(g.status) ? (g.note || g.events.find((e) => isProblem(e))?.text || '') : '';
+      const raw = logs.details.has(key) ? `<div class="wide"><table class="tbl logs-tbl"><tbody>${g.events.map((e) => `<tr class="s-${esc(e.status)}"><td class="nowrap">${esc(time(e.at))}</td><td class="nowrap">${face(e.agent)} ${esc(agentName(e.agent))}</td><td>${chip(e.kind)}</td><td>${esc(e.text)}</td></tr>`).join('')}</tbody></table></div>` : '';
+      return `<section class="card lg ${open ? 'open' : ''} ${bad ? 'lg-problem' : ''}">
+        <header class="lg-head" data-toggle="${esc(key)}" tabindex="0" role="button" aria-expanded="${open}">
+          <span class="lg-caret" aria-hidden="true"></span>
+          <div class="lg-title"><div>${g.id ? `<code>${esc(g.id)}</code> ` : ''}${pName ? `<span class="tag">${esc(pName)}</span> ` : ''}<b>${esc(g.title)}</b></div>
+          <div class="muted tiny">${g.started ? esc(stamp(new Date(g.started).toISOString())) : ''}${g.ms != null ? ` · ${esc(duration(g.ms))}` : ''} · ${lines.length} ${lines.length === 1 ? 'step' : 'steps'}${g.problems ? ` · <span class="bad-text">${g.problems} ${g.problems === 1 ? 'problem' : 'problems'}</span>` : ''}</div></div>
+          ${!['other', 'unknown'].includes(g.status) ? statusChip(g.status) : ''}${g.report ? fileLink(g.report, 'Open report') : ''}
+        </header>
+        ${why ? `<p class="lg-why bad-text">Why: ${esc(why)}</p>` : ''}
+        ${open ? `<ol class="story">${lines.map((l) => `<li class="${l.bad ? 'lg-bad' : ''}">${face(l.agent)}<span class="story-t">${esc(l.text)}</span>${l.ref ? fileLink(l.ref) : ''}<time class="muted tiny">${esc(time(l.at))}</time></li>`).join('') || '<li class="muted tiny">No steps match.</li>'}</ol>
+        ${g.events.length ? `<button class="ghost small" data-details="${esc(key)}">${logs.details.has(key) ? 'Hide details' : `Show details (${g.events.length} steps${hidden ? `, ${hidden} routine` : ''})`}</button>` : ''}${raw}` : ''}
+      </section>`;
+    }).join('') + (groups.length > shown.length ? '<button class="ghost" id="more">Show more tasks</button>' : '') || '<p class="muted">Nothing matches.</p>';
   },
 };
 
@@ -1674,6 +1793,7 @@ const home = {
     dock.setVisible(false);
     $('#view').innerHTML = `<div class="home" id="home"><div id="home-office"></div>
       <div class="hud hud-status" id="hud-status"><i class="live-dot"></i><span></span></div>
+      <a class="hud hud-link" href="#/campaigns">Campaigns</a>
       <div class="hud hud-demo" id="hud-demo"></div></div>`;
     home.office = mountOffice($('#home-office'), { roster: roster(), immersive: true, onOpen: (name) => home.card(name) });
     home.demo = attachDemo({
@@ -1730,6 +1850,7 @@ const working = {
       <div><h1>Working</h1><p class="muted" id="w-sub"></p></div>
       <span class="spacer"></span>
       <div id="w-demo"></div>
+      <a class="chip-btn" href="#/campaigns">Campaigns</a>
       <a class="chip-btn" href="#/gems">Gem gallery</a>
     </div>
     <div id="office-host"></div>
@@ -2269,7 +2390,7 @@ function talkCard(c) {
 
 // ---- routing and the stream ----------------------------------------------------------------------
 
-const VIEWS = { offices: officesView, world: worldView, questions: questionsView, home, working, team: teamView, overview, logs, leads: leadsView, outreach: outreachView, emails: emailsView, reports: reportsView, flags: flagsView, agent: agentView, gems: gemsView, float: floatView };
+const VIEWS = { offices: officesView, campaigns: campaignsView, world: worldView, questions: questionsView, home, working, team: teamView, overview, logs, leads: leadsView, outreach: outreachView, emails: emailsView, reports: reportsView, flags: flagsView, agent: agentView, gems: gemsView, float: floatView };
 let current = '';
 VIEWS.posts = postsView;
 
