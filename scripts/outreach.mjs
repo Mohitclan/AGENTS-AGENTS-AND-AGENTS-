@@ -242,14 +242,15 @@ export function draftsState(root = ROOT, leads = latestLeads(root), requested = 
         let pick = [since(ok) && { decision: 'approve', at: ok.at, by: ok.by }, since(own) && own].filter(Boolean).sort((a, b) => a.at.localeCompare(b.at)).pop();
         if (pick?.decision === 'approve' && !pick.live && !pilot.on) pick = null; // ticked in the pilot: test copies only
         const went = lives.filter((e) => e.draft === path && e.email === n);
-        const seen = sendLog.filter((e) => e.draft === path && e.email === n).map((e) => opensOfSend(e, opened)).filter(Boolean);
+        const tracked = sendLog.filter((e) => e.draft === path && e.email === n && e.track);
+        const seen = tracked.map((e) => opensOfSend(e, opened)).filter(Boolean);
         const state = went.length ? 'approved' : pick ? (pick.decision === 'approve' ? 'approved' : 'declined') : reviewState === 'ready' ? 'pending' : 'waiting';
         return {
           n, state, by: pick?.by || (went.length ? 'a person' : ''), at: pick?.at || went.at(-1)?.at || '', note: pick?.note || '', approval: pick?.approval || '', live: !!pick?.live,
           sent: tests.filter((e) => e.draft === path && e.email === n && Date.parse(e.at) >= changed).length,
           liveSent: went.length, liveAt: went.at(-1)?.at || '', liveTo: went.at(-1)?.to || '',
           offset: offsets.has(n) ? offsets.get(n) : null, due: null, dueText: '', after: 0, skip: '', retry: false,
-          opens: seen.reduce((t, o) => t + o.count, 0), openedAt: seen.map((o) => o.last).sort().pop() || '', openAuto: seen.reduce((t, o) => t + o.auto, 0),
+          tracked: tracked.length, opens: seen.reduce((t, o) => t + o.count, 0), openedAt: seen.map((o) => o.last).sort().pop() || '', openAuto: seen.reduce((t, o) => t + o.auto, 0),
         };
       });
       // A real approval whose day came but which was not sent: the follow-up sender recorded why.
@@ -349,7 +350,17 @@ export function outreachState(root = ROOT, now = new Date()) {
     pending: all.reduce((n, d) => n + d.mails.filter((m) => m.state === 'pending').length, 0),
     pilot: { on: pilot.on, canRestore: !!pilot.paused, pausedAt: pilot.paused?.at || null, pausedBy: pilot.paused?.by || '' },
     replies: repliesState(root, all, queue, leads),
+    tracking: trackingState(root),
   };
+}
+
+// Open tracking for the Emails page: whether it is on (ops/mail-config.json), when the opens were last fetched, and
+// how many tracked emails have been opened.
+function trackingState(root) {
+  const t = readJson(join(root, 'ops', 'mail-config.json'), {}).tracking || {};
+  const { fetched_at: fetchedAt, opens } = savedOpens(root);
+  const sends = readJsonl(join(root, 'ops', 'send-log.jsonl')).filter((e) => e.kind === 'outreach' && e.track);
+  return { on: !!(t.enabled && t.base_url), fetchedAt, tracked: sends.length, opened: sends.filter((e) => opensOfSend(e, opens)).length };
 }
 
 // The replies for the Emails page's Replies tab, newest first (the 30 newest): each with who wrote it, its label,
@@ -399,7 +410,7 @@ function emailsOf(root, drafts, leads = latestLeads(root), pilot = pilotStatus(r
       }[m.state];
       return {
         ref: emailRef(d.path, m.n), draft: d.path, lead: d.lead, company: d.company, kind: d.kind, reply: d.reply, n: m.n, of: d.mails.length, subject, body: String(filled).trim(), state: m.state, why, sent: m.sent, liveSent: m.liveSent,
-        retry: m.retry, due: m.due, dueText: m.dueText, offset: m.offset, after: m.after, skip: m.skip, to: who.to || '', toName: who.name || '', cannotSend: who.refuse || '', review: d.review, at: m.at || d.at, opens: m.opens, openedAt: m.openedAt, openAuto: m.openAuto,
+        retry: m.retry, due: m.due, dueText: m.dueText, offset: m.offset, after: m.after, skip: m.skip, to: who.to || '', toName: who.name || '', cannotSend: who.refuse || '', review: d.review, at: m.at || d.at, tracked: m.tracked, opens: m.opens, openedAt: m.openedAt, openAuto: m.openAuto,
       };
     });
   });

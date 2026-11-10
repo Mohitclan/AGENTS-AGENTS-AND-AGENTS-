@@ -1524,7 +1524,7 @@ const followTiming = (m) => (m.dueText ? `Goes on ${m.dueText}, only if there's 
 const EMAIL_LABEL = { pending: 'Waiting for you', approved: 'Sent', declined: 'Declined', waiting: 'In review', scheduled: 'Scheduled', skipped: 'Skipped' };
 const EMAIL_PILL = { pending: 'p-needs_approval', approved: 'p-done', declined: 'p-failed', waiting: 'p-running', scheduled: 'p-queued', skipped: 'p-failed' };
 // Open tracking (scripts/opens.mjs): how often the email's image was loaded, and when last. A hint, not proof it was read.
-const openedChip = (m) => (!m.opens ? '' : `<span class="muted tiny" title="${m.openAuto === m.opens ? 'May be automatic: Apple Mail and mail scanners load images by themselves' : 'Times the email\'s image loaded. Gmail caches it, so repeat opens may not show'}">Opened ${m.opens}×${m.openedAt ? ` · ${esc(ago(m.openedAt))}` : ''}${m.openAuto === m.opens ? ' (maybe automatic)' : ''}</span>`);
+const openedChip = (m) => (!m.opens ? (m.tracked ? '<span class="muted tiny" title="No load of the email\'s image yet. Work mail apps often block images, so it may have been read anyway">Not opened yet</span>' : '') : `<span class="muted tiny" title="${m.openAuto === m.opens ? 'May be automatic: Apple Mail and mail scanners load images by themselves' : 'Times the email\'s image loaded. Gmail caches it, so repeat opens may not show'}">Opened ${m.opens}×${m.openedAt ? ` · ${esc(ago(m.openedAt))}` : ''}${m.openAuto === m.opens ? ' (maybe automatic)' : ''}</span>`);
 const emailLabel = (m) => (m.state === 'scheduled' ? (m.dueText ? `Scheduled for ${m.dueText}` : 'Scheduled') : m.state === 'approved' && m.retry ? 'Approved, not sent' : EMAIL_LABEL[m.state] || m.state);
 const REPLY_LABEL = { interested: 'Interested', question: 'Question', not_interested: 'Not interested', reply: 'Reply', opt_out: 'Opt-out', complaint: 'Complaint', bounce: 'Bounce', auto_reply: 'Auto-reply' };
 const REPLY_PILL = { interested: 'p-done', question: 'p-running', not_interested: 'p-new', reply: 'p-queued', opt_out: 'p-failed', complaint: 'p-failed', bounce: 'p-failed', auto_reply: 'p-new' };
@@ -1629,7 +1629,7 @@ const emailsView = {
   open: new Set(),
   onClick: null,
   build() {
-    $('#view').innerHTML = `<div class="page-h"><h1>Emails</h1><p class="muted" id="em-intro"></p></div>
+    $('#view').innerHTML = `<div class="page-h"><h1>Emails</h1><p class="muted" id="em-intro"></p><p class="muted tiny" id="em-track"></p></div>
       <section class="card gl" id="gl">
         <div class="gl-top"><span class="pill" id="gl-mode"></span><p class="muted" id="gl-what"></p><div class="gl-actions"><button type="button" class="primary small" id="gl-end">End the pilot…</button><button type="button" class="small" id="gl-back" hidden>Back to pilot</button></div></div>
         <form class="gl-confirm" id="gl-confirm" hidden><label for="gl-type">Type <b>go live</b> to end the pilot. After that, a ✓ sends to the lead for real.</label><input id="gl-type" type="text" autocomplete="off" spellcheck="false" placeholder="go live"><button type="submit" class="primary small" id="gl-go" disabled>End the pilot</button><button type="button" class="small" id="gl-cancel">Cancel</button></form>
@@ -1696,6 +1696,12 @@ const emailsView = {
     $('#gl-what').textContent = live
       ? `A ✓ sends the email to the lead for real. Email 2 or 3 ticked before its day is scheduled for that day, and goes only if nobody has replied. ${o.pilot.canRestore ? 'Back to pilot restores the test-only rule exactly as it was.' : 'No test recipients were set aside, so going back means adding them to ops/mail-config.json.'}`
       : 'A ✓ sends a [TEST] copy to the test recipients only; nothing reaches a lead. Ending the pilot lets a ✓ send to the lead for real, and sends follow-ups on their day.';
+    // Open tracking (scripts/opens.mjs): whether it is on, and how many tracked emails were opened. Each sent email's
+    // card says "Opened N×" or "Not opened yet".
+    const tr = o.tracking || {};
+    $('#em-track').innerHTML = tr.on
+      ? `<b>Open tracking: on.</b> ${tr.tracked ? `${tr.opened} of ${tr.tracked} tracked email${tr.tracked === 1 ? '' : 's'} opened` : 'No tracked email sent yet'}${tr.fetchedAt ? ` · checked ${esc(ago(tr.fetchedAt))}` : ''}. An open is a hint, not proof it was read.`
+      : '<b>Open tracking: off.</b> Once the tracker is set up (tracker/README.md), each sent email shows how often it was opened.';
     $('#gl-end').hidden = live;
     $('#gl-back').hidden = !live || !o.pilot.canRestore;
     if (live) $('#gl-confirm').hidden = true;
