@@ -228,10 +228,16 @@ export function pieces(text, max = 200) {
 // "go start". Questions ("how do I find leads?", "what is the researcher doing?") and chat stay with the guide.
 const WORK_VERB = /^(?:run|re-?run|find|research|draft|write|generate|get|start|launch|kick\s+off|create|plan|prepare|build|make|scout|look\s+for|search\s+for|hunt\s+for|source|qualify|score|review|audit|fix|follow\s+up|reply\s+to|analy[sz]e|study|compare|collect|gather|send)\b/i;
 const POLITE = /^(?:(?:hey|hi|ok|okay|so|now|and|also|then|team)[,.!\s]+)*(?:(?:please|kindly|just|go\s+ahead\s+and|let'?s|can\s+you|could\s+you|would\s+you|will\s+you|i\s+(?:need|want)\s+you\s+to|i(?:'d|\s+would)\s+like\s+you\s+to)[,\s]+)*/i;
+// A long instruction is work too, whatever its first word ("Full team test for MotionRepo: ... find ... draft ..."),
+// unless it is phrased as a question: on 2026-11-11 a pasted team test went to the guide, which reads only the start.
+const QUESTION = /^(?:what|where|when|why|who|whom|which|how|is|are|was|were|do|does|did|can|could|should|would|will|may|tell me|explain|show me|guide me)\b/i;
+const WORK_ANYWHERE = /\b(?:find|draft|write|research|review|audit|plan|run|build|prepare|make|create|scout|check)\b/i;
 export function workIntent(text) {
   const { rest } = addressee(String(text ?? ''));
   const s = rest.replace(TRIGGER, '').replace(POLITE, '').trim();
-  return s.split(/\s+/).length >= 2 && WORK_VERB.test(s) && !localIntent(s);
+  if (localIntent(s)) return false;
+  if (s.split(/\s+/).length >= 2 && WORK_VERB.test(s)) return true;
+  return s.split(/\s+/).length >= 20 && !QUESTION.test(s) && !/\?\s*$/.test(s) && WORK_ANYWHERE.test(s);
 }
 
 // Anything said or typed that isn't a page command or a request for work is a conversation with the guide: a

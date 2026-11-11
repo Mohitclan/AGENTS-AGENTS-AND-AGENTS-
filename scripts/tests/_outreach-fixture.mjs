@@ -99,6 +99,11 @@ export async function outreachFixture({ extraLeads = [], noSchedule = [] } = {})
   const config = JSON.parse(readFileSync(repo.path('ops', 'mail-config.json'), 'utf8'));
   config.smtp = { host: '127.0.0.1', port: 9, user: 'sender@ourco.test' };
   delete config.replies; // automatic answer drafts as shipped (on); the real settings may have them off
+  // Start in the pilot whatever the real settings say (they are live since 2026-11-10): put back any lists go live set aside.
+  if (config.pilot?.paused) {
+    for (const k of ['allow_only', 'test_recipients']) if (config.pilot.paused[k]) config.pilot[k] = config.pilot.paused[k];
+    delete config.pilot.paused;
+  }
   writeFileSync(repo.path('ops', 'mail-config.json'), JSON.stringify(config, null, 2));
   const mod = (name) => import(`${repo.dir}/scripts/${name}`); // the copy's own modules, so ROOT is the copy
   const { ROOT: root } = await mod('_shared.mjs'); // as its modules see it (macOS resolves /var to /private/var): pass this, not repo.dir

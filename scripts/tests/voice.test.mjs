@@ -107,6 +107,15 @@ describe('voice: talking to the guide', () => {
     for (const t of ['how do I find leads', 'what is the researcher doing', 'can you hear me', 'find', 'start the music', 'run the waiting tasks']) assert.equal(workIntent(t), false, t);
   });
 
+  it('sends a long instruction as a task even when it starts with a noun, but not a long question', () => {
+    const team = 'Full team test for MotionRepo, kept small to save the plan, and nothing is sent: knowledge-base checks the fact sheet, researcher updates the top 3 competitors, lead-generator finds at most 3 new leads and outreach drafts the emails, and the evaluator reviews every deliverable.';
+    assert.equal(workIntent(team), true);
+    assert.equal(askIntent(team), false);
+    const question = 'How do I get the team to find leads for MotionRepo and then draft the emails and review them all, so that nothing is sent before I have looked at every one of them myself?';
+    assert.equal(workIntent(question), false);
+    assert.equal(workIntent('The researcher finished the competitor file this morning and the evaluator passed it, which is good news for the MotionRepo campaign next week'), false); // news, not an instruction
+  });
+
   it('still takes "go start" or "send it" to make a task of anything', () => {
     assert.equal(heardTrigger('find five leads go start'), true);
     assert.equal(heardTrigger('find five leads'), false);
